@@ -14,6 +14,12 @@ env_init() {
   if [ ! -r "$ENV_FILE" ] || ! bash -n "$ENV_FILE" >/dev/null 2>&1; then
     die "could not read or parse config at $ENV_FILE — check read permissions and shell assignment syntax (quote values with spaces); correct it locally without sharing secrets, then re-run ./cmail setup"
   fi
+  # Validate in an independent fail-fast shell: conditional callers can suppress
+  # errexit inside sourced files. Config must contain trusted assignments, not
+  # scripts with side effects (the validation and load both evaluate it).
+  if ! "$BASH" -e -o pipefail -c '. "$1"' cmail-config "$ENV_FILE" >/dev/null 2>&1; then
+    die "could not load config at $ENV_FILE — use shell assignments (NAME=value, no spaces around '='); correct it locally without sharing secrets, then re-run ./cmail setup"
+  fi
   local load_status=0 restore_errexit=0
   case "$-" in *e*) restore_errexit=1 ;; esac
   # Bash 3.2 may exit on a failing sourced command even inside an if condition.

@@ -112,6 +112,9 @@ reset
 ACCOUNTS='{"success":false,"errors":[{"message":"Account API rejected request"}]}'
 run_case 'HTTP 200 account rejection retains details' 1 'Account API rejected request'
 reset
+ACCOUNT_HTTP=403 ACCOUNTS="$(jq -nc --arg secret "$CLOUDFLARE_API_TOKEN" '{success:false,errors:[{message:$secret}]}')"
+run_case 'API error details redact the token' 1 '[redacted]'
+reset
 CF_ACCOUNT_ID=wrong
 run_case 'invalid explicit account explains required ID' 1 '32-character account ID'
 assert_absent -q '^POST ' "$TMP/calls"
@@ -170,3 +173,16 @@ for FAIL_AT in zone activation; do
   fi
 done
 printf 'PASS: real setup trap preserves failure status and reports recovery once\n'
+cp "$ROOT/lib/env.sh" "$TMP/cli/lib/env.sh"
+printf 'GDDY_ENV = ote\nDOMAIN=example.com\nDEST_EMAIL=private-test-sentinel\nADDRESSES=hello\n' >"$TMP/cli/.env"
+set +e
+ENV_FILE="$TMP/cli/.env" bash "$TMP/cli/cmail" setup >"$TMP/output" 2>&1
+rc=$?
+set -e
+[ "$rc" = 1 ]
+grep -qF 'could not load config' "$TMP/output"
+grep -qF 'Setup stopped at: Configuration' "$TMP/output"
+assert_absent -qF 'GoDaddy authentication' "$TMP/output"
+assert_absent -qF 'Cloudflare API token' "$TMP/output"
+assert_absent -qF 'private-test-sentinel' "$TMP/output"
+printf 'PASS: malformed configuration blocks all provider steps\n'

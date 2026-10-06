@@ -53,7 +53,10 @@ are detected and skipped.
 ## Configuration
 
 Copy `.env.example` to `.env` (the setup does this for you). `.env` is
-git-ignored and `chmod 600`.
+git-ignored and `chmod 600`. It is trusted Bash assignment configuration
+(`NAME=value`, no spaces around `=`); quote values containing spaces. Do not
+put scripts/commands with side effects in it: setup evaluates it in an isolated
+fail-fast validation shell before loading it, so assignments are evaluated twice.
 
 | Var | Meaning |
 |---|---|

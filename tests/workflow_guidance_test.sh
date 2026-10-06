@@ -74,6 +74,10 @@ printf 'TEST_VALUE="private-test-sentinel\n' >"$ENV_FILE"
 run_expect 'config syntax recovery without value disclosure' 1 env_init 'could not read or parse config' 'shell assignment syntax' './cmail setup'
 printf 'printf "private-test-sentinel\\n"; false\n' >"$ENV_FILE"
 run_expect 'config load recovery without value disclosure' 1 env_init 'could not load config' 'without sharing secrets'
+printf 'GDDY_ENV = ote\nTEST_VALUE=private-test-sentinel\n' >"$ENV_FILE"
+run_expect 'intermediate invalid assignment cannot retain production defaults silently' 1 env_init 'NAME=value' 'no spaces around' 'without sharing secrets'
+printf 'false\nTEST_VALUE=private-test-sentinel\n' >"$ENV_FILE"
+run_expect 'intermediate config failure is not masked by a final assignment' 1 env_init 'could not load config'
 empty_input() { unset TEST_INPUT; env_require_prompt TEST_INPUT 'Test input' <<<''; }
 run_expect 'empty input recovery' 1 empty_input 'TEST_INPUT is required' 'private config' './cmail setup'
 eof_input() { unset TEST_INPUT; env_require_prompt TEST_INPUT 'Test input' --secret </dev/null; }
@@ -87,6 +91,14 @@ save_input() { env_set TEST_INPUT private-test-sentinel; [ "$TEST_INPUT" = priva
 run_expect 'config upsert' 0 save_input
 grep -qxF 'OTHER=value' "$ENV_FILE"
 grep -qxF 'TEST_INPUT=private-test-sentinel' "$ENV_FILE"
+save_quoted_input() {
+  env_set TEST_INPUT 'hello, contact; $(do-not-run)'
+  bash -n "$ENV_FILE"
+  unset TEST_INPUT
+  env_init
+  [ "$TEST_INPUT" = 'hello, contact; $(do-not-run)' ]
+}
+run_expect 'config values with spaces/metacharacters remain assignments' 0 save_quoted_input
 failed_save() { ENV_FILE="$TMP"; env_set TEST_INPUT private-test-sentinel; }
 run_expect 'config write recovery' 1 failed_save 'could not save TEST_INPUT' 'permissions' './cmail setup'
 
