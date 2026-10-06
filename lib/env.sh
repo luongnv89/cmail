@@ -14,14 +14,18 @@ env_init() {
   if [ ! -r "$ENV_FILE" ] || ! bash -n "$ENV_FILE" >/dev/null 2>&1; then
     die "could not read or parse config at $ENV_FILE — check read permissions and shell assignment syntax (quote values with spaces); correct it locally without sharing secrets, then re-run ./cmail setup"
   fi
+  local load_status=0 restore_errexit=0
+  case "$-" in *e*) restore_errexit=1 ;; esac
+  # Bash 3.2 may exit on a failing sourced command even inside an if condition.
+  # Disable errexit explicitly so the contextual error can be shown privately.
+  set +e
   set -a
   # shellcheck source=/dev/null
-  if . "$ENV_FILE" >/dev/null 2>&1; then
-    set +a
-  else
-    set +a
-    die "could not load config at $ENV_FILE — check shell assignments locally without sharing secrets, then re-run ./cmail setup"
-  fi
+  . "$ENV_FILE" >/dev/null 2>&1 || load_status=$?
+  set +a
+  [ "$restore_errexit" = 0 ] || set -e
+  [ "$load_status" = 0 ] \
+    || die "could not load config at $ENV_FILE — check shell assignments locally without sharing secrets, then re-run ./cmail setup"
 }
 
 env_set() { # env_set KEY value — upsert into .env
@@ -31,13 +35,13 @@ env_set() { # env_set KEY value — upsert into .env
     local tmp; tmp=$(mktemp) \
       || die "could not prepare config update — check temporary-directory permissions and disk space, then re-run ./cmail setup"
     if ! { { grep -v "^${key}=" "$ENV_FILE" || [ "$?" = 1 ]; } > "$tmp" \
-      && printf '%s=%s\n' "$key" "$val" >> "$tmp" \
+      && printf '%s=%q\n' "$key" "$val" >> "$tmp" \
       && mv "$tmp" "$ENV_FILE"; }; then
       rm -f "$tmp"
       die "could not save $key in config — check file/directory permissions and disk space, then re-run ./cmail setup; do not share secret values"
     fi
   else
-    printf '%s=%s\n' "$key" "$val" >> "$ENV_FILE" \
+    printf '%s=%q\n' "$key" "$val" >> "$ENV_FILE" \
       || die "could not save $key in config — check file permissions and disk space, then re-run ./cmail setup; do not share secret values"
   fi
   chmod 600 "$ENV_FILE" 2>/dev/null \
