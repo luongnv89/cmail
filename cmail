@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# s-mail — guided free custom-domain email setup (Cloudflare Email Routing + Gmail)
+# cmail — guided free custom-domain email setup (Cloudflare Email Routing + Gmail)
 # Subcommands: setup | status | doctor | help
 set -euo pipefail
 
-SMAIL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CMAIL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 for f in ui env deps godaddy cloudflare gmail; do
-  . "$SMAIL_DIR/lib/$f.sh"
+  . "$CMAIL_DIR/lib/$f.sh"
 done
 
 usage() {
   cat <<EOF
-s-mail — free custom-domain email via Cloudflare Email Routing + Gmail
+cmail — free custom-domain email via Cloudflare Email Routing + Gmail
 
-  ./s-mail setup     guided, idempotent setup (auth via browser OAuth)
-  ./s-mail status    show zone / routing / destination / rules state
-  ./s-mail doctor    verify tools and credentials, change nothing
-  ./s-mail help      this message
+  ./cmail setup     guided, idempotent setup (auth via browser OAuth)
+  ./cmail status    show zone / routing / destination / rules state
+  ./cmail doctor    verify tools and credentials, change nothing
+  ./cmail help      this message
 
 Config lives in .env (created on first run from .env.example).
 DRY_RUN=1 previews the destructive nameserver change.
@@ -49,10 +49,10 @@ cmd_setup() {
 
 cmd_status() {
   env_init
-  [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || die "no token in .env — run ./s-mail setup"
+  [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || die "no token in .env — run ./cmail setup"
   local zone_id="${CF_ZONE_ID:-}"
   if [ -z "$zone_id" ]; then
-    [ -n "${DOMAIN:-}" ] || die "no DOMAIN in .env — run ./s-mail setup"
+    [ -n "${DOMAIN:-}" ] || die "no DOMAIN in .env — run ./cmail setup"
     zone_id=$(cf "$CF_API/zones?name=$DOMAIN" | jq -r '.result[0].id // empty')
     [ -n "$zone_id" ] || die "zone for $DOMAIN not found"
   fi

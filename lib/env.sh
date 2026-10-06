@@ -1,11 +1,11 @@
 # env.sh — .env load / save
 # shellcheck shell=bash
 
-ENV_FILE="${ENV_FILE:-$SMAIL_DIR/.env}"
+ENV_FILE="${ENV_FILE:-$CMAIL_DIR/.env}"
 
 env_init() {
   if [ ! -f "$ENV_FILE" ]; then
-    cp "$SMAIL_DIR/.env.example" "$ENV_FILE"
+    cp "$CMAIL_DIR/.env.example" "$ENV_FILE"
     chmod 600 "$ENV_FILE"
     log "created $ENV_FILE (chmod 600)"
   fi

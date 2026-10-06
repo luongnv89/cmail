@@ -1,4 +1,4 @@
-# s-mail
+# cmail
 
 Interactive setup for a **free custom-domain email address** using
 **Cloudflare Email Routing** (receive) + **Gmail "Send mail as"** (send).
@@ -9,8 +9,8 @@ $0/month for email — you only pay for the domain itself.
 ## Quickstart
 
 ```bash
-git clone https://github.com/luongnv89/s-mail && cd s-mail
-./s-mail setup
+git clone https://github.com/luongnv89/cmail && cd cmail
+./cmail setup
 ```
 
 The script walks you through each step. Authentication is browser-based
@@ -40,9 +40,9 @@ are detected and skipped.
 
 | Command | Description |
 |---|---|
-| `./s-mail setup` | Full guided setup |
-| `./s-mail status` | Show zone, routing, destination, and rule state |
-| `./s-mail doctor` | Check tools + auth without changing anything |
+| `./cmail setup` | Full guided setup |
+| `./cmail status` | Show zone, routing, destination, and rule state |
+| `./cmail doctor` | Check tools + auth without changing anything |
 
 ## Configuration
 
