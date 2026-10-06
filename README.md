@@ -57,6 +57,8 @@ git-ignored and `chmod 600`.
 | `CLOUDFLARE_API_TOKEN` | CF token (Zone:Edit, DNS:Edit, Email Routing Rules:Edit) |
 | `GDDY_ENV` | GoDaddy environment (default `prod`) |
 | `GDDY_PAT` | Optional — PAT instead of OAuth for headless runs |
+| `CF_ZONE_ID` | Auto-populated by `setup` — Cloudflare zone ID, used by `status` |
+| `DRY_RUN` | `1` previews the nameserver change without applying it |
 
 ## What is NOT automated (and why)
 
