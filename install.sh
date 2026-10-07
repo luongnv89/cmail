@@ -37,8 +37,9 @@ check_launcher() {
     local first second
     { IFS= read -r first; IFS= read -r second; } < "$launcher" \
       || fail "unmanaged launcher: $launcher"
-    [ "$first" = '#!/usr/bin/env bash' ] && [ "$second" = "$launcher_marker" ] \
-      || fail "unmanaged launcher: $launcher"
+    if [ "$first" != '#!/usr/bin/env bash' ] || [ "$second" != "$launcher_marker" ]; then
+      fail "unmanaged launcher: $launcher"
+    fi
   fi
 }
 check_config() {
@@ -59,8 +60,9 @@ if [ ! -e "$data_dir" ]; then
   mkdir "$data_dir" || fail 'could not create runtime directory'
   printf '%s\n' 'cmail runtime store v1' > "$data_dir/.cmail-install"
 fi
-[ -f "$data_dir/.cmail-install" ] && [ ! -L "$data_dir/.cmail-install" ] \
-  || fail "unmanaged runtime directory: $data_dir"
+if [ ! -f "$data_dir/.cmail-install" ] || [ -L "$data_dir/.cmail-install" ]; then
+  fail "unmanaged runtime directory: $data_dir"
+fi
 [ "$(< "$data_dir/.cmail-install")" = 'cmail runtime store v1' ] \
   || fail "invalid runtime marker: $data_dir"
 lock="$data_dir/.install-lock"

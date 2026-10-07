@@ -48,8 +48,9 @@ config_literal() { # raw assignment word -> CONFIG_LITERAL (no evaluation)
 
 config_read() {
   CONFIG_KEYS=() CONFIG_VALUES=()
-  [ ! -L "$ENV_FILE" ] && [ -f "$ENV_FILE" ] && [ -O "$ENV_FILE" ] && [ -r "$ENV_FILE" ] \
-    || { config_error 'selected config must be a readable user-owned regular file, not a symlink'; return 3; }
+  if ! { [ ! -L "$ENV_FILE" ] && [ -f "$ENV_FILE" ] && [ -O "$ENV_FILE" ] && [ -r "$ENV_FILE" ]; }; then
+    config_error 'selected config must be a readable user-owned regular file, not a symlink'; return 3
+  fi
   local mode size clean line key raw number=0 seen='|' LC_ALL=C
   mode=$(stat -f %Lp "$ENV_FILE" 2>/dev/null) || mode=$(stat -c %a "$ENV_FILE")
   [ "$mode" = 600 ] || { config_error 'selected config must have mode 600 (chmod 600 on the selected file)'; return 3; }
@@ -153,7 +154,9 @@ env_init() { # setup-only creation and permission repair
       || die "could not create config at $ENV_FILE — check the template exists and the parent directory is writable; create a private config from .env.example, then re-run ./cmail setup"
     log "created $ENV_FILE"
   fi
-  [ ! -L "$ENV_FILE" ] && [ -f "$ENV_FILE" ] && [ -O "$ENV_FILE" ] || die 'config must be a user-owned regular file, not a symlink'
+  if ! { [ ! -L "$ENV_FILE" ] && [ -f "$ENV_FILE" ] && [ -O "$ENV_FILE" ]; }; then
+    die 'config must be a user-owned regular file, not a symlink'
+  fi
   chmod 600 "$ENV_FILE" 2>/dev/null \
     || die "could not secure config at $ENV_FILE — check file ownership/permissions, set chmod 600, then re-run ./cmail setup"
   config_load || { printf 'cmail: could not load config; use literal NAME=value assignments and valid shell assignment syntax, without sharing secrets; re-run ./cmail setup.\n' >&2; return 3; }
@@ -262,8 +265,9 @@ config_set_command() {
     # Read to EOF, a NUL, or the size cap. Unlike command substitution this
     # detects NUL without silently discarding it. Only one trailing LF is allowed.
     IFS= read -r -d '' -n 4098 value || read_status=$?
-    [ "$read_status" != 0 ] && [ "${#value}" -lt 4098 ] \
-      || { config_error 'stdin must contain one value, without NUL, at most 4096 bytes'; return 3; }
+    if [ "$read_status" = 0 ] || [ "${#value}" -ge 4098 ]; then
+      config_error 'stdin must contain one value, without NUL, at most 4096 bytes'; return 3
+    fi
     value="${value%$'\n'}"
   else value="${CLI_ARGS[1]}"; fi
   [ "${#value}" -le 4096 ] || { config_error 'value exceeds 4096 bytes'; return 3; }

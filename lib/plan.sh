@@ -30,7 +30,7 @@ cmd_setup_plan() {
   # A supplied PAT prevents that flow. Otherwise report the delegation check as
   # blocked rather than invoking a command that could launch a browser or save tokens.
   if [ -n "${GDDY_PAT:-}" ]; then
-    command -v gddy >/dev/null || die 'gddy missing; install it before checking GoDaddy domain access'
+    type -P gddy >/dev/null || die 'gddy missing; install it before checking GoDaddy domain access'
     if resp=$(gddy domain get "$DOMAIN" --env "$GDDY_ENV" --json 2>/dev/null); then
       current=$(jq -ce '.data.nameServers | select(type=="array" and length>0 and all(.[]; type=="string" and length>0)) | map(ascii_downcase | sub("\\.$";"")) | unique | sort' <<< "$resp") \
         || die 'GoDaddy returned invalid nameservers; check domain access'

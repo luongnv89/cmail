@@ -106,7 +106,9 @@ cmd_send_as() {
 cmd_status() {
   ensure_read_tools
   config_load || return 3
-  [ -n "${DOMAIN:-}" ] && [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { config_error 'DOMAIN and CLOUDFLARE_API_TOKEN are required; run cmail setup'; return 3; }
+  if [ -z "${DOMAIN:-}" ] || [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+    config_error 'DOMAIN and CLOUDFLARE_API_TOKEN are required; run cmail setup'; return 3
+  fi
   local zone_id="${CF_ZONE_ID:-}" resp data text
   if [ -z "$zone_id" ]; then
     resp=$(cf_routing_request GET "/zones?name=$DOMAIN") || return 1
@@ -129,7 +131,7 @@ cmd_doctor() {
   local tool failed=0 invalid=0
   output_checks_start
   for tool in bash curl jq gddy; do
-    if command -v "$tool" >/dev/null; then output_check "$tool" pass "$tool available"
+    if type -P "$tool" >/dev/null; then output_check "$tool" pass "$tool available"
     else output_check "$tool" fail "$tool missing" "Install $tool and check PATH."; failed=1; fi
   done
   if [ ! -e "$ENV_FILE" ] && [ ! -L "$ENV_FILE" ]; then

@@ -50,7 +50,9 @@ missing_tool() {
 }
 run_expect 'missing dependency gives instructions without installation' 1 missing_tool 'manually' 'PATH' './cmail setup'
 missing_gddy() {
-  command() { if [ "$*" = '-v gddy' ]; then return 1; else builtin command "$@"; fi; }
+  # The gddy() wrapper from lib/godaddy.sh is defined here; only a real binary counts.
+  declare -F gddy >/dev/null
+  PATH="$TMP/no-such-bin"
   curl() { die 'unexpected download'; }
   ensure_gddy
 }

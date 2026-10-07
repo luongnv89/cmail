@@ -344,8 +344,7 @@ cf_rules_list() {
   local zone="$1" page=1 pages count resp batch records='[]' path
   while :; do
     [ "$page" -le 1000 ] || die 'forwarding-rule listing exceeded 1000 pages'
-    path="/zones/$zone/email/routing/rules"
-    [ "$page" = 1 ] || path="$path?per_page=50&page=$page"
+    path="/zones/$zone/email/routing/rules?per_page=50&page=$page"
     resp=$(cf_routing_request GET "$path") || return 1
     batch=$(jq -ce '.result | if type=="array" then . else error("invalid rules") end' <<< "$resp") \
       || die 'Cloudflare returned invalid forwarding rules — no complete result available'

@@ -54,7 +54,7 @@ class CLI(unittest.TestCase):
             '/zones/'+self.zone+'/email/routing': {'success': True, 'result': {'enabled':True,'status':'ready'}},
             '/accounts/'+self.account+'/email/routing/addresses?per_page=50&page=1': {
                     'success':True,'result':[{'email':'owner@example.net','verified':'2026-01-01T00:00:00Z'}]},
-            '/zones/'+self.zone+'/email/routing/rules': {'success':True,'result':[]},
+            '/zones/'+self.zone+'/email/routing/rules?per_page=50&page=1': {'success':True,'result':[]},
         }
         self.fixture_file = self.directory / 'responses.json'
         self.save_responses()
@@ -196,7 +196,7 @@ esac''')
 
     def test_status_json_and_text(self):
         self.cloudflare()
-        self.fixtures['/zones/'+self.zone+'/email/routing/rules']['result'] = [
+        self.fixtures['/zones/'+self.zone+'/email/routing/rules?per_page=50&page=1']['result'] = [
             {'id':'rule-1','enabled':True,'matchers':[{'field':'to','type':'literal','value':'hello@example.com'}],
              'actions':[{'type':'forward','value':['owner@example.net']}]}]
         self.save_responses()
@@ -214,7 +214,7 @@ esac''')
 
     def test_status_late_failure_has_no_partial_stdout(self):
         self.cloudflare()
-        self.fixtures['/zones/'+self.zone+'/email/routing/rules']={
+        self.fixtures['/zones/'+self.zone+'/email/routing/rules?per_page=50&page=1']={
             'success':False,'errors':[{'message':'denied synthetic-token'}], '_status':403}
         self.save_responses()
         result=self.invoke('status','--format=json')
@@ -233,7 +233,7 @@ esac''')
 
     def test_status_rule_pagination(self):
         self.cloudflare()
-        self.fixtures['/zones/'+self.zone+'/email/routing/rules']['result_info']={'total_pages':2}
+        self.fixtures['/zones/'+self.zone+'/email/routing/rules?per_page=50&page=1']['result_info']={'total_pages':2}
         self.fixtures['/zones/'+self.zone+'/email/routing/rules?per_page=50&page=2']={
             'success':True,'result':[{'id':'second-page','enabled':False,'matchers':[],'actions':[]}],
             'result_info':{'total_pages':2}}
@@ -241,6 +241,28 @@ esac''')
         result=self.invoke('status','--format=json')
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertEqual(json.loads(result.stdout)['data']['rules'][0]['id'],'second-page')
+
+    def test_status_rule_pagination_full_first_page(self):
+        self.cloudflare()
+        rule=lambda i:{'id':'rule-%d'%i,'enabled':True,'matchers':[],'actions':[]}
+        self.fixtures['/zones/'+self.zone+'/email/routing/rules?per_page=50&page=1']={
+            'success':True,'result':[rule(i) for i in range(50)]}
+        self.fixtures['/zones/'+self.zone+'/email/routing/rules?per_page=50&page=2']={
+            'success':True,'result':[rule(50)]}
+        self.save_responses()
+        result=self.invoke('status','--format=json')
+        self.assertEqual(result.returncode,0,result.stderr)
+        rules=json.loads(result.stdout)['data']['rules']
+        self.assertEqual([r['id'] for r in rules],['rule-%d'%i for i in range(51)])
+        self.assertIn('/email/routing/rules?per_page=50&page=1',self.calls.read_text())
+
+    def test_doctor_reports_missing_gddy_binary(self):
+        (self.mock/'gddy').unlink()
+        path=os.pathsep.join(d for d in self.env['PATH'].split(os.pathsep)
+                             if d and not os.path.exists(os.path.join(d,'gddy')))
+        result=self.invoke('doctor','--offline','--format=json',env={'PATH':path})
+        checks={c['name']:c['state'] for c in json.loads(result.stdout)['data']['checks']}
+        self.assertEqual(checks['gddy'],'fail',result.stdout)
 
     def test_online_doctor_and_timeouts(self):
         self.cloudflare()
@@ -294,7 +316,7 @@ esac''')
 
     def test_preview_conflicting_rule_is_blocker(self):
         self.cloudflare()
-        self.fixtures['/zones/'+self.zone+'/email/routing/rules']['result']=[
+        self.fixtures['/zones/'+self.zone+'/email/routing/rules?per_page=50&page=1']['result']=[
             {'enabled':False,'matchers':[{'value':'hello@example.com'}],'actions':[]}]
         self.save_responses()
         result=self.invoke('setup','--dry-run','--format=json',env={'GDDY_PAT':'synthetic-pat'})
@@ -312,7 +334,7 @@ esac''')
 
     def test_existing_rule_on_second_page_is_not_recreated(self):
         self.cloudflare()
-        self.fixtures['/zones/'+self.zone+'/email/routing/rules']['result_info']={'total_pages':2}
+        self.fixtures['/zones/'+self.zone+'/email/routing/rules?per_page=50&page=1']['result_info']={'total_pages':2}
         self.fixtures['/zones/'+self.zone+'/email/routing/rules?per_page=50&page=2']={
             'success':True,'result':[{'enabled':True,'matchers':[{'type':'literal','field':'to','value':'hello@example.com'}],
                     'actions':[{'type':'forward','value':['owner@example.net']}]}],
