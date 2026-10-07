@@ -14,9 +14,11 @@ step subcommands or use internal Bash helpers as a public API.
 ## Gate 1 — Installed CLI and dependencies
 
 - Prerequisite: supported macOS/Linux and a terminal; install consent if needed.
-- Action: discovery/help, then reviewed `bash install.sh` only if needed; discover
-  Bash/curl/jq/gddy and guide missing tools as described in SKILL.md.
-- Verify: executable resolves to intended cmail; help loads without missing libraries
+- Action: discovery and pre-execution provenance check as described in SKILL.md;
+  only then trusted absolute-path help, or reviewed `bash install.sh` if needed.
+  Discover Bash/curl/jq/gddy and guide missing tools.
+- Verify: executable provenance and user-controlled path/runtime established before
+  executing help (not just an alias/function or familiar output); help loads without missing libraries
   and lists setup/status/doctor/help. Bash is 3.2+; curl/jq/gddy version/help succeeds.
 - Failure: command missing is different from corrupt runtime or wrong binary.
 - Repair/recheck: fix current-session PATH or reinstall with the same user-owned
@@ -57,18 +59,30 @@ step subcommands or use internal Bash helpers as a public API.
 ## Gate 4 — Cloudflare token, account and zone
 
 - Prerequisite: gates 1–3 and local token acquisition.
-- Action: in the intended account, open Cloudflare token settings and domain Overview.
-  Inspect active token status and Zone Resources/Account Resources separately. Reuse
-  an existing zone; if absent, resolve access ambiguity before consented zone creation.
-- Verify: active token **and** access to the exact zone/domain and owning account;
-  zone ID/account ID match the dashboard, with at least two assigned nameservers.
-  Confirm the five operation permissions in `configuration.md`. A resource read
-  does not prove write permission: record granted scopes and separately verify each
-  consented operation's post-state in later gates. An empty zone list is not absence
-  if permissions are uncertain. CF_ACCOUNT_ID bypasses discovery, not authorization.
+- Action: inspect Cloudflare token settings and domain Overview locally. Use a trusted
+  user-local API client with the **actual configured token** to make read-only GETs
+  to `/user/tokens/verify`, `/zones/<zone-id>` and
+  `/accounts/<owning-account-id>/email/routing/addresses`. Take IDs from the intended
+  domain's Overview and validate them first. Keep token input in protected local
+  input/storage, not shell argv, chat or captured tools; do not source config to probe.
+  Return only sanitized result/identity/time, never headers or full responses.
+  For a genuinely absent zone, first check the actual token's `/zones?name=<domain>`
+  result plus intended account access/scopes and dashboard inventory. An empty list
+  alone cannot authorize creation. Obtain consent, create locally, then perform the
+  exact-zone read before marking this gate VERIFIED.
+- Verify: authenticated reads using that token return HTTP 2xx **and** API success;
+  token is active; exact-zone result matches DOMAIN, zone ID and intended owning
+  account ID, with at least two assigned nameservers; account-scoped address list
+  is readable. Dashboard login/visibility and configured scopes alone do not prove
+  token resource access. Missing/403/malformed read evidence means BLOCKED, even if
+  the browser can change the resource. Confirm the five operation permissions in
+  `configuration.md`. Read access does not prove write permission: record granted
+  scopes and separately verify each consented operation's post-state in later gates.
+  CF_ACCOUNT_ID bypasses discovery, not authorization.
 - Failure: 401/403, no visible account, multiple accounts, invalid ID or wrong zone.
 - Repair/recheck: select intended account; correct only the necessary resource scope
-  or permission locally; repeat token status and exact-zone/account checks. Do not
+  or permission locally; repeat the same actual-token status and exact-zone/account
+  authenticated reads. Do not
   use all accounts as an automatic workaround or create a duplicate zone.
 
 ## Gate 5 — Delegation and active zone

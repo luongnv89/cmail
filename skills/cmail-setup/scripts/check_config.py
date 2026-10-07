@@ -2,7 +2,6 @@
 """Read-only, value-free validation of cmail's literal assignment configuration."""
 import os
 import re
-import shlex
 import stat
 import sys
 
@@ -16,10 +15,52 @@ class ConfigError(ValueError):
     """Messages contain only fixed field names/line numbers, never values."""
 
 
+def literal(raw, number):
+    """Decode one restricted Bash assignment word, never evaluating shell code."""
+    result = []
+    quote = None
+    index = 0
+    while index < len(raw):
+        char = raw[index]
+        if quote == "'":
+            if char == "'":
+                quote = None
+            else:
+                result.append(char)
+        elif char == "\\" and quote != "'":
+            index += 1
+            if index == len(raw):
+                raise ConfigError(f"line {number}: dangling escape; correct quoting locally")
+            escaped = raw[index]
+            # Bash keeps backslashes before ordinary characters in double quotes.
+            if quote == '"' and escaped not in '\\"':
+                result.append("\\")
+            result.append(escaped)
+        elif quote == '"':
+            if char == '"':
+                quote = None
+            else:
+                result.append(char)
+        elif char in "'\"":
+            quote = char
+        elif char.isspace() or char in ";&|<>()~*?[]{}":
+            raise ConfigError(f"line {number}: not a single literal value; quote spaces and remove shell syntax locally")
+        else:
+            result.append(char)
+        index += 1
+    if quote is not None:
+        raise ConfigError(f"line {number}: invalid quoting; correct quotes locally")
+    return "".join(result)
+
+
 def parse(text):
+    # Bash separates commands only at LF, unlike splitlines()/Unicode strip.
+    # Reject other controls/separators even in comments before interpretation.
+    if any(not char.isprintable() and char not in "\n\t" for char in text):
+        raise ConfigError("selected config contains unsupported controls or line separators; use LF-only text locally")
     values = {}
-    for number, line in enumerate(text.splitlines(), 1):
-        line = line.strip()
+    for number, line in enumerate(text.split("\n"), 1):
+        line = line.strip(" \t")
         if not line or line.startswith("#"):
             continue
         match = re.fullmatch(r"([A-Z_][A-Z0-9_]*)=(.*)", line)
@@ -30,16 +71,7 @@ def parse(text):
             raise ConfigError(f"line {number}: unsupported key; use only documented cmail keys and review extra settings locally")
         if key in values:
             raise ConfigError(f"line {number}: duplicate assignment; remove the duplicate locally")
-        lexer = shlex.shlex(raw, posix=True, punctuation_chars=";&|<>()")
-        lexer.whitespace_split = True
-        lexer.commenters = ""
-        try:
-            tokens = list(lexer)
-        except ValueError:
-            raise ConfigError(f"line {number}: invalid quoting; correct quotes locally") from None
-        if len(tokens) > 1 or (tokens and all(c in ";&|<>()" for c in tokens[0])):
-            raise ConfigError(f"line {number}: not a single literal value; quote spaces and remove commands locally")
-        values[key] = tokens[0] if tokens else ""
+        values[key] = literal(raw, number)
     return values
 
 

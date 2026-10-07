@@ -31,6 +31,31 @@ was invented to improve an evaluator score.
   clause (AC4); remove a repair/recheck clause (AC5). These are config/structure
   sensitivities, not proof an agent obeys the instructions at runtime.
 
+## Independent PR review follow-up
+
+An independent inline reviewer (separate from the resolver; nested delegation was
+unavailable) reproduced a synthetic config safety bypass: CR before a comment
+made the old checker and `bash -n` pass, while isolated Bash sourcing created a
+temporary marker. This was not a real config or provider action. The restricted
+parser now rejects non-LF controls/separators before comments, preserves Bash's
+double-quoted backslash semantics and rejects unsupported unquoted shell syntax.
+New tests compare accepted synthetic literal values against both available Bash
+versions; no user config is sourced. Checker PASS still describes only checked
+bytes, not later edits/replacement or the runtime's arbitrary sourcing behavior.
+
+The review also requires launcher provenance **before** executing help, and actual
+configured-token authenticated exact-zone/owning-account reads rather than browser
+visibility as resource-access proof. Six new offline regression/contract methods
+bring this suite to 28 methods; the unchanged 156 shell cases remain separate.
+Three additional adversarial prompts are supplied, but were not run as measured
+with-skill/baseline evaluations. These review fixes do not replace skill-standard
+certification: a fresh `asm eval --json` on skill 1.0.3 again measured 87, license
+0 (all other categories at least 8; body 1,495 words). Thus skill-standard Gate 2
+remains BLOCKER. Quick validation passed with no warnings. Targeted regression
+tests against the original checker were red, and against the repaired checker
+green. License selection and behavioral/human-output certification remain
+outstanding; no independent agent adherence benchmark is claimed.
+
 ## Instruction and predictability audit
 
 Frontmatter name/directory, quoted values, semver/author, negative triggers and
@@ -54,7 +79,8 @@ not delegated because local secrets, browser actions and consent require the use
 
 ## Scenario walkthroughs, not behavioral runs
 
-`evals.json` has three happy paths, four adversarial edges and one negative trigger.
+The original `evals.json` had three happy paths, four adversarial edges and one
+negative trigger; PR review added three adversarial prompts (eleven total).
 An author logic/edge-case walkthrough checked these prescribed responses:
 
 | Case | Expected gate behavior |

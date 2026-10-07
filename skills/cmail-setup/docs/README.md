@@ -71,7 +71,7 @@ config checker; local manual checks are documented as a fallback.
 | `references/configuration.md` | Non-secret inputs, browser-local credential acquisition and private config. |
 | `references/troubleshooting.md` | Targeted recovery without blind retries. |
 | `scripts/check_config.py` | Offline literal-assignment/privacy checker; never sources config. |
-| `evals/evals.json` | Eight realistic/adversarial prompts including a negative trigger. |
+| `evals/evals.json` | Eleven realistic/adversarial prompts including a negative trigger. |
 
 ## Output
 

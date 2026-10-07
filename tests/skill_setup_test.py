@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline checks; no provider calls, config sourcing, or real credentials."""
+"""Offline checks; only synthetic accepted fixtures are sourced for Bash comparison."""
 import importlib.util
 import json
 from pathlib import Path
@@ -53,6 +53,57 @@ class ConfigTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 1)
                     self.assertFalse(marker.exists())
                     self.assertNotIn(raw, result.stderr)
+
+    def test_controls_cannot_hide_commands_or_comments(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            marker = Path(tmp) / "must-not-exist"
+            for separator in ("\r", "\v", "\f", "\x00", "\x1f", "\x7f", "\x85", "\u2028", "\u2029"):
+                for payload in ("GDDY_PAT=x" + separator + "#;touch " + str(marker),
+                                "# comment" + separator + ";touch " + str(marker)):
+                    with self.subTest(separator=repr(separator), payload=payload[:12]):
+                        result = self.invoke(FIXTURE + payload + "\n")
+                        self.assertEqual(result.returncode, 1)
+                        self.assertNotIn(str(marker), result.stdout + result.stderr)
+                        self.assertFalse(marker.exists())
+            self.assertEqual(self.invoke(FIXTURE.replace("\n", "\r\n")).returncode, 1)
+
+    def test_literal_values_match_bash(self):
+        import shutil
+        shells = {"/bin/bash", shutil.which("bash")}
+        literals = ("plain", "'literal#hash'", "literal#hash", "'literal'fragment",
+                    r"literal\;fragment", r"synthetic\ fixture", '"space value"',
+                    r'"keep\q"', r'"slash\\end"', r'"quote\"end"',
+                    "'single'\\'quote", "'~{}*?[];|()'", "''", "'tab\tvalue'")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "synthetic.env"
+            for raw in literals:
+                text = FIXTURE + "GDDY_PAT=" + raw + "\n"
+                expected = config.parse(text)["GDDY_PAT"]
+                config.validate(config.parse(text))
+                self.assertEqual(self.invoke(text).returncode, 0)
+                path.write_bytes(text.encode())
+                for shell in shells:
+                    if not shell:
+                        continue
+                    with self.subTest(raw=raw, shell=shell):
+                        # Fixed harness, clean environment, synthetic literals only.
+                        result = subprocess.run(
+                            [shell, "--noprofile", "--norc", "-c", '. "$1"; printf "%s" "$GDDY_PAT"',
+                             "synthetic-config", str(path)], cwd=tmp,
+                            env={"PATH": "/usr/bin:/bin", "HOME": tmp},
+                            text=True, capture_output=True, timeout=3)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertEqual(result.stdout, expected)
+
+    def test_double_quote_backslashes_not_discarded(self):
+        result = self.invoke(FIXTURE.replace("DOMAIN=example.com", r'DOMAIN="exam\ple.com"'))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("DOMAIN", result.stderr)
+
+    def test_unsupported_shell_word_forms_fail_closed(self):
+        for raw in ("x:~", "x~", "*", "{a,b}", "[ab]", "x\\", "x # comment", "x\\\nfalse"):
+            with self.subTest(raw=raw):
+                self.assertEqual(self.invoke(FIXTURE + "GDDY_PAT=" + raw + "\n").returncode, 1)
 
     def test_duplicates_and_unquoted_spaces(self):
         for text in (FIXTURE + "DOMAIN=other.example\n", FIXTURE.replace("hello,contact", "hello contact")):
@@ -182,6 +233,23 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("same verification check", body)
         self.assertIn("three unsuccessful repairs", body)
         self.assertIn("repeat the original check", (SKILL / "docs/README.md").read_text())
+
+    def test_launcher_trust_precedes_help(self):
+        body = (SKILL / "SKILL.md").read_text()
+        trust = body.index("Before executing help")
+        run = body.index("Only then use the quoted trusted absolute path")
+        self.assertLess(trust, run)
+        for text in ("type -t cmail", "reject aliases/functions", "provenance cannot be established",
+                     "marker or familiar", "BLOCKED"):
+            self.assertIn(text, body)
+
+    def test_token_resource_proof_is_not_dashboard_login(self):
+        matrix = (SKILL / "references/verification.md").read_text()
+        gate = matrix.split("## Gate 4", 1)[1].split("## Gate 5", 1)[0]
+        for text in ("actual configured token", "/zones/<zone-id>",
+                     "/accounts/<owning-account-id>/email/routing/addresses",
+                     "API success", "Dashboard login/visibility", "BLOCKED", "Read access does not prove write"):
+            self.assertIn(text, gate)
 
     def test_eval_floor_and_process_assertions(self):
         suite = json.loads((SKILL / "evals/evals.json").read_text())

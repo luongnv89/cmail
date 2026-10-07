@@ -14,7 +14,7 @@ payloads, headers, confirmation codes, screenshots or password/token values.
 | Config absent/invalid/insecure | Correct selected file locally; private parent/file, literal assignments, no duplicates | Offline checker and private `bash -n` |
 | GoDaddy lookup fails | Separate network, expiry, prod/ote, account and ownership; renew/login locally | Exact domain read, not just auth status |
 | Purchase request timed out | Check orders, billing and domain ownership; contact support if uncertain | Exact ownership read; do not replay purchase |
-| Active token but account invisible / HTTP 403 | Confirm owning account resources and operation-specific permission; optional correct CF_ACCOUNT_ID | Active token plus exact zone/account access |
+| Active token but account invisible / HTTP 403 | Confirm owning account resources and operation-specific permission; optional correct CF_ACCOUNT_ID; dashboard login is not token authorization | Repeat actual-token authenticated exact-zone and owning-account address-list reads |
 | Multiple accounts / stale CF_ZONE_ID | Select intended ID locally; compare domain and owner in dashboard | Gate 4 resource identity/access |
 | Nameserver write fails or zone pending | Inspect actual nameservers first, DNS migration/DS plan, then wait for propagation | Fresh registrar set comparison and Cloudflare Active |
 | Routing enable failed | Review Zone Settings permission and conflicting mail records; plan migration instead of deleting | Exact-domain routing enabled and DNS requirements |

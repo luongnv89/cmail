@@ -76,9 +76,12 @@ python3 <skill-directory>/scripts/check_config.py <selected-config-file>
 This read-only check emits field names and a generic result, never values. It
 accepts a deliberately narrow literal-assignment subset, including cmail's `%q`
 backslash escapes; it rejects expansions, commands, unknown keys and duplicates.
-Full-line comments are supported; inline comments and complex Bash are outside
-this conservative grammar. Some otherwise literal values containing `$` or
-backticks are intentionally rejected. Parent directories must be user-controlled;
+Use LF-only text: CR/CRLF, other controls and Unicode line separators are rejected
+before comment handling. Full-line comments are supported; inline comments, line
+continuations and complex Bash are outside this conservative grammar. Single/double
+quotes and escaped literals follow Bash semantics; unquoted tilde/glob/brace syntax
+is rejected (quote literal characters). Some otherwise literal values containing
+`$` or backticks are intentionally rejected. Parent directories must be user-controlled;
 the check does not guarantee the file stays unchanged before a later runtime load.
 A rejected valid-but-complex Bash file needs a **local** review/simplification,
 not sourcing it to bypass the gate. It validates user ownership/mode 600 and

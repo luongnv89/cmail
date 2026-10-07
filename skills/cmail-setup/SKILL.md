@@ -4,7 +4,7 @@ description: "Analyze cmail setup and guide installation, configuration and trou
 compatibility: "macOS/Linux, Bash 3.2+, curl; jq and gddy for setup; Python 3 for the optional offline config check."
 effort: "high"
 metadata:
-  version: "1.0.2"
+  version: "1.0.3"
   author: "Luong NGUYEN <luongnv89@gmail.com>"
 ---
 
@@ -92,10 +92,16 @@ may create/chmod it, and its summary is not a complete verification verdict.
 ## Gate 1 — Installation and tools
 
 1. Ask OS, terminal availability and whether this is installed or a source checkout.
-2. Check `command -v cmail`; also check the expected launcher if PATH is missing.
-   Use `cmail help` (or a quoted absolute path / `./cmail help`), not an unsupported
-   `cmail --version`. Confirm it exposes setup/status/doctor/help and uses the expected
-   launcher/runtime. A different binary or broken library load fails this gate.
+2. Check `command -v cmail` and Bash `type -t cmail`; also check the expected
+   launcher if PATH is missing. **Before executing help**, reject aliases/functions
+   or an unexpected executable. Inspect the selected file locally without executing
+   it: require user-controlled file/parents, reviewed source provenance or the known
+   installer-generated launcher and its expected runtime/COMMIT. A marker or familiar
+   help text alone is not authentication. If provenance cannot be established, stop
+   BLOCKED; never run an unknown PATH match to discover whether it is trusted.
+   Only then use the quoted trusted absolute path with `help` (or trusted `./cmail help`),
+   not unsupported `cmail --version`. Confirm setup/status/doctor/help and library load.
+   A different binary or broken library load fails this gate.
 3. If missing, guide the reviewed checkout's **`bash install.sh`** after consent.
    Installer bootstrap needs Bash 3.2+, curl and standard utilities, not jq/gddy/git.
    It downloads a pinned runtime; it does not set up providers. v0.1.0 lacks the
