@@ -23,11 +23,14 @@ EOF
 }
 
 cmd_setup() {
+  CMAIL_STEP="Configuration file"
+  CMAIL_DNS_CHECKPOINT=0
+  trap 'if [ "$?" -ne 0 ]; then setup_recovery; fi' EXIT
   ensure_deps
+  step "Configuration"
   env_init
 
   # what we're building — collect early so all prompts happen up front
-  step "Configuration"
   env_require_prompt DEST_EMAIL "Gmail address to receive forwarded mail"
   env_require_prompt ADDRESSES  "addresses to create, comma-separated (e.g. hello,contact,me)"
 
@@ -39,6 +42,7 @@ cmd_setup() {
   local zone_id="$CF_ZONE_ID"
   env_set CF_ZONE_ID "$zone_id"
 
+  CMAIL_DNS_CHECKPOINT=1
   gddy_set_nameservers "${CF_NS[@]}"
   cf_zone_wait_active "$zone_id"
   cf_email_enable "$zone_id"
@@ -53,8 +57,10 @@ cmd_status() {
   local zone_id="${CF_ZONE_ID:-}"
   if [ -z "$zone_id" ]; then
     [ -n "${DOMAIN:-}" ] || die "no DOMAIN in .env — run ./cmail setup"
-    zone_id=$(cf "$CF_API/zones?name=$DOMAIN" | jq -r '.result[0].id // empty')
-    [ -n "$zone_id" ] || die "zone for $DOMAIN not found"
+    local resp
+    resp=$(cf_routing_request GET "/zones?name=$DOMAIN") || return 1
+    zone_id=$(jq -r '.result[0].id // empty' <<<"$resp")
+    [ -n "$zone_id" ] || die "zone for $DOMAIN not found — check token Zone Resources at https://dash.cloudflare.com/profile/api-tokens, then run ./cmail setup"
   fi
   cf_status "$zone_id"
 }

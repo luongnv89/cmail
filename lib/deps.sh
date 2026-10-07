@@ -15,7 +15,7 @@ ensure_tool() { # ensure_tool <cmd> [pkg-name]
   command -v "$cmd" >/dev/null && { ok "$cmd present"; return 0; }
   warn "$cmd missing — installing ($pkg)"
   _pkg_install "$pkg" && command -v "$cmd" >/dev/null \
-    || die "could not install $cmd — install '$pkg' manually"
+    || die "could not install $cmd — check network access, package-manager availability and install permissions (sudo where required). Install '$pkg' manually, ensure '$cmd' is on PATH (command -v $cmd), then re-run ./cmail setup"
   ok "$cmd installed"
 }
 
@@ -23,9 +23,9 @@ ensure_gddy() {
   if command -v gddy >/dev/null; then ok "gddy present ($(gddy --version 2>/dev/null | head -1))"; return 0; fi
   warn "gddy missing — running official installer (installs to ~/.local/bin)"
   curl -fsSL https://github.com/godaddy/cli/releases/latest/download/install.sh | bash \
-    || die "gddy install failed — see https://developer.godaddy.com/en/docs/api-users/cli/set-up"
+    || die "gddy install failed — check network access to GitHub and write permission for ~/.local/bin. Install manually: https://developer.godaddy.com/en/docs/api-users/cli/set-up; add ~/.local/bin to PATH, then re-run ./cmail setup"
   export PATH="$HOME/.local/bin:$PATH"
-  command -v gddy >/dev/null || die "gddy installed but not on PATH — add ~/.local/bin to PATH"
+  command -v gddy >/dev/null || die "gddy unavailable after installer — check ~/.local/bin permissions and installer output; install manually: https://developer.godaddy.com/en/docs/api-users/cli/set-up. Run export PATH=\"\$HOME/.local/bin:\$PATH\", verify command -v gddy, then re-run ./cmail setup"
   ok "gddy installed"
 }
 
