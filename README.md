@@ -8,6 +8,21 @@ $0/month for email — you only pay for the domain itself.
 
 Release: [v0.1.0](https://github.com/luongnv89/cmail/releases/tag/v0.1.0) · [Changelog](CHANGELOG.md).
 
+## Start here
+
+[cmail introduction](docs/index.html) → [ordered, checkable setup guide](docs/setup.html)
+([Markdown fallback](docs/setup.md)). The guide covers account/key acquisition,
+private config, DNS migration, confirmation and independent delivery tests.
+Checkmarks save only step IDs/booleans in this browser; they do not verify providers.
+No credentials are collected by the site. See [local preview](docs/setup.md#local-preview-and-maintenance).
+
+**Gmail sending policy:** [Google's current help](https://support.google.com/mail/answer/22370)
+announces removal of third-party “Send as” starting **January 2027**. Check current
+availability/account eligibility before relying on cmail's custom-domain outbound
+path. Inbound Cloudflare forwarding is separate; alternative SMTP/Workspace setup
+is outside this workflow. Public provider references were checked 7 October 2026,
+not live authenticated setup or delivery.
+
 ## Installation
 
 From a source checkout **containing `install.sh`**, install with one command:
@@ -17,7 +32,7 @@ bash install.sh
 ```
 
 This installer is new and is **not in the v0.1.0 release**. A released remote
-bootstrap command is pending review/merge and separately authorized publication;
+bootstrap command is pending separately authorized release/publication;
 see the [distribution decision and recorded status](docs/distribution.md).
 Do not assume the existing release contains the installer.
 
@@ -152,7 +167,7 @@ fail-fast validation shell before loading it, so assignments are evaluated twice
 | `GDDY_PAT` | Optional — PAT instead of OAuth for headless runs |
 | `CF_ZONE_ID` | Auto-populated by `setup` — Cloudflare zone ID, used by `status` |
 | `CF_ACCOUNT_ID` | Optional 32-character account ID from the Cloudflare dashboard; skips account discovery when creating a zone, and selects the intended account when several are visible. Does not grant API permissions. |
-| `DRY_RUN` | `1` previews the nameserver change without applying it |
+| `DRY_RUN` | `1` previews only nameserver replacement; setup can still perform other provider writes/purchases |
 
 ## What is NOT automated (and why)
 
@@ -255,12 +270,29 @@ bash tests/cloudflare_setup_test.sh
 bash tests/workflow_guidance_test.sh
 bash tests/install_test.sh
 python3 tests/skill_setup_test.py   # optional skill/config suite; needs Python 3
+node --test tests/checklist_test.js # static checklist unit tests; Node 18+
+python3 tests/site_test.py          # offline docs/link/contrast contract tests
 ```
 
 GoDaddy, Cloudflare and installer downloads are mocked; the tests do not change
 any live DNS settings. The installer suite verifies runnable help, complete
 runtime downloads, private config/upgrade preservation and failure/conflict
 handling, including paths with spaces and shell metacharacters.
+
+The static site has no frontend build or production dependencies. Optional real
+browser tests use an externally installed Playwright and Chromium/Chrome:
+
+```bash
+node --test tests/site_browser_test.cjs
+```
+
+If Playwright is outside the normal module search path, set `NODE_PATH` to its
+containing `node_modules`. Set `CHROME_BIN` to a trusted browser executable to
+use an existing Chrome instead of Playwright's bundled browser. Optional
+`SCREENSHOT_DIR` stores review screenshots outside the source tree. The test
+server is loopback-only; all external browser requests are blocked. The suite
+checks keyboard controls, persistence/reset, malformed/blocked storage, no-JS,
+and 375/768/1280px layouts; it never calls live providers.
 
 ## Requirements
 
@@ -274,4 +306,6 @@ runs on macOS Bash 3.2. Setup/doctor install missing dependencies themselves
   is used).
 - Outbound via Gmail isn't DKIM-signed with your domain — fine for
   personal use; upgrade to Google Workspace if deliverability matters.
-- Gmail cap: ~500 sends/day.
+- Gmail sending limits and third-party send-as availability are Google/account
+  dependent; see the January 2027 policy warning above. Neither CLI completion nor
+  offline tests guarantee Gmail acceptance, DKIM alignment or delivery.

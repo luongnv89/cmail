@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="cmail guides custom-domain email setup with Cloudflare forwarding and manual Gmail send-as. Follow an ordered, checkable setup guide.">
+  <title>cmail — Your domain, your everyday inbox</title>
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header><a class="brand" href="index.html">cmail</a><nav aria-label="Main"><a href="setup.html">Setup guide</a><a href="https://github.com/luongnv89/cmail">Source on GitHub</a></nav></header>
+<main id="main">
+  <!-- AIDA subset: attention, interest, desire, action. No invented social proof. -->
+  <section class="hero" aria-labelledby="hero-title">
+    <div><p class="kicker">Custom-domain email · guided setup</p><h1 id="hero-title">Your domain.<br>Your everyday inbox.</h1>
+      <p class="lead">Receive <strong>hello@your-domain</strong> in Gmail. cmail walks you through Cloudflare forwarding, registrar settings, and the manual Gmail send-as steps.</p>
+      <div class="actions"><a class="button primary" href="setup.html">Follow the setup guide</a><a href="https://github.com/luongnv89/cmail#installation">Review installation</a></div>
+      <p class="meta">For personal projects on macOS or Linux. Bring your own domain and accounts.</p>
+    </div>
+    <aside class="route" aria-label="How mail flows"><p><strong>Your custom address</strong>hello@your-domain</p><p><strong>Cloudflare Email Routing</strong>Forwards incoming mail</p><p><strong>Your Gmail inbox</strong>Receives mail; send-as is configured separately</p></aside>
+  </section>
+  <aside class="callout"><strong>Read this before choosing Gmail for sending.</strong> <a href="https://support.google.com/mail/answer/22370">Google’s current help</a> announces removal of third-party “Send as” starting <strong>January 2027</strong>. This does not end inbound Cloudflare forwarding, but cmail’s custom-domain Gmail outbound path may stop being available. Check Google’s policy and your account before relying on it; an alternative SMTP service or Workspace migration is outside this guide.</aside>
+  <section class="block" aria-labelledby="interest"><h2 id="interest">A domain is only the first step.</h2><p class="lead">An email address also needs DNS delegation, a verified destination, forwarding rules, and a working sender. The guide keeps those decisions in order, with a checkpoint for each.</p>
+    <div class="grid"><div><h3>Keep your familiar inbox</h3><p>Forward selected addresses to Gmail instead of managing a new mailbox server.</p></div><div><h3>See what changes</h3><p>Review existing DNS and mail before replacing nameservers. Purchases and provider changes are separate decisions.</p></div><div><h3>Pick up where you stopped</h3><p>Check and uncheck steps, save progress in this browser, or reset it. Checkmarks record your review, not live account verification.</p></div></div>
+  </section>
+  <section class="block" aria-labelledby="how"><h2 id="how">Prepare. Connect. Test both directions.</h2><div class="grid"><div><h3>Prepare your accounts</h3><p>Review the installer, select an owned GoDaddy domain, and obtain a scoped Cloudflare token privately.</p></div><div><h3>Connect the domain</h3><p>Migrate DNS, confirm an active Cloudflare zone, then verify your Gmail destination and every forwarding rule.</p></div><div><h3>Confirm real delivery</h3><p>Configure eligible Gmail aliases manually. Use an independent mailbox to test receipt and sending separately.</p></div></div><div class="actions"><a class="button primary" href="setup.html#readiness">Start with prerequisites</a><a href="https://github.com/luongnv89/cmail/tree/main/skills/cmail-setup">Review the agent setup skill</a></div></section>
+  <section class="block faq" aria-labelledby="faq"><h2 id="faq">Know the boundaries.</h2>
+    <details><summary>Does cmail provide a mailbox?</summary><p>No. Cloudflare forwards incoming mail to an existing inbox. Gmail holds the messages. This is not Google Workspace provisioning.</p></details>
+    <details><summary>Is everything automatic?</summary><p>No. You create the Cloudflare token, approve DNS changes, verify the destination email, and configure Gmail send-as yourself. The CLI cannot prove end-to-end delivery.</p></details>
+    <details><summary>What does it cost?</summary><p>You pay for the domain. Provider plans, sending limits, eligibility and policies still apply; cmail cannot guarantee permanent free service.</p></details>
+    <details><summary>Can I preview setup safely?</summary><p>The guide makes no provider calls. cmail help is offline. <code>DRY_RUN=1</code> previews only nameserver replacement; <code>cmail setup</code> can still create zones, enable routing, send verification emails or purchase a domain.</p></details>
+    <details><summary>Will this guarantee professional deliverability?</summary><p>No. Gmail sending does not establish domain DKIM alignment, and recipients may see your Gmail address. Inspect independent test results and use a dedicated mail service when you need stronger guarantees.</p></details>
+    <details><summary>Is the agent skill certified or installed automatically?</summary><p>No. It is a separate portable guide and optional local checker. Its offline tests are not a measured live behavioral benchmark. The runtime installer does not install it; the repository has no license granting redistribution rights.</p></details>
+  </section>
+  <section class="block"><h2>Read the plan before changing DNS.</h2><p>No signup or credentials on this site. All instructions are readable without JavaScript; only checkbox progress uses browser storage.</p><div class="actions"><a class="button primary" href="setup.html">Open the checkable setup guide</a><a href="setup.md">Read the Markdown guide</a></div></section>
+</main>
+<footer>cmail · Static documentation, not a provider dashboard. Provider references checked 7 October 2026. <a href="https://github.com/luongnv89/cmail/issues">Report a documentation issue</a>.</footer>
+</body>
+</html>

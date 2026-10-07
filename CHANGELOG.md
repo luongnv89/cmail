@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Add a framework-free cmail landing page and ordered first-time setup guides,
+  with enabled native checkboxes, boolean-only browser progress, reset and
+  resilient storage/no-JS handling. Document actual installer/skill paths,
+  Cloudflare scopes, GoDaddy authentication/environment behavior, DNS safeguards,
+  Gmail restrictions/confirmation and independent inbound/outbound checks.
+  Flag Google's announced January 2027 third-party Send as removal. Include
+  offline checklist/docs tests and optional real-browser regressions; no hosting,
+  provider writes or live delivery verification is claimed.
+
 - Add a portable cmail-setup agent skill with fail-closed verification gates,
   local-only credential guidance, consented staged provider setup and targeted
   failure/recheck instructions. Include a non-executing private config checker,

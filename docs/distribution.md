@@ -74,7 +74,7 @@ Observed via GitHub on 2026-10-07:
 | Item | Actual outcome | Outstanding requirements |
 |---|---|---|
 | Upstream v0.1.0 source release | Published 2026-10-07T08:31:22Z: [release](https://github.com/luongnv89/cmail/releases/tag/v0.1.0). Zero uploaded assets; GitHub supplies source archives. | Existing release does not contain this installer. It is not proof of installer publication. |
-| New user-local installer | Implemented/tested in the issue #4 change; **not published in a tagged release**. | Review and merge, maintainer distribution/license decision, then separately authorized release/publication including installer and these docs. |
+| New user-local installer | Implemented/tested and merged via [PR #7](https://github.com/luongnv89/cmail/pull/7) at `bbd7a135e2794bae840277da361c39d2101357e0`; **not published in a tagged release**. | Maintainer distribution/license decision, then separately authorized release/publication including installer and these docs. |
 | Homebrew/core | **Not submitted; no admission outcome.** | Licensing, stable checksummed release, dependency integration, supported-platform tests, formula/audit, authorized submission and Homebrew review. |
 | Maintainer Homebrew tap | **Not created or published.** | Distribution rights, separately authorized tap creation/publication, tested formula, checksums and maintenance commitment. |
 
