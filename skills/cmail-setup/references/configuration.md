@@ -2,7 +2,9 @@
 
 ## Ask for non-secret intent
 
-Reuse the OS and config path from discovery; confirm them only if `unknown`.
+Reuse the OS from discovery; confirm it only if `unknown`. Reuse a config path only
+when it came from the trusted launcher's `default_config=` line or from an
+ENV_FILE confirmed here; otherwise ask which file the invocation actually uses.
 Confirm any of these not already given: DOMAIN (owned, registrable domain only; no
 scheme/path), DEST_EMAIL (receiving Gmail account), ADDRESSES (comma-separated
 local parts, no `@domain`), GDDY_ENV (`prod` for real resources; `ote` cannot prove
@@ -40,10 +42,16 @@ Never request CLOUDFLARE_API_TOKEN, GDDY_PAT or a Google App Password in chat.
 
 ## Choose the correct file and update privately
 
-Installed launcher default: `~/.config/cmail/.env`, or its install-time
-CMAIL_CONFIG_DIR; an explicit runtime ENV_FILE wins. Source execution default:
-checkout `.env`. Ask the user which file their invocation actually uses. Do not
-edit a retained runtime's `.env` or assume checkout and installed configs match.
+Installed launcher default: the trusted launcher's `default_config=` line (from
+install-time CMAIL_CONFIG_DIR, normally `~/.config/cmail/.env`), read as metadata
+after Gate 1 provenance without executing the launcher or reading `.env`. An
+ENV_FILE set when cmail runs wins. An ENV_FILE seen by the agent is an agent-shell
+observation, and one set only in the user's interactive profile is invisible, so
+confirm with the user whether their invocation sets ENV_FILE before selecting a
+file. Source execution default: checkout `.env`. Reuse the path only when it came
+from the trusted launcher line or a confirmed ENV_FILE; otherwise ask the user
+which file their invocation actually uses. Do not edit a retained runtime's `.env`
+or assume checkout and installed configs match.
 
 If absent, use the trusted `.env.example` from the reviewed source or selected
 installed runtime. After consent, create its parent privately (`umask 077`) and

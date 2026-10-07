@@ -162,3 +162,11 @@ reuses the discovered OS/config path. The contract test now regex-scans `SKILL.m
 and every reference for the removed questions and checks the `.claude` symlink.
 Re-measured: 30 offline methods pass; `asm eval --json` 87 (structure 9, PII 8,
 license 0, all others 10); body 1,499 words.
+
+Second review: a found launcher's install-time `default_config` is invisible to
+discovery, so Config stays `unknown` until Gate 1 provenance allows reading that
+line as metadata; any agent-seen `ENV_FILE` is confirmed at Gate 2. The override
+probe is a labelled per-variable loop (multi-name `printenv` is unportable), Gate 1
+names zsh `whence -w`, and the contract test bans three more question forms.
+Re-measured: 30 offline methods pass; `asm eval --json` 87 (structure 9, PII 8,
+license 0, all others 10); body 1,499 words.

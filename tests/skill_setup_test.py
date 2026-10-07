@@ -265,13 +265,25 @@ class SkillContractTests(unittest.TestCase):
         for text in ("uname -s", "git rev-parse --show-toplevel", "command -v cmail",
                      "type -t cmail", "~/.config/cmail/.env", "command -v bash curl jq gddy",
                      "Browser access: unknown", "contents not read", "Forbidden during discovery",
-                     "whence -w cmail", "Target machine", "printenv ENV_FILE CMAIL_BIN_DIR",
-                     'ls -l "$ENV_FILE"', "none in cwd", "earliest unverified gate"):
+                     "whence -w cmail", "Target machine", 'ls -l "$ENV_FILE"', "none in cwd",
+                     "earliest unverified gate",
+                     "for v in ENV_FILE CMAIL_BIN_DIR CMAIL_DATA_DIR CMAIL_CONFIG_DIR; do",
+                     'printf \'%s=%s\\n\' "$v" "$(printenv "$v")"',
+                     "unknown (launcher-baked path; resolved after Gate 1 provenance)",
+                     "grep '^default_config='"):
             self.assertIn(text, probes)
         flat = " ".join(probes.split())
         # Target-machine rule: probes describe the agent shell; a mismatch stays unknown.
         self.assertIn("Probe results describe the agent's shell", flat)
         self.assertIn("A probe on a non-target shell does not answer", flat)
+        self.assertIn("empty value means unset in the agent shell", flat)
+        self.assertIn("confirm it at Gate 2 before selecting that config", flat)
+        self.assertNotIn("printenv ENV_FILE CMAIL_BIN_DIR", probes)
+        configuration = " ".join((SKILL / "references/configuration.md").read_text().split())
+        self.assertIn("trusted launcher's `default_config=` line", configuration)
+        self.assertIn("which file their invocation actually uses", configuration)
+        self.assertIn("whence -w cmail", body)
+        self.assertIn("whence -w cmail", (SKILL / "references/verification.md").read_text())
         self.assertIn("target machine", section.replace("\n", " "))
         # Environment dumps could expose provider secrets during discovery.
         forbidden = flat.split("Forbidden during discovery", 1)[1].split("## ", 1)[0]
@@ -281,8 +293,14 @@ class SkillContractTests(unittest.TestCase):
         old_questions = re.compile(r"ask\s+os\b|terminal\s+availability|installed\s+or\s+a\s+source"
                                    r"\s+checkout|ask\s+which\s+gate\s+failed|to\s+start,\s+please\s+tell\s+me",
                                    re.IGNORECASE)
+        more_questions = [re.compile(p, re.IGNORECASE) for p in (
+            r"ask\s+(whether|if)\s+.*(new setup|troubleshoot)",
+            r"which\s+(os|operating system)",
+            r"(do you have|is there)\s+(terminal|browser)")]
         for text in texts:
             self.assertIsNone(old_questions.search(text))
+            for pattern in more_questions:
+                self.assertIsNone(pattern.search(text), pattern.pattern)
         recovery = (SKILL / "references/troubleshooting.md").read_text()
         self.assertIn("do not open by asking which step failed", recovery)
         link = ROOT / ".claude/skills/cmail-setup"

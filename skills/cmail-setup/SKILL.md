@@ -108,15 +108,18 @@ may create/chmod it, and its summary is not a complete verification verdict.
 
 1. Confirm an `unknown` target machine; rerun stale/`unknown` probes; never ask
    what a target-shell probe answers.
-2. Recheck `command -v cmail`, Bash `type -t cmail` and the expected launcher.
-   **Before executing help**, reject aliases/functions or an unexpected executable.
-   Inspect the selected file locally without executing it: require user-controlled
-   file/parents, reviewed source provenance or the known installer-generated launcher and its expected runtime/COMMIT. A marker or familiar
-   help text alone is not authentication. If provenance cannot be established, stop
-   BLOCKED; never run an unknown PATH match to discover whether it is trusted.
-   Only then use the quoted trusted absolute path with `help` (or trusted `./cmail help`),
-   not unsupported `cmail --version`. Confirm setup/status/doctor/help and library load.
-   A different binary or broken library load fails this gate.
+2. Recheck `command -v cmail`, Bash `type -t cmail` (zsh `whence -w cmail`) and
+   the expected launcher. **Before executing help**, reject aliases/functions or
+   an unexpected executable. Inspect the selected file locally without executing
+   it: require user-controlled file/parents, reviewed source provenance or the
+   known installer-generated launcher and its expected runtime/COMMIT.
+   A marker or familiar help text alone is not authentication.
+   If provenance cannot be established, stop BLOCKED; never run an unknown PATH
+   match to discover whether it is trusted.
+   Only then use the quoted trusted absolute path with `help` (or trusted
+   `./cmail help`), not unsupported `cmail --version`. Confirm
+   setup/status/doctor/help and library load. A different binary or broken
+   library load fails this gate.
 3. If missing, guide the reviewed checkout's **`bash install.sh`** after consent.
    Installer bootstrap needs Bash 3.2+, curl and standard utilities, not jq/gddy/git.
    It downloads a pinned runtime; it does not set up providers. v0.1.0 lacks the
@@ -129,7 +132,7 @@ may create/chmod it, and its summary is not a complete verification verdict.
    Source execution defaults to checkout `.env`. Recheck resolved launcher/help;
    add `~/.local/bin` to the current PATH only with permission.
 5. Check `command -v bash`, `curl --version`, `jq --version`, `gddy --version`
-   and `gddy auth --help` / `gddy domain --help`. Help must support the needed
+   and `gddy auth --help` / `gddy domain --help`. Help must support
    domain/auth commands. List missing tools; guide the OS's existing brew/apt-get/
    pacman/dnf package manager for curl/jq after consent. Do not auto-install a
    package manager or grant sudo. For gddy use the official instructions at
@@ -140,7 +143,7 @@ may create/chmod it, and its summary is not a complete verification verdict.
 
 Read `references/configuration.md` now. Ask for non-secret DOMAIN, DEST_EMAIL,
 ADDRESSES, intended Cloudflare account and GDDY_ENV (prod or ote) not already given,
-and existing-service impact; reuse the discovered config path. Ask whether the
+and existing-service impact; confirm the selected config path. Ask whether the
 domain is owned; never turn an access failure into a purchase. Explain forwarding
 vs mailbox and Gmail send limits.
 Guide local config creation/editing and secret acquisition using that reference.
@@ -174,7 +177,7 @@ At exit, put the main outcome first. Use COMPLETE only if all nine gates are
 VERIFIED, including every alias's two delivery tests. Otherwise use PARTIAL or
 BLOCKED and name the earliest incomplete gate. Include Evidence, Uncertainty and
 Decision (specific approval needed, or “No approval needed.”) plus the next action.
-Do not claim that suggested commands ran or a hypothetical setup succeeded.
+Never claim suggested commands ran or a hypothetical setup succeeded.
 A short text report suffices; no interactive dashboard.
 
 ### Expected output

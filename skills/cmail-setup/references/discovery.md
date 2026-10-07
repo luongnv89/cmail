@@ -9,18 +9,25 @@ locates or lists; none executes cmail, reads config contents or changes state.
 | OS | `uname -s` | `Darwin` is macOS; anything other than macOS/Linux is out of scope |
 | Source checkout | `git rev-parse --show-toplevel`, then `test -f` for `cmail`, `install.sh` and `lib/env.sh` at that root | checkout path, or none in cwd |
 | Installed launcher | `command -v cmail`; `type -t cmail` in bash or `whence -w cmail` in zsh; `ls -ld ~/.local/bin/cmail ~/.local/share/cmail` | path and type; located, not executed |
-| Path overrides | `printenv ENV_FILE CMAIL_BIN_DIR CMAIL_DATA_DIR CMAIL_CONFIG_DIR` | set paths only |
-| Config presence | `ls -l ~/.config/cmail/.env`; `ls -l "$ENV_FILE"` when set; checkout `.env` only when `cmail`, `install.sh` and `lib/env.sh` all exist at the git root | owner, mode, size only |
+| Path overrides | Labelled per-variable loop below | `NAME=path`; empty means unset in the agent shell |
+| Config presence | `ls -l ~/.config/cmail/.env`; `ls -l "$ENV_FILE"` when set; checkout `.env` only when `cmail`, `install.sh` and `lib/env.sh` all exist at the git root | owner, mode, size only; see config selection |
 | Tools | `command -v bash curl jq gddy brew apt-get dnf pacman` | found / missing |
 
 A non-interactive agent shell cannot see the user's interactive aliases or shell
 functions, so whether `cmail` is an alias or function in the user's terminal is
 `unknown` or user-reported until Gate 1 rechecks it there.
 
-When `ENV_FILE` is set, its `ls -l` result is the selected config path (metadata
-only). If the agent's environment may differ from the user's interactive shell
-(another shell profile, sandbox or host), record the selected path `unknown` and
-confirm it at Gate 2.
+Path overrides use one labelled line per variable, because `printenv` with several
+names prints only the first on BSD/macOS and drops names on GNU:
+
+```bash
+for v in ENV_FILE CMAIL_BIN_DIR CMAIL_DATA_DIR CMAIL_CONFIG_DIR; do
+  printf '%s=%s\n' "$v" "$(printenv "$v")"
+done
+```
+
+These four hold paths only. An empty value means unset in the agent shell, not in
+the user's terminal.
 
 Forbidden during discovery: running a found `cmail` (help, status, doctor, setup)
 before Gate 1's provenance check; reading, grepping, sourcing or printing `.env`;
@@ -28,6 +35,23 @@ argument-less `env`, `set`, `printenv` or `export -p` (environment dumps can exp
 CLOUDFLARE_API_TOKEN or GDDY_PAT); network or provider calls; installs, PATH edits
 or config edits. A probe that fails or is unavailable is `unknown`, not a negative
 result.
+
+## Config selection
+
+- **ENV_FILE:** an `ENV_FILE` seen in the agent env is an agent-shell observation.
+  Record its `ls -l` metadata, but confirm it at Gate 2 before selecting that
+  config. An `ENV_FILE` set only in the user's interactive profile is invisible to
+  the agent, which is another reason Gate 2 confirms the path.
+- **Launcher-baked path:** the installed launcher sets `default_config=` from its
+  install-time CMAIL_CONFIG_DIR, then exports
+  `ENV_FILE="${ENV_FILE:-$default_config}"`. Discovery cannot see that path. When
+  a launcher is found and `ENV_FILE` is not set, record Config as
+  `unknown (launcher-baked path; resolved after Gate 1 provenance)`, whether or not
+  `~/.config/cmail/.env` exists.
+- **After Gate 1 provenance:** read only the trusted launcher's `default_config=`
+  line as metadata (`grep '^default_config=' "<trusted launcher path>"`). Never
+  execute the launcher for this and never read `.env`. Without a trusted launcher
+  line, ask at Gate 2 which file the user's invocation actually uses.
 
 ## Target machine
 
@@ -58,7 +82,10 @@ Target machine: agent shell | unknown (<reason>)
 OS: <Darwin | Linux | unknown> (<probe>)
 Browser access: unknown (asked when a gate needs it)
 cmail: <launcher path | checkout path | not found | unknown> (not executed)
-Config: <path, owner, mode | absent | unknown> (contents not read)
+       | both: <launcher>, <checkout> (selected at Gate 1)
+Config: <path, owner, mode | absent | unknown (<reason>)> (contents not read)
+        | unknown (launcher-baked path; resolved after Gate 1 provenance)
+        | both: <launcher config>, <checkout .env> (selected at Gate 2)
 Tools: <found> / missing: <missing>
 Mode: new setup | resume at gate <n> (<cue>)
       | resume, locating earliest unverified gate (<cue>)

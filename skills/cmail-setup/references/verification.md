@@ -14,8 +14,10 @@ step subcommands or use internal Bash helpers as a public API.
 ## Gate 1 — Installed CLI and dependencies
 
 - Prerequisite: supported macOS/Linux and a terminal; install consent if needed.
-- Action: discovery and pre-execution provenance check as described in SKILL.md;
-  only then trusted absolute-path help, or reviewed `bash install.sh` if needed.
+- Action: discovery and pre-execution provenance check as described in SKILL.md
+  (Bash `type -t cmail`, zsh `whence -w cmail`); only then trusted absolute-path
+  help, or reviewed `bash install.sh` if needed. Read the trusted launcher's
+  `default_config=` line as metadata for gate 2, never by executing it.
   Discover Bash/curl/jq/gddy and guide missing tools.
 - Verify: executable provenance and user-controlled path/runtime established before
   executing help (not just an alias/function or familiar output); help loads without missing libraries
