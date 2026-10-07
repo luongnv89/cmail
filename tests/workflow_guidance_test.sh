@@ -45,23 +45,16 @@ run_expect() {
 }
 
 missing_tool() {
-  _pkg_install() { return 1; }
+  _pkg_install() { die 'unexpected package installation'; }
   ensure_tool cmail_nonexistent_test_tool test-package
 }
-run_expect 'package install recovery' 1 missing_tool 'permissions' 'network' 'manually' 'PATH' './cmail setup'
-
-failed_gddy_install() {
+run_expect 'missing dependency gives instructions without installation' 1 missing_tool 'manually' 'PATH' './cmail setup'
+missing_gddy() {
   command() { if [ "$*" = '-v gddy' ]; then return 1; else builtin command "$@"; fi; }
-  curl() { return 1; }
+  curl() { die 'unexpected download'; }
   ensure_gddy
 }
-run_expect 'gddy download recovery' 1 failed_gddy_install 'GitHub' 'permission' 'Install manually' 'PATH' './cmail setup'
-missing_gddy_after_install() {
-  command() { if [ "$*" = '-v gddy' ]; then return 1; else builtin command "$@"; fi; }
-  curl() { printf ':\n'; }
-  ensure_gddy
-}
-run_expect 'gddy PATH recovery' 1 missing_gddy_after_install 'unavailable after installer' 'export PATH=' 'command -v gddy'
+run_expect 'missing gddy never downloads or installs' 1 missing_gddy 'Install manually' 'GitHub' 'PATH'
 
 failed_create() { cp() { return 1; }; env_init; }
 run_expect 'config creation recovery' 1 failed_create 'could not create config' 'parent directory' './cmail setup'
@@ -110,7 +103,7 @@ gddy() {
     'domain list') printf '%s\n' "$LIST_RESPONSE"; return "$LIST_STATUS";;
     'domain get') return 1;;
     'domain available') return 0;;
-    'domain quote') return "$QUOTE_STATUS";;
+    'domain quote') printf '%s\n' '{"data":{"domain":"example.com","available":true,"price":"12.00","currency":"EUR","quoteToken":"synthetic-quote","requiredAgreements":[{"title":"Registration Agreement","url":"https://example.net/terms"}]}}'; return "$QUOTE_STATUS";;
     'domain purchase') return 1;;
     *) return 1;;
   esac
@@ -138,7 +131,7 @@ run_expect 'quote failure recovery' 1 register_domain 'quote failed' 'GoDaddy or
 if grep -qF 'domain purchase' "$TMP/calls"; then exit 1; fi
 QUOTE_STATUS=0
 run_expect 'purchase ambiguity recovery' 1 register_domain 'outcome may be uncertain' 'BEFORE retrying purchase' 'duplicate charges' 'set DOMAIN' './cmail setup'
-grep -qxF 'domain purchase example.com --env ote' "$TMP/calls"
+grep -qxF 'domain purchase --quote-token synthetic-quote --agree --confirm --env ote' "$TMP/calls"
 
 # Verify migration guidance precedes confirmation and survives write failure.
 nameserver_write_failure() {

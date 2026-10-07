@@ -3,6 +3,8 @@
 # optional Gmail "Send mail as")
 # Subcommands: setup | send-as | status | doctor | help
 set -euo pipefail
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 CMAIL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/cli.sh
@@ -10,6 +12,8 @@ CMAIL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cli_parse "$@"
 # shellcheck source=lib/ui.sh
 . "$CMAIL_DIR/lib/ui.sh"
+# shellcheck source=lib/output.sh
+. "$CMAIL_DIR/lib/output.sh"
 # shellcheck source=lib/env.sh
 . "$CMAIL_DIR/lib/env.sh"
 # shellcheck source=lib/deps.sh
@@ -20,34 +24,29 @@ cli_parse "$@"
 . "$CMAIL_DIR/lib/cloudflare.sh"
 # shellcheck source=lib/gmail.sh
 . "$CMAIL_DIR/lib/gmail.sh"
-
-usage() {
-  cat <<EOF
-cmail — free custom-domain email in a few simple steps (Cloudflare Email Routing)
-
-  ./cmail setup     guided, idempotent receive setup: forward your custom
-                    addresses to any inbox you own (auth via browser OAuth)
-  ./cmail send-as   optional, only on request: guide for sending FROM your
-                    custom address with Gmail "Send mail as" (needs a Google
-                    account); not part of setup
-  ./cmail status    show zone / routing / destination / rules state
-  ./cmail doctor    verify tools and credentials, change nothing
-  ./cmail help      this message
-
-Config lives in .env (created on first run from .env.example).
-DRY_RUN=1 previews the destructive nameserver change.
-EOF
-}
+# shellcheck source=lib/plan.sh
+. "$CMAIL_DIR/lib/plan.sh"
 
 cmd_setup() {
+  CMAIL_SETUP_STARTED=$SECONDS
   CMAIL_STEP="Configuration file"
   CMAIL_DNS_CHECKPOINT=0
-  trap 'if [ "$?" -ne 0 ]; then setup_recovery; fi' EXIT
+  trap 'setup_exit "$?"' EXIT
+  if ! config_load; then printf 'cmail: could not load config; correct the selected private configuration.\n' >&2; return 3; fi
+  if [ "$CMAIL_DRY_RUN" = 1 ] || [ "${DRY_RUN:-0}" = 1 ]; then cmd_setup_plan; return; fi
+  [ "$CMAIL_FORMAT" = text ] || cli_error 'JSON setup output requires --dry-run'
+  [ -t 0 ] || cli_error 'setup requires terminal input; run it interactively, or use setup --dry-run in scripts'
+  if [ "$CMAIL_NO_BROWSER" = 1 ] && [ -z "${GDDY_PAT:-}" ]; then
+    config_error '--no-browser setup requires an existing GDDY_PAT to prevent automatic GoDaddy OAuth'; return 3
+  fi
   log "Setting up RECEIVING: your custom addresses will forward to an inbox you already use."
   note "Sending is optional and not part of this setup (./cmail send-as, only if you want it)."
   ensure_deps
   step "Configuration"
   env_init
+  [ -z "$CLI_DOMAIN" ] || { env_set DOMAIN "$DOMAIN"; env_set CF_ZONE_ID ''; }
+  [ -z "$CLI_DESTINATION" ] || env_set DEST_EMAIL "$DEST_EMAIL"
+  [ -z "$CLI_ADDRESSES" ] || env_set ADDRESSES "$ADDRESSES"
 
   # what we're building — collect early so all prompts happen up front
   env_require_prompt DEST_EMAIL "email address to receive forwarded mail (any provider)"
@@ -70,63 +69,86 @@ cmd_setup() {
   setup_receive_summary
 }
 
+setup_exit() {
+  local code="$1"
+  trap - EXIT
+  if [ "$code" != 0 ]; then
+    setup_recovery
+    printf 'Elapsed time: ' >&2; output_elapsed "$((SECONDS - CMAIL_SETUP_STARTED))" >&2; printf '\n' >&2
+    case "$code" in 2|3|130|143) ;; *) code=1 ;; esac
+  fi
+  exit "$code"
+}
+
 setup_receive_summary() {
-  step "Receiving is set up"
-  local addr list
-  IFS=',' read -ra list <<<"$ADDRESSES"
+  local addr list=()
+  printf '\nReceiving is set up\n'
+  IFS=',' read -ra list <<< "$ADDRESSES"
   for addr in "${list[@]}"; do
     addr="${addr// /}"
-    if [ -n "$addr" ]; then ok "$addr@$DOMAIN -> $DEST_EMAIL"; fi
+    [ -z "$addr" ] || printf '  %s@%s -> %s\n' "$addr" "$DOMAIN" "$DEST_EMAIL"
   done
-  note "Test it: from a DIFFERENT mailbox (not $DEST_EMAIL), send to ${list[0]// /}@$DOMAIN and"
-  note "check that it arrives at $DEST_EMAIL (look in Spam too). This is not verified automatically."
-  note "Done. Sending is optional: only if you also want to send FROM your custom address"
-  note "with Gmail, run ./cmail send-as"
+  printf '\nElapsed time: '; output_elapsed "$((SECONDS - CMAIL_SETUP_STARTED))"; printf '\n'
+  printf 'Test it: from a DIFFERENT mailbox (not %s), send to %s@%s and check delivery (including Spam).\n' "$DEST_EMAIL" "${list[0]// /}" "$DOMAIN"
+  printf 'Delivery is not verified automatically. Sending is optional: ./cmail send-as\n'
 }
 
 cmd_send_as() {
-  env_init
+  config_load || return 3
   local key
   for key in DOMAIN DEST_EMAIL ADDRESSES; do
-    [ -n "${!key:-}" ] || die "no $key in config — run ./cmail setup first so receiving works; send-as confirmation is delivered through forwarding"
+    [ -n "${!key:-}" ] || { config_error "no $key in config — run ./cmail setup first so receiving works"; return 3; }
   done
+  [ -t 0 ] || cli_error 'send-as requires terminal input; run it interactively to follow the manual guide'
   gmail_sendas_guide
 }
 
 cmd_status() {
-  env_init
-  [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || die "no token in .env — run ./cmail setup"
-  local zone_id="${CF_ZONE_ID:-}"
+  ensure_read_tools
+  config_load || return 3
+  [ -n "${DOMAIN:-}" ] && [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { config_error 'DOMAIN and CLOUDFLARE_API_TOKEN are required; run cmail setup'; return 3; }
+  local zone_id="${CF_ZONE_ID:-}" resp data text
   if [ -z "$zone_id" ]; then
-    [ -n "${DOMAIN:-}" ] || die "no DOMAIN in .env — run ./cmail setup"
-    local resp
     resp=$(cf_routing_request GET "/zones?name=$DOMAIN") || return 1
-    zone_id=$(jq -r '.result[0].id // empty' <<<"$resp")
-    [ -n "$zone_id" ] || die "zone for $DOMAIN not found — check token Zone Resources at https://dash.cloudflare.com/profile/api-tokens, then run ./cmail setup"
+    zone_id=$(jq -er --arg domain "$DOMAIN" '[.result[] | select(.name==$domain)] | if length==1 then .[0].id else error("ambiguous zone") end' <<< "$resp") \
+      || die "zone for $DOMAIN not uniquely found; check Cloudflare token resources and cmail setup"
   fi
-  cf_status "$zone_id"
+  data=$(cf_status_data "$zone_id") || return 1
+  if [ "$CMAIL_FORMAT" = json ]; then output_envelope status "$data"
+  else
+    text=$(jq -r '
+      "Domain:        \(.zone.name)", "Zone:          \(.zone.status)",
+      "Email routing: \(.routing.status) (enabled=\(.routing.enabled))", "Destinations:",
+      (.destinations[] | "  \(.email)  verified=\(.verified)"), "Rules:",
+      (.rules[] | "  \(.matchers[0].value // "custom matcher") -> \(.actions[0].value | join(", "))  enabled=\(.enabled)")' <<< "$data") || die 'could not format routing state; inspect provider data'
+    printf '%s\n' "$text"
+  fi
 }
 
 cmd_doctor() {
   local tool failed=0 invalid=0
+  output_checks_start
   for tool in bash curl jq gddy; do
-    if command -v "$tool" >/dev/null; then printf 'PASS  %s available\n' "$tool"
-    else printf 'FAIL  %s missing — install it and check PATH\n' "$tool"; failed=1; fi
+    if command -v "$tool" >/dev/null; then output_check "$tool" pass "$tool available"
+    else output_check "$tool" fail "$tool missing" "Install $tool and check PATH."; failed=1; fi
   done
   if [ ! -e "$ENV_FILE" ] && [ ! -L "$ENV_FILE" ]; then
-    printf 'FAIL  configuration missing — run cmail config init\n'; invalid=1
+    output_check config fail 'configuration missing' 'Run cmail config init.'; invalid=1
   elif config_load && config_ready; then
-    printf 'PASS  configuration ready\n'
+    output_check config pass 'configuration ready'
   else
-    printf 'FAIL  configuration incomplete — run cmail config check\n'; invalid=1
+    output_check config fail 'configuration incomplete' 'Run cmail config check.'; invalid=1
   fi
   if [ "$CMAIL_OFFLINE" = 0 ] && [ "$invalid" = 0 ] && [ "$failed" = 0 ]; then
-    if cf_token_valid; then printf 'PASS  Cloudflare token active\n'
-    else printf 'FAIL  Cloudflare token check — check token and connectivity\n'; failed=1; fi
-    if gddy auth status --json 2>/dev/null | jq -e --arg e "$GDDY_ENV" 'any(.data[]?; .env==$e and .expired==false)' >/dev/null; then
-      printf 'PASS  GoDaddy authentication available\n'
-    else printf 'FAIL  GoDaddy authentication — run gddy auth login\n'; failed=1; fi
+    if cf_token_valid; then output_check cloudflare pass 'Cloudflare token active'
+    else output_check cloudflare fail 'Cloudflare token check failed' 'Check token activity and connectivity.'; failed=1; fi
+    if [ -n "${GDDY_PAT:-}" ]; then
+      output_check godaddy skipped 'GoDaddy PAT present; provider access not verified' 'Use setup --dry-run to check domain access.'
+    elif gddy auth status --json 2>/dev/null | jq -e --arg e "$GDDY_ENV" 'any(.data[]?; .env==$e and .expired==false)' >/dev/null; then
+      output_check godaddy pass 'GoDaddy authentication available'
+    else output_check godaddy fail 'GoDaddy authentication unavailable' 'Run gddy auth login for the selected environment.'; failed=1; fi
   fi
+  output_checks doctor
   [ "$invalid" = 0 ] || return 3
   [ "$failed" = 0 ] || return 1
 }

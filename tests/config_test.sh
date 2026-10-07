@@ -58,7 +58,14 @@ CF_ZONE_ID=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 domain_change() { DOMAIN=other.example; config_load; [ -z "$CF_ZONE_ID" ]; }
 check 'domain override drops saved zone ID' 0 domain_change
 fixture 'DOMAIN=example.com'
-atomic() { env_set DOMAIN other.example; config_read; [ "${CONFIG_VALUES[0]}" = other.example ]; }
+atomic() {
+  local i
+  env_set DOMAIN other.example; config_read
+  for ((i=0; i<${#CONFIG_KEYS[@]}; i++)); do
+    if [ "${CONFIG_KEYS[i]}" = DOMAIN ]; then [ "${CONFIG_VALUES[i]}" = other.example ]; return; fi
+  done
+  return 1
+}
 check 'atomic public update' 0 atomic
 fixture 'GDDY_PAT=old'
 secret_roundtrip() { env_set GDDY_PAT "opaque '\$literal"; unset GDDY_PAT; config_load; [ "$GDDY_PAT" = "opaque '\$literal" ]; }

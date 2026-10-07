@@ -4,7 +4,7 @@
 CF_API="https://api.cloudflare.com/client/v4"
 
 cf() {
-  curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  curl --connect-timeout "${CMAIL_TIMEOUT:-30}" --max-time "${CMAIL_TIMEOUT:-30}" -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
        -H "Content-Type: application/json" "$@"
 }
 
@@ -13,7 +13,7 @@ cf_fail() { die "Cloudflare API error: $(jq -c '.errors // .' <<<"$1")"; }
 
 cf_token_valid() {
   [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || return 1
-  curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  curl --connect-timeout "${CMAIL_TIMEOUT:-30}" --max-time "${CMAIL_TIMEOUT:-30}" -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
     "$CF_API/user/tokens/verify" 2>/dev/null \
     | jq -e '.result.status == "active"' >/dev/null 2>&1
 }
@@ -105,8 +105,11 @@ cf_zone_ensure() { # sets globals CF_ZONE_ID and CF_NS
 
 cf_zone_wait_active() { # $1 = zone_id
   step "Waiting for zone activation (nameserver propagation)"
-  local status=""
-  for _ in $(seq 1 60); do
+  local status="" limit="${CMAIL_WAIT_TIMEOUT:-1200}" deadline delay attempt remaining
+  deadline=$((SECONDS + limit))
+  for ((attempt=0; attempt<(limit+19)/20; attempt++)); do
+    remaining=$((deadline - SECONDS)); [ "$remaining" -gt 0 ] || break
+    local CMAIL_REQUEST_TIMEOUT="$remaining"
     local resp
     resp=$(cf_routing_request GET "/zones/$1") || return 1
     status=$(jq -er '.result.status | select(type == "string" and length > 0)' <<<"$resp") \
@@ -116,10 +119,12 @@ cf_zone_wait_active() { # $1 = zone_id
       *) die "zone status '$status' needs attention — open the domain Overview in Cloudflare before retrying" ;;
     esac
     [ "$status" = "active" ] && { ok "zone active"; return 0; }
-    printf '  status: %s — retrying in 20s\n' "$status"
-    sleep 20
+    remaining=$((deadline - SECONDS)); [ "$remaining" -gt 0 ] || break
+    delay=20; [ "$remaining" -ge 20 ] || delay="$remaining"
+    note "status: $status — retrying in ${delay}s"
+    sleep "$delay"
   done
-  die "zone still '$status' after about 20 minutes — compare GoDaddy DNS > Nameservers with Cloudflare Overview nameservers (${CF_NS[*]:-see dashboard}). Propagation can take 24–48 hours; rerun ./cmail setup once Cloudflare shows Active. Nameservers may already have changed; no rollback was attempted"
+  die "zone still '$status' after ${limit}s — compare GoDaddy DNS > Nameservers with Cloudflare Overview nameservers (${CF_NS[*]:-see dashboard}). Propagation can take 24–48 hours; rerun ./cmail setup once Cloudflare shows Active. Nameservers may already have changed; no rollback was attempted"
 }
 
 cf_account_recovery() {
@@ -143,9 +148,11 @@ EOF
 
 # Shared request diagnostics for zone, account, and routing operations.
 cf_routing_request() { # method, API path, optional curl arguments
-  local method="$1" path="$2" response status body detail code
+  local method="$1" path="$2" response status body detail code timeout="${CMAIL_TIMEOUT:-30}"
   shift 2
-  if response=$(curl -sS -X "$method" \
+  if [ -n "${CMAIL_REQUEST_TIMEOUT:-}" ] && [ "$CMAIL_REQUEST_TIMEOUT" -lt "$timeout" ]; then timeout="$CMAIL_REQUEST_TIMEOUT"; fi
+  if [ "${CMAIL_VERBOSE:-0}" = 1 ]; then printf 'Request: Cloudflare %s %s (timeout %ss)\n' "$method" "$path" "${CMAIL_TIMEOUT:-30}" >&2; fi
+  if response=$(curl --connect-timeout "$timeout" --max-time "$timeout" -sS -X "$method" \
       -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
       -H "Content-Type: application/json" \
       -w $'\n%{http_code}' "$CF_API$path" "$@"); then
@@ -245,7 +252,7 @@ cf_addresses_list() { # $1 = account_id; returns an array across all pages
 
 cf_dest_ensure() { # $1 = zone_id — waits for user to click verification email
   step "Destination address: $DEST_EMAIL"
-  local account destinations destination resp verified
+  local account destinations destination resp verified limit="${CMAIL_WAIT_TIMEOUT:-600}" deadline delay attempt remaining
   account=$(cf_account_for_zone "$1") || return 1
   destinations=$(cf_addresses_list "$account") || return 1
   destination=$(jq -c --arg e "$DEST_EMAIL" '[.[] | select(.email == $e)][0] // empty' <<<"$destinations")
@@ -267,14 +274,19 @@ cf_dest_ensure() { # $1 = zone_id — waits for user to click verification email
     case "$DEST_EMAIL" in
       *@gmail.com|*@googlemail.com) open_url "https://mail.google.com/" ;;
     esac
-    for _ in $(seq 1 40); do
-      sleep 15
+    deadline=$((SECONDS + limit))
+    for ((attempt=0; attempt<(limit+14)/15; attempt++)); do
+      remaining=$((deadline - SECONDS)); [ "$remaining" -gt 0 ] || break
+      delay=15; [ "$remaining" -ge 15 ] || delay="$remaining"
+      sleep "$delay"
+      remaining=$((deadline - SECONDS)); [ "$remaining" -gt 0 ] || break
+      local CMAIL_REQUEST_TIMEOUT="$remaining"
       destinations=$(cf_addresses_list "$account") || return 1
       verified=$(jq -r --arg e "$DEST_EMAIL" '.[] | select(.email == $e) | .verified // empty' <<<"$destinations")
       [ -n "$verified" ] && break
-      printf '  still unverified — waiting (click the email link)…\n'
+      note 'still unverified — waiting (click the email link)…'
     done
-    [ -n "$verified" ] || die "$DEST_EMAIL not verified after about 10 minutes — check Inbox/Spam in the correct mailbox, resend an expired/missing link from Cloudflare Email Routing > Destination addresses, then rerun ./cmail setup after clicking it. The pending destination is kept"
+    [ -n "$verified" ] || die "$DEST_EMAIL not verified after ${limit}s — check Inbox/Spam in the correct mailbox, resend an expired/missing link from Cloudflare Email Routing > Destination addresses, then rerun ./cmail setup after clicking it. The pending destination is kept"
   fi
   ok "$DEST_EMAIL verified"
 }
@@ -282,7 +294,8 @@ cf_dest_ensure() { # $1 = zone_id — waits for user to click verification email
 cf_rules_ensure() { # $1 = zone_id — create forwarding rules for $ADDRESSES
   step "Forwarding addresses ($ADDRESSES -> $DEST_EMAIL)"
   local rules prio=0 a addr payload list=()
-  rules=$(cf_routing_request GET "/zones/$1/email/routing/rules") || return 1
+  rules=$(cf_rules_list "$1") || return 1
+  rules=$(jq -cn --argjson rules "$rules" '{result:$rules}') || return 1
   jq -e '.result | type == "array"' >/dev/null 2>&1 <<<"$rules" \
     || die "Cloudflare returned invalid forwarding rules — no change applied"
   IFS=',' read -ra list <<<"$ADDRESSES"
@@ -325,4 +338,44 @@ cf_status() { # $1 = zone_id — print current routing state
   printf 'destinations    :\n'; jq -r '.[] | "  - \(.email)  verified=\(.verified // "no")"' <<<"$resp"
   resp=$(cf_routing_request GET "/zones/$1/email/routing/rules") || return 1
   printf 'rules           :\n'; jq -r '.result[]? | "  - \(.matchers[0].value) -> \(.actions[0].value[0])  [\(.enabled)]"' <<<"$resp"
+}
+
+cf_rules_list() {
+  local zone="$1" page=1 pages count resp batch records='[]' path
+  while :; do
+    [ "$page" -le 1000 ] || die 'forwarding-rule listing exceeded 1000 pages'
+    path="/zones/$zone/email/routing/rules"
+    [ "$page" = 1 ] || path="$path?per_page=50&page=$page"
+    resp=$(cf_routing_request GET "$path") || return 1
+    batch=$(jq -ce '.result | if type=="array" then . else error("invalid rules") end' <<< "$resp") \
+      || die 'Cloudflare returned invalid forwarding rules — no complete result available'
+    records=$(jq -cn --argjson a "$records" --argjson b "$batch" '$a+$b') || return 1
+    count=$(jq 'length' <<< "$batch")
+    pages=$(jq -er --argjson page "$page" --argjson count "$count" '
+      (.result_info.total_pages // (if $count >= 50 then $page+1 else $page end))
+      | select(type=="number" and .>=0 and .==floor)' <<< "$resp") \
+      || die 'Cloudflare returned invalid forwarding-rule pagination'
+    [ "$page" -lt "$pages" ] || break
+    page=$((page + 1))
+  done
+  printf '%s\n' "$records"
+}
+
+cf_status_data() {
+  local zone routing destinations rules account
+  zone=$(cf_routing_request GET "/zones/$1") || return 1
+  jq -e --arg domain "$DOMAIN" '.result | .name==$domain and (.status|type=="string") and (.account.id|type=="string" and length>0)' \
+    >/dev/null <<< "$zone" || die 'saved zone does not match DOMAIN or returned malformed data; check cmail config and the Cloudflare dashboard'
+  account=$(jq -r '.result.account.id' <<< "$zone")
+  routing=$(cf_routing_request GET "/zones/$1/email/routing") || return 1
+  jq -e '.result.enabled | type=="boolean"' >/dev/null <<< "$routing" || die 'Cloudflare returned invalid Email Routing state'
+  destinations=$(cf_addresses_list "$account") || return 1
+  rules=$(cf_rules_list "$1") || return 1
+  jq -nc --arg id "$1" --argjson zone "$zone" --argjson routing "$routing" \
+    --argjson destinations "$destinations" --argjson rules "$rules" '
+    {zone:{id:$id,name:$zone.result.name,status:$zone.result.status,account_id:$zone.result.account.id,
+           nameservers:($zone.result.name_servers // [])},
+     routing:{enabled:$routing.result.enabled,status:($routing.result.status // "unknown")},
+     destinations:[$destinations[] | {email,verified:(.verified!=null),verified_at:.verified}],
+     rules:[$rules[] | {id,enabled,matchers,actions}]}'
 }

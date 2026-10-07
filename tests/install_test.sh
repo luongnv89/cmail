@@ -57,7 +57,7 @@ install || { printf 'fresh install failed: %s\n' "$(< "$TMP/error")" >&2; exit 1
 grep -q 'custom-domain email' "$TMP/help" || fail 'installed help'
 [ ! -e "$CMAIL_CONFIG_DIR/.env" ] || fail 'install created config'
 pass 'fresh install is runnable with shell-metacharacter paths and no setup'
-[ "$(wc -l < "$CURL_LOG" | tr -d ' ')" = 10 ] || fail 'incomplete runtime download'
+[ "$(wc -l < "$CURL_LOG" | tr -d ' ')" = 12 ] || fail 'incomplete runtime download'
 grep -q -- '--proto =https --proto-redir =https' "$CURL_LOG" || fail 'unsafe transport'
 grep -q 'eb45f9558ecc5874e6a21d6f1b93fe1379f46841' "$CURL_LOG" || fail 'unpinned source'
 pass 'complete runtime including CLI parser from pinned HTTPS source'

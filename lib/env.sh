@@ -139,6 +139,8 @@ config_load() { # preserve environment over file, even explicit empty overrides
   [ -z "${CLI_DESTINATION:-}" ] || DEST_EMAIL="$CLI_DESTINATION"
   [ -z "${CLI_ADDRESSES:-}" ] || ADDRESSES="$CLI_ADDRESSES"
   # A domain override must never reuse a zone ID belonging to the saved domain.
+  if [ -n "${DOMAIN:-}" ]; then DOMAIN=$(printf '%s' "$DOMAIN" | tr '[:upper:]' '[:lower:]'); fi
+  file_domain=$(printf '%s' "$file_domain" | tr '[:upper:]' '[:lower:]')
   if [ -n "$file_domain" ] && [ "${DOMAIN:-}" != "$file_domain" ]; then CF_ZONE_ID=''; fi
   config_validate || return 3
   export GDDY_ENV
@@ -159,7 +161,10 @@ env_init() { # setup-only creation and permission repair
 
 env_set() { # atomic same-directory update, never print values
   local key="$1" value="$2" tmp quoted='' line char j
-  if ! config_key_valid "$key" || ! config_field_valid "$key" "$value"; then config_error 'invalid configuration update'; return 3; fi
+  if ! config_key_valid "$key" || { [ -n "$value" ] && ! config_field_valid "$key" "$value"; }; then config_error 'invalid configuration update'; return 3; fi
+  if [ "$key" = DOMAIN ] && [ "${DOMAIN:-}" != "$value" ]; then
+    env_set CF_ZONE_ID '' || return 3
+  fi
   config_read || { config_error "could not save $key; check file permissions"; return 3; }
   tmp=$(mktemp "${ENV_FILE%/*}/.cmail-config.XXXXXXXX") || die 'could not prepare config update; check directory permissions and disk space'
   for ((j=0; j<${#value}; j++)); do

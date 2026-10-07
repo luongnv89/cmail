@@ -3,6 +3,13 @@
 
 
 
+# Bound external commands; module tests override this function with fixtures.
+gddy() {
+  local timeout="${CMAIL_TIMEOUT:-30}"
+  [ "${1:-} ${2:-}" != 'auth login' ] || timeout="${CMAIL_WAIT_TIMEOUT:-1200}"
+  command gddy "$@" --timeout "${timeout}s"
+}
+
 gddy_ensure_auth() { # OAuth browser login if no valid credential for env
   step "GoDaddy authentication ($GDDY_ENV)"
   if [ -n "${GDDY_PAT:-}" ]; then ok "GDDY_PAT set — using PAT"; return 0; fi
@@ -11,7 +18,7 @@ gddy_ensure_auth() { # OAuth browser login if no valid credential for env
     | jq -r --arg e "$GDDY_ENV" '[.data[] | select(.env==$e and .expired==false)] | length' || echo 0)
   if ! [[ "$expired" =~ ^[1-9][0-9]*$ ]]; then
     log "no valid credential — starting OAuth (a browser window will open)"
-    gddy auth login --env "$GDDY_ENV" || die "gddy auth login failed — check network/browser access and the correct GoDaddy account; retry gddy auth login --env $GDDY_ENV, then re-run ./cmail setup. If using a PAT, renew/recreate it for $GDDY_ENV and update GDDY_PAT privately (never paste it into logs)"
+    gddy auth login --env "$GDDY_ENV" >&2 || die "gddy auth login failed — check network/browser access and the correct GoDaddy account; retry gddy auth login --env $GDDY_ENV, then re-run ./cmail setup. If using a PAT, renew/recreate it for $GDDY_ENV and update GDDY_PAT privately (never paste it into logs)"
   fi
   ok "gddy authenticated"
 }
@@ -25,14 +32,15 @@ gddy_pick_domain() { # sets DOMAIN (and saves to .env)
   domains=$(jq -er 'if (.data | type) == "array" then [.data[] | (.domain // .name // empty)] | sort | join("\n") else error("invalid domain list") end' <<<"$domains" 2>/dev/null) \
     || die "could not read GoDaddy domain list — check gddy domain list --env $GDDY_ENV --json and your GoDaddy dashboard; update gddy if its response format changed, then re-run ./cmail setup"
   if [ -n "$domains" ]; then
-    printf 'Your GoDaddy domains:\n  - %s\n' "${domains//$'\n'/$'\n  - '}"
-    echo "  - (type any other name to register a new one)"
+    printf 'Your GoDaddy domains:\n  - %s\n' "${domains//$'\n'/$'\n  - '}" >&2
+    printf '  - (type any other name to register a new one)\n' >&2
   fi
   local val
-  printf '%s ?%s domain to use: ' "$C_YELLOW" "$C_OFF"
+  printf '%s ?%s domain to use: ' "$C_YELLOW" "$C_OFF" >&2
   read -r val || die "domain input unavailable — run ./cmail setup in an interactive terminal, or set DOMAIN in your private config"
   [ -n "$val" ] || die "domain required — set DOMAIN in your private config or enter a domain when re-running ./cmail setup"
-  if ! grep -qx "$val" <<<"$domains"; then gddy_maybe_register "$val"; fi
+  config_domain_valid "$val" || { config_error 'DOMAIN must be a domain name without a scheme or path'; return 3; }
+  if ! grep -qxF "$val" <<<"$domains"; then gddy_maybe_register "$val"; fi
   env_set DOMAIN "$val"
 }
 
@@ -40,15 +48,19 @@ gddy_maybe_register() { # offer to register the domain if not owned
   local d="$1"
   gddy domain get "$d" --env "$GDDY_ENV" >/dev/null 2>&1 && return 0
   warn "could not confirm $d in your GoDaddy account — check the dashboard, network and authentication before considering a purchase"
-  gddy domain available "$d" --env "$GDDY_ENV" \
+  gddy domain available "$d" --env "$GDDY_ENV" >&2 \
     || die "could not check availability for $d — check network, gddy auth login --env $GDDY_ENV and the GoDaddy dashboard, then re-run ./cmail setup; do not purchase until ownership/availability is clear"
   confirm "attempt registration via gddy now? (charges your GoDaddy account)" \
     || die "registration declined — check whether you already own $d in GoDaddy; register it if needed, then set DOMAIN and re-run ./cmail setup"
-  gddy domain quote "$d" --env "$GDDY_ENV" \
+  local quote token
+  quote=$(gddy domain quote "$d" --env "$GDDY_ENV" --json --fields all 2>/dev/null) \
     || die "quote failed — check network, authentication for $GDDY_ENV and domain availability. Check GoDaddy orders and domain ownership before retrying any purchase; once resolved, re-run ./cmail setup"
-  confirm "confirm purchase of $d at the quoted price" \
+  token=$(jq -er --arg domain "$d" '.data | select(.domain==$domain and .available==true and (.price|type=="string" and length>0) and (.currency|type=="string" and length>0) and (.requiredAgreements|type=="array" and all(.[]; (.title|type=="string" and length>0) and (.url|type=="string" and startswith("https://"))))) | .quoteToken | select(type=="string" and length>0)' <<< "$quote" 2>/dev/null) \
+    || die 'quote missing price, token, or agreement title/link; inspect gddy domain quote before purchasing'
+  jq '.data | {domain,price,currency,period,renewalPrice,fees,requiredAgreements}' <<< "$quote" >&2
+  confirm "confirm purchase of $d at the quoted price, including fees, and accept the displayed agreements" \
     || die "purchase declined — no purchase requested; check GoDaddy orders/domain ownership, then re-run ./cmail setup when ready"
-  gddy domain purchase "$d" --env "$GDDY_ENV" \
+  gddy domain purchase --quote-token "$token" --agree --confirm --env "$GDDY_ENV" >/dev/null 2>&1 \
     || die "purchase failed — the outcome may be uncertain; check GoDaddy orders, billing and domain ownership BEFORE retrying purchase to avoid duplicate charges. Check network/authentication for $GDDY_ENV; if purchased, set DOMAIN and re-run ./cmail setup; otherwise resolve the order or contact GoDaddy support first"
   ok "registered $d"
 }
@@ -83,7 +95,7 @@ gddy_set_nameservers() { # gddy_set_nameservers ns1 ns2 ...
   fi
   confirm "apply nameserver change" \
     || die "aborted before nameserver change — migrate existing DNS records to Cloudflare, then re-run ./cmail setup when ready"
-  gddy domain nameservers set "${args[@]}" "$DOMAIN" --env "$GDDY_ENV" \
+  gddy domain nameservers set "${args[@]}" "$DOMAIN" --env "$GDDY_ENV" >/dev/null 2>&1 \
     || die "nameserver update failed — it may still have applied; check GoDaddy dashboard > domain > DNS > Nameservers or gddy domain get $DOMAIN --env $GDDY_ENV --json against the desired nameservers above. Check network/authentication and domain permissions/locks; once resolved, re-run ./cmail setup (matching nameservers skip the write)"
   ok "nameservers set: $* (change submitted) — allow DNS propagation; verify in the GoDaddy dashboard or with gddy domain get $DOMAIN --env $GDDY_ENV --json"
 }
