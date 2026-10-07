@@ -170,3 +170,54 @@ probe is a labelled per-variable loop (multi-name `printenv` is unportable), Gat
 names zsh `whence -w`, and the contract test bans three more question forms.
 Re-measured: 30 offline methods pass; `asm eval --json` 87 (structure 9, PII 8,
 license 0, all others 10); body 1,499 words.
+
+## Skill 2.0.0 — autonomous execution
+
+The skill now runs the commands itself and uses `cmail setup` as the primary
+setup path. An autonomy contract lists **auto** actions (probes, installs without
+sudo, config creation, non-secret config values, background `gddy auth login`,
+setup passes, reruns after repair) and **stops** (missing values and hands-on
+steps, nameserver replacement, existing MX/DNSSEC, purchase, sudo, overwrites,
+account choice, untrusted binary, three failed repairs).
+
+`references/autonomous-run.md` defines a read-only preflight, pass 1 with stdin
+closed (any prompt fails instead of being answered), stop classification from
+setup's `Setup stopped at:` line, and pass 2 with `printf 'y\n\n'` only after pass
+1 stopped at the nameserver confirmation and the user approved. It stops before
+pass 1 on non-Cloudflare MX or DS records, because matching nameservers let setup
+enable routing without a prompt. Troubleshooting is keyed by setup's step names.
+
+New helpers: `check_config.py --summary` prints non-secret values and secret
+presence only; `set_config.py` writes validated non-secret keys atomically at mode
+600 and refuses secret keys. Four eval prompts were added (ids 15–18; eighteen
+total) and ids 1, 5 and 12 were updated; they are scenario cases, not measured
+behavioral runs.
+
+A fresh adversarial subagent compared the draft with `cmail` and `lib/`. Fixed
+findings: pass 2 must also run in the background; `DRY_RUN=1` would skip the
+confirmation and loop on PENDING, so the preflight now requires DRY_RUN absent or
+0 and every pass sets `DRY_RUN=0`; `--summary` echoed a token pasted on a public
+line (now `<invalid>`, exit 3 when NOT READY); `set_config.py` silently
+overwrote values (now needs `--replace`); smart quotes passed the checker (non-ASCII
+values now rejected; editor opened with `open -t`, mode reset with `chmod 600`);
+checkout `.env*` files of other domains are no longer selected unasked (default is
+a per-domain file); repo sync skips gitignored configs and is followed by Gate 1
+provenance; SPF TXT joins MX/DS as a stop before pass 1; classification is
+first-match and covers `needs attention`. Unverified suspicions (gddy reading
+GDDY_PAT from the environment, a gddy-internal nameserver prompt) were not
+exercised; the PAT path skips the agent-side gddy reads.
+
+A follow-up review added approval memory for the pre-pass stop (approved records
+do not trigger the same question again), zone-account evidence at the nameserver
+stop and the exact `ENV_FILE=… status` command in the final report.
+
+Checks run: `python3 tests/skill_setup_test.py` 37 methods pass (five new helper
+methods; one autonomy/run-protocol contract method that also checks the classified
+step names and log strings exist in `lib/`; one method running the real `confirm`
+and `pause` with closed stdin, `y` and Enter). No end-to-end `cmd_setup` harness
+exists, so the two passes were not run as whole setup flows; the seven shell suites,
+site, pages and checklist tests pass unchanged. `quick_validate.py` valid.
+`asm eval --json` 87 (structure 9, PII 8, license 0, all others 10); body 1,499
+words. Skill-standard Gate 2 remains a BLOCKER on license only. No live setup,
+provider call or mail send was run; agent adherence and human understanding
+remain unmeasured.

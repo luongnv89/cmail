@@ -1,25 +1,66 @@
 # Inputs, local secrets and config
 
-## Ask for non-secret intent
+## Select the config file
 
-Reuse the OS from discovery; confirm it only if `unknown`. Reuse a config path only
-when it came from the trusted launcher's `default_config=` line or from an
-ENV_FILE confirmed here; otherwise ask which file the invocation actually uses.
-Confirm any of these not already given: DOMAIN (owned, registrable domain only; no
-scheme/path), DEST_EMAIL (receiving Gmail account), ADDRESSES (comma-separated
-local parts, no `@domain`), GDDY_ENV (`prod` for real resources; `ote` cannot prove
-production setup), intended Cloudflare account, aliases needing send-as and
-existing DNS/mail.
+Pick the file the run will use, then pass it as `ENV_FILE` on every command.
+Take the first that applies:
+
+1. A config file the user named.
+2. The trusted launcher's `default_config=` line (from install-time
+   CMAIL_CONFIG_DIR, normally `~/.config/cmail/.env`), read as metadata after
+   Gate 1 provenance without executing the launcher or reading `.env`. Use it when
+   it is absent, or its summary shows the same DOMAIN or an empty one.
+3. Otherwise a new per-domain file beside it: `<config dir>/<domain>.env`.
+
+Never select a checkout `.env` or `.env-*` file the user did not name: such files
+may belong to other domains. An `ENV_FILE` seen in the agent shell is an
+agent-shell observation; use it only when the user confirms it. If the user says
+their own terminal invocation uses another file, ask which file their invocation
+actually uses. Do not edit a retained runtime's `.env`.
+
+If the file is absent, copy the trusted `.env.example` from the reviewed source or
+selected installed runtime without overwriting: `umask 077; mkdir -p <parent>;
+cp -n <template> <file>; chmod 600 <file>; chmod 700 <parent>`. Reject
+symlink/shared/unowned paths.
+
+## Fill non-secret values yourself
+
+Read the current state with
+`python3 <skill-directory>/scripts/check_config.py --summary <file>`. It prints
+DOMAIN, DEST_EMAIL, ADDRESSES, GDDY_ENV, CF_ACCOUNT_ID, CF_ZONE_ID and DRY_RUN,
+reports CLOUDFLARE_API_TOKEN and GDDY_PAT only as set/empty/absent, and ends
+with READY or NOT READY.
+
+Take empty values from the user's message: DOMAIN (owned, registrable domain only;
+no scheme/path), DEST_EMAIL (receiving Gmail account), ADDRESSES (comma-separated
+local parts, no `@domain`), GDDY_ENV (`prod` for real resources; `ote` cannot
+prove production setup). With DOMAIN unknown, list candidates with
+`gddy domain list --env <env> --json | jq -r '.data[] | .domain // .name'` and
+offer them. Ask one batched question for whatever is still missing, then write
+only the keys that need a value:
+
+```text
+python3 <skill-directory>/scripts/set_config.py <file> DOMAIN=<domain> DEST_EMAIL=<gmail> ADDRESSES=<locals>
+```
+
+The setter validates each value, refuses secret keys, keeps every other line
+unchanged, writes atomically at mode 600 and prints key names only. It refuses a
+key that already holds a different value unless `--replace` comes first. Use
+`--replace` without asking for template defaults (`ADDRESSES=hello`,
+`GDDY_ENV=prod`) and for values the user stated in this request; replacing any
+other existing value is a stop.
+
+## Secrets stay in the user's browser and editor
+
 Never request CLOUDFLARE_API_TOKEN, GDDY_PAT or a Google App Password in chat.
+cmail passes the token to curl in process arguments, visible to local `ps`
+whoever launches it; this skill cannot change that runtime transport.
 
-## Acquire secrets in the user's browser
-
-1. **GoDaddy:** prefer browser OAuth via local `gddy auth login --env prod` after
-   permission. A headless user may create an optional PAT at
+1. **GoDaddy:** browser OAuth via `gddy auth login --env prod`, which you start in
+   the background. A headless user may instead create a PAT at
    https://developer.godaddy.com/personal-access-token and save GDDY_PAT locally.
-   Ask only whether it was saved; recheck exact-domain access at gate 3.
-2. **Cloudflare:** https://dash.cloudflare.com/profile/api-tokens → Create token
-   → Custom token. Required permissions for current cmail are:
+2. **Cloudflare (hands-on):** open https://dash.cloudflare.com/profile/api-tokens
+   → Create token → Custom token. Required permissions for current cmail are:
 
    | Scope | Permission | Access |
    |---|---|---|
@@ -30,82 +71,45 @@ Never request CLOUDFLARE_API_TOKEN, GDDY_PAT or a Google App Password in chat.
    | Account | Email Routing Addresses | Edit |
 
    Include the intended owning account in Account Resources and the intended zone
-   (or account's zones for zone creation) in Zone Resources. Do not default to all
-   accounts. Copy into private local config, then clear the clipboard if desired.
-   Activity, resource access and successful operations are distinct gates.
-   CF_ACCOUNT_ID is an optional 32-character hex **Account ID**, not Zone ID.
-   CF_ZONE_ID must refer to this DOMAIN, not another existing zone.
-3. **Gmail:** enable 2-Step Verification if allowed. Open
-   https://myaccount.google.com/apppasswords and generate an App Password for Mail.
-   Enter it directly in Gmail's SMTP dialog, **not `.env`** and not an agent tool.
-   Do not use the normal login password, share confirmation codes or disable policy.
+   (or that account's zones for zone creation) in Zone Resources. Do not default to
+   all accounts. Then open the config in an **unrecorded local editor** for the
+   user (`open -t <file>` on macOS, `xdg-open <file>` on Linux) and ask them to
+   paste the token right after `CLOUDFLARE_API_TOKEN=` with no quotes or spaces,
+   then save. Ask only whether it is saved; then run `chmod 600 <file>` (editors
+   may reset the mode) and rerun the summary. The checker rejects non-ASCII
+   characters such as smart quotes an editor may insert. CF_ACCOUNT_ID is an optional 32-character hex
+   **Account ID**, not Zone ID; CF_ZONE_ID must refer to this DOMAIN.
+3. **Gmail:** the App Password from https://myaccount.google.com/apppasswords goes
+   directly into Gmail's SMTP dialog, **not `.env`** and not an agent tool. Do not
+   use the normal login password, share confirmation codes or disable policy.
 
-## Choose the correct file and update privately
+## Literal-only config
 
-Installed launcher default: the trusted launcher's `default_config=` line (from
-install-time CMAIL_CONFIG_DIR, normally `~/.config/cmail/.env`), read as metadata
-after Gate 1 provenance without executing the launcher or reading `.env`. An
-ENV_FILE set when cmail runs wins. An ENV_FILE seen by the agent is an agent-shell
-observation, and one set only in the user's interactive profile is invisible, so
-confirm with the user whether their invocation sets ENV_FILE before selecting a
-file. Source execution default: checkout `.env`. Reuse the path only when it came
-from the trusted launcher line or a confirmed ENV_FILE; otherwise ask the user
-which file their invocation actually uses. Do not edit a retained runtime's `.env`
-or assume checkout and installed configs match.
-
-If absent, use the trusted `.env.example` from the reviewed source or selected
-installed runtime. After consent, create its parent privately (`umask 077`) and
-copy without overwriting an existing file. Make the file mode 600 and parent 700.
-Reject symlink/shared/unowned paths. If editing a checkout, apply the sync gate.
-
-Guide the user in an **unrecorded local editor**, not by sending the file to the
-agent. Preserve existing data rather than overwriting it; avoid duplicate keys.
-The checker permits only documented cmail keys. Unknown/runtime-control keys
-such as PATH or BASH_ENV need local review and removal from the selected config;
-do not silently delete them or claim they are safe to source. A private
-backup is optional, also mode 600, never committed. Use `KEY='literal value'`;
-quote spaces. Do not put `$()`, backticks, variable expansions, commands, multiline
-values or shell snippets in config. A quote inside a value needs correct Bash
-escaping; do not invent a token-containing command. Current cmail loads config
-as Bash twice, so syntax validity alone does not make it safe.
-
-Required filled keys: DOMAIN, DEST_EMAIL, ADDRESSES, CLOUDFLARE_API_TOKEN.
-Set GDDY_ENV explicitly; GDDY_PAT is optional for OAuth. CF_ACCOUNT_ID and
-CF_ZONE_ID are optional and must match the intended resource when set.
-DRY_RUN may be 0/1; it only affects nameserver replacement, not other writes.
+Use `KEY='literal value'`. Do not put `$()`, backticks, variable expansions,
+commands, multiline values or shell snippets in config: current cmail loads it as
+Bash twice, so syntax validity alone does not make it safe. Unknown or
+runtime-control keys such as PATH or BASH_ENV are a stop: the user reviews and
+removes them locally; never delete them silently or call them safe to source.
 
 ## Verify without executing or exposing assignments
 
-With Python 3 available, run the bundled checker using absolute paths (resolve
-`scripts/check_config.py` relative to this skill's directory):
-
 ```text
-python3 <skill-directory>/scripts/check_config.py <selected-config-file>
+python3 <skill-directory>/scripts/check_config.py <file>
+bash -n <file> >/dev/null 2>&1
 ```
 
-This read-only check emits field names and a generic result, never values. It
-accepts a deliberately narrow literal-assignment subset, including cmail's `%q`
-backslash escapes; it rejects expansions, commands, unknown keys and duplicates.
-Use LF-only text: CR/CRLF, other controls and Unicode line separators are rejected
-before comment handling. Full-line comments are supported; inline comments, line
-continuations and complex Bash are outside this conservative grammar. Single/double
-quotes and escaped literals follow Bash semantics; unquoted tilde/glob/brace syntax
-is rejected (quote literal characters). Some otherwise literal values containing
-`$` or backticks are intentionally rejected. Parent directories must be user-controlled;
-the check does not guarantee the file stays unchanged before a later runtime load.
-A rejected valid-but-complex Bash file needs a **local** review/simplification,
-not sourcing it to bypass the gate. It validates user ownership/mode 600 and
-conservative domain/email/local-part/ID formats. It does not verify actual Gmail
-ownership, credential validity, intent, resource authorization or network state.
+The checker is read-only and value-free. It accepts a deliberately narrow
+literal-assignment subset (including cmail's `%q` backslash escapes) and rejects
+expansions, commands, unknown keys, duplicates, CR/CRLF and other control
+characters, unquoted tilde/glob/brace syntax, symlinks and any mode other than 600.
+A rejected but valid complex Bash file needs a local simplification, never
+sourcing to bypass the gate. It does not verify Gmail ownership, credential
+validity, resource authorization or network state. Do not print `bash -n`
+diagnostics: they can contain a secret line. Without Python 3, offer installing
+it (brew without sudo is auto) or do user-local manual checks and record their
+limits; never call an unrun checker green.
 
-Run `bash -n <selected-config-file> >/dev/null 2>&1` locally as a separate syntax
-check; do not print syntax diagnostics containing a secret line. If Python is
-missing, do not install it silently: offer consented installation or user-local
-manual checks of every required field, mode, ownership, syntax and literal-only
-content. Record manual evidence and limitations; do not call an unrun checker green.
-
-Confirm no secret config is tracked before proceeding. In a source checkout use
-`git check-ignore .env` and `git ls-files --error-unmatch .env` (the latter must
-fail); use the actual path if different. If tracked, stop and arrange credential
-rotation/removal with the user; do not stage or display it. Config outside a repo
-still needs private permissions and local-only storage.
+Confirm no secret config is tracked. In a source checkout run
+`git check-ignore <file>` and `git ls-files --error-unmatch <file>` (the latter
+must fail). If tracked, stop and arrange credential rotation/removal with the
+user; do not stage or display it.
