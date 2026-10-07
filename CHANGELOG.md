@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- cmail-setup skill 1.1.0 opens with read-only context discovery (OS, source
+  checkout, installed launcher, config presence, tools, request cues) instead of
+  asking about setup mode, OS/access or installation status. Undetectable facts,
+  such as browser access, stay unknown until a gate needs them. Discovery never
+  executes cmail, reads `.env` or changes anything; consent and secret rules are
+  unchanged.
+
 - Add a framework-free cmail landing page and ordered first-time setup guides,
   with enabled native checkboxes, boolean-only browser progress, reset and
   resilient storage/no-JS handling. Document actual installer/skill paths,
