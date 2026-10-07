@@ -2,6 +2,7 @@
 """Offline site/document contract checks; no provider calls or third-party packages."""
 import re
 import unittest
+from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlsplit, unquote
@@ -109,6 +110,59 @@ class SiteTests(unittest.TestCase):
         readme = (ROOT / 'README.md').read_text()
         for link in ['docs/index.html', 'docs/setup.html', 'docs/setup.md', 'node --test tests/checklist_test.js', 'python3 tests/site_test.py']:
             self.assertIn(link, readme)
+
+    def test_issue17_quickstarts_select_feature_runtime_not_default_installer(self):
+        # Issue #17: installing from a newer checkout still downloads v0.1.0.
+        feature_sha = 'cda65f0554a870ed8079e93741a331918118acec'
+        legacy_sha = 'eb45f9558ecc5874e6a21d6f1b93fe1379f46841'
+        installer = (ROOT / 'install.sh').read_text()
+        self.assertIn('ref="${CMAIL_REF:-' + legacy_sha + '}"', installer)
+        self.assertNotEqual(feature_sha, legacy_sha)
+        for name in ['README.md', 'docs/index.html', 'docs/setup.html', 'docs/setup.md']:
+            with self.subTest(name=name):
+                text = unescape((ROOT / name).read_text())
+                blocks = (re.findall(r'<pre><code>(.*?)</code></pre>', text, re.S)
+                          if name.endswith('.html') else re.findall(r'```bash\n(.*?)```', text, re.S))
+                quickstarts = [block for block in blocks if 'git clone' in block]
+                self.assertTrue(quickstarts, name)
+                for block in quickstarts:
+                    commands = [line.split('#', 1)[0].strip() for line in block.splitlines()]
+                    commands = [line for line in commands if line]
+                    expected = ['git clone https://github.com/luongnv89/cmail', 'cd cmail',
+                                'git checkout --detach ' + feature_sha, './cmail help']
+                    self.assertEqual(commands[:4], expected)
+                    self.assertTrue(all(command == './cmail setup' for command in commands[4:]))
+                    self.assertNotIn('bash install.sh', block)
+                    self.assertNotIn('--branch v0.1.0', block)
+                flat = ' '.join(re.sub(r'<[^>]*>', '', text).replace('**', '').split())
+                for required in ['development source snapshot', 'not v0.1.0',
+                                 'compatible release/installer ships', 'config defaults to checkout',
+                                 'Gmail guide', 'send-as', 'legacy', './cmail setup']:
+                    self.assertIn(required.lower(), flat.lower(), name)
+                if name == 'README.md':
+                    self.assertIn('Must list send-as', flat)
+                else:
+                    self.assertRegex(flat, r'(?:must (?:load offline and )?list|lists).*send-as')
+                self.assertRegex(flat, r'(?:stop if missing|If `?send-as`? is missing, stop)')
+        # Capability check is offline: no config or provider access is needed.
+        import subprocess
+        help_result = subprocess.run([str(ROOT / 'cmail'), 'help'], cwd=ROOT,
+                                     text=True, capture_output=True, timeout=5)
+        self.assertEqual(help_result.returncode, 0, help_result.stderr)
+        self.assertIn('./cmail send-as', help_result.stdout)
+
+    def test_issue17_guides_use_checkout_config_or_explicit_reuse(self):
+        for name in ['docs/setup.md', 'docs/setup.html']:
+            text = unescape((ROOT / name).read_text())
+            for command in ['cp -n .env.example .env', 'chmod 600 .env',
+                            'python3 skills/cmail-setup/scripts/check_config.py .env',
+                            'bash -n .env', 'ENV_FILE="$HOME/.config/cmail/.env"',
+                            './cmail send-as', './cmail setup']:
+                self.assertIn(command, text, name)
+            self.assertIn('same path for both checks', text)
+        readme = (ROOT / 'README.md').read_text()
+        self.assertIn('ENV_FILE="$HOME/.config/cmail/.env"', readme)
+        self.assertIn('for every `./cmail` invocation', readme)
 
     def test_no_remote_runtime_assets_or_provider_calls(self):
         for filename in ['index.html', 'setup.html']:

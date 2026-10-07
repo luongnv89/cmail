@@ -1,8 +1,10 @@
 # Verification matrix
 
 Use the selected trusted launcher (installed, or source `./cmail`) and always pass
-the selected config as `ENV_FILE`. The current installer pins v0.1.0; these gates
-match that runtime. **You run every check below** unless it is marked hands-on.
+the selected config as `ENV_FILE`. The current installer pins legacy v0.1.0;
+these gates support it and the reviewed current source, with different setup
+completion evidence at gate 8. Record trusted offline help capabilities at gate 1.
+**You run every check below** unless it is marked hands-on.
 Hands-on evidence comes from the user as a sanitized observation (exact
 domain/account, state, time), labelled user-reported. With no evidence, the gate
 is BLOCKED. Do not call internal Bash helpers as a public API.
@@ -108,9 +110,21 @@ is BLOCKED. Do not call internal Bash helpers as a public API.
 - Prerequisite: gates 1–7.
 - Action: setup creates one rule per ADDRESSES local part and refuses to change a
   conflicting, disabled or duplicate rule.
-- Verify: setup printed `Receiving is set up` (its rule check passed) and `status` lists
-  each `<local>@<domain> -> DEST_EMAIL [true]` exactly once.
-- Failure: missing, conflicting, disabled, duplicate or wrong-target rule.
+- Verify: require **both** completion evidence and fresh exact-rule evidence:
+  - Completion evidence is **either** a trusted current runtime whose setup
+    printed `Receiving is set up` **and** exited 0, **or** a trusted legacy runtime
+    whose offline help lacks `send-as`, with the exact checkpoint
+    `Setup stopped at: Send FROM your custom address (manual, ~5 min)` **and**
+    `Gmail guide paused without input` **after all receiving stages** in that
+    same setup pass. The legacy pause exits nonzero; it is not a receiving failure.
+  - In **both cases**, `ENV_FILE="$cfg" "$launcher" status` must succeed and list
+    each requested `<local>@<domain> -> DEST_EMAIL [true]` exactly once, to the
+    intended DEST_EMAIL. Inspect all entries for each requested alias: a duplicate
+    with another target or disabled flag still fails. Unrelated aliases may exist.
+- Failure: missing, incomplete, conflicting, disabled, duplicate or wrong-target
+  rule; untrusted runtime, missing completion evidence, or any failure before
+  the checkpoint is not success. A Gmail mention or missing `send-as` alone is
+  insufficient; a current summary with nonzero exit is not completion.
 - Repair/recheck: show the sanitized conflict and stop before correcting it;
   never overwrite unrelated rules. Rerun pass 1 and repeat both checks.
 

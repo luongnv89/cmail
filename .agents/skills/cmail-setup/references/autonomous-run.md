@@ -1,14 +1,18 @@
 # Running `cmail setup` autonomously
 
-`cmail setup` runs these stages in order, saving progress in config, and skips
-work already done: dependencies → configuration prompts (DEST_EMAIL, ADDRESSES)
+Reviewed current-source `./cmail setup` runs these stages in order, saving
+progress in config, and skips work already done: dependencies → configuration prompts (DEST_EMAIL, ADDRESSES)
 → GoDaddy auth → domain choice → Cloudflare token → zone create/reuse →
 nameserver replacement (confirmation prompt) → wait for Active (polls ~20 min)
 → enable Email Routing → destination registration (polls ~10 min for the link
 click) → forwarding rules → `Receiving is set up` summary, then exit 0. Setup
 never runs the Gmail guide: sending is the separate, optional `cmail send-as`
 command (waits for Enter), used only when the user asked to send from the
-custom address.
+custom address. The default installer pins legacy v0.1.0 instead: after the
+same receiving stages it runs the Gmail guide, which pauses without input.
+Record trusted offline help at gate 1; never assume installation selects the
+checkout's newer behavior. For receive-only use, ignore the legacy Gmail guide
+and verify gate 8's exact post-receiving checkpoint and status rules.
 
 Every prompt reads stdin. With stdin closed, a prompt fails and setup exits with
 `Setup stopped at: <step>`, so a closed-stdin run never answers a question. When
@@ -92,7 +96,7 @@ Check rows in order; the first match wins.
 |---|---|---|
 | `aborted before nameserver change` | Nameservers differ; setup reached the confirmation | Stop: nameserver approval |
 | `Receiving is set up` and `exit=0` | Every API stage succeeded | Verify gates 3–8, then Gate 9 |
-| `Setup stopped at: Send FROM` with `paused without input` | Older runtime without `send-as` (its `help` does not list it): every API stage succeeded, then it showed the Gmail guide | Verify gates 3–8, then Gate 9; Gmail steps still apply only when sending was requested |
+| Exact `Setup stopped at: Send FROM your custom address (manual, ~5 min)` with `Gmail guide paused without input` after all receiving stages in the same pass | Trusted legacy runtime whose offline `help` lacks `send-as`: receiving API stages succeeded, then it showed the Gmail guide; nonzero exit is expected at this pause, not before it | Verify gates 3–8, then Gate 9; Gmail steps still apply only when sending was requested |
 | `zone still` and the log shows `nameservers set` or `already point at Cloudflare` | Delegation PENDING | Wait; rerun pass 1 later (matching nameservers skip the write) |
 | `zone status` … `needs attention` | Zone moved, deleted or blocked | Stop (wrong): show the status |
 | `not verified after about 10 minutes` | Destination link not clicked | Stop (hands-on): user clicks the link; rerun pass 1 |

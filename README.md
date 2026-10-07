@@ -5,15 +5,26 @@ simple steps**, delivered to **the inbox you already use** (Gmail, Outlook,
 iCloud, Proton, a work address, …). Built on **Cloudflare Email Routing**; no
 new mailbox and no Google account needed.
 
+The receive-only workflow below uses a **reviewed development source snapshot**,
+not v0.1.0, until a compatible release/installer ships:
+
 ```bash
-bash install.sh      # 1. install (from a reviewed source checkout)
-cmail setup          # 2. guided setup: approve in browser, paste a token, click one link
-                     # 3. from another mailbox, email hello@your-domain — done
+git clone https://github.com/luongnv89/cmail
+cd cmail
+git checkout --detach cda65f0554a870ed8079e93741a331918118acec
+# Review cmail and lib/ before execution.
+./cmail help         # Must list send-as; stop if missing, before setup.
+./cmail setup        # Approve in browser, paste a token, click one link.
+                     # From another mailbox, email hello@your-domain — done.
 ```
 
-> **Sending is optional, not the default.** `cmail setup` only sets up
-> receiving. If you also want to *send* as `hello@your-domain`, run
-> `cmail send-as` afterwards, only on request. It guides Gmail "Send mail as"
+Use this checkout's `./cmail`, not a PATH `cmail`; config defaults to checkout
+`.env`. The [installer](#installation) still pins legacy v0.1.0: its setup
+includes the Gmail guide and it has no `send-as` command.
+
+> **Sending is optional, not the default** in this source workflow. `./cmail setup`
+> only sets up receiving. If you also want to *send* as `hello@your-domain`, run
+> `./cmail send-as` afterwards, only on request. It guides Gmail "Send mail as"
 > and needs a Gmail/Google account. See
 > [Optional: send from your custom address](#optional-send-from-your-custom-address).
 
@@ -81,7 +92,10 @@ export PATH="$HOME/.local/bin:$PATH"   # only if this directory is not on PATH
 cmail help
 ```
 
-Only when ready for the guided, potentially live-changing workflow, run
+This default installed runtime is **legacy v0.1.0**: `cmail setup` still includes
+the Gmail sending guide and has no `cmail send-as`. For receiving-only setup and
+optional sending, use the reviewed source quickstart below instead. Only when
+ready for the legacy guided, potentially live-changing workflow, run installed
 `cmail setup`. Installation success proves CLI availability, not functioning
 DNS, provider permissions or end-to-end email delivery.
 
@@ -95,16 +109,25 @@ To uninstall, remove the installed launcher and the managed cmail runtime
 store; retain `~/.config/cmail` unless you explicitly want to delete your
 configuration/credentials. No shell profile changes need undoing.
 
-## Quickstart (source release)
+## Quickstart (reviewed current source)
 
-Clone the existing v0.1.0 release (no installer in this tag):
+Use this immutable feature-containing development snapshot, **not v0.1.0**, until
+a compatible release/installer ships. Clone upstream, select the exact revision,
+then review `cmail` and `lib/` before executing it:
 
 ```bash
-git clone --branch v0.1.0 --depth 1 https://github.com/luongnv89/cmail && cd cmail
+git clone https://github.com/luongnv89/cmail
+cd cmail
+git checkout --detach cda65f0554a870ed8079e93741a331918118acec
+./cmail help         # Must list send-as; stop if missing, before setup.
 ./cmail setup
 ```
 
-For the development version, omit `--branch v0.1.0 --depth 1` to clone the default branch instead.
+All workflow commands below refer to this checkout's `./cmail`, not PATH `cmail`.
+It defaults to checkout `.env`; to reuse private installed config, explicitly set
+`ENV_FILE="$HOME/.config/cmail/.env"` for every `./cmail` invocation. Do not run
+`bash install.sh` as part of this quickstart: its default pin selects legacy
+v0.1.0, regardless of the checkout revision.
 
 The script walks you through each step. Authentication is browser-based
 (OAuth) wherever possible:
@@ -159,8 +182,9 @@ Copy the whole directory into your agent's skill location; see its
 installer does not install agent skills, and no tagged skill release is claimed.
 
 Ask “Use cmail-setup to help me set up custom email” or `/cmail-setup` in an
-agent supporting slash skills. The agent installs cmail and its tools, fills the
-non-secret config, runs a read-only preflight and then runs `cmail setup` itself,
+agent supporting slash skills. The agent selects a trusted source or legacy
+installed runtime and its tools, fills the non-secret config, runs a read-only
+preflight and then runs that runtime's setup itself,
 troubleshooting and rerunning on failure. It verifies each gate before advancing.
 It asks only when a value is missing, a step needs you (Cloudflare token entry,
 browser approvals, delivery tests, and Gmail send-as only if you ask for
@@ -173,6 +197,9 @@ printing it. Offline tests/evaluation cases do not prove a real user's setup,
 provider access or delivery. Redistribution licensing remains a maintainer decision.
 
 ## Commands
+
+These are the reviewed current-source commands; legacy v0.1.0 lacks `send-as`
+and includes the Gmail guide in setup.
 
 | Command | Description |
 |---|---|

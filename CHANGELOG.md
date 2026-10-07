@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Fix the runtime mismatch in receive-only/optional-send quickstarts (#17).
+  README, landing page and both setup guides now select the immutable reviewed
+  development source snapshot `cda65f0554a870ed8079e93741a331918118acec`, check
+  `./cmail help` for `send-as` before setup, and consistently use source `./cmail`
+  and checkout `.env`. The unchanged installer still pins legacy v0.1.0, whose
+  setup includes the Gmail guide and has no `send-as`. The mirrored setup skill
+  accepts either current receiving summary + exit 0 or the trusted legacy
+  post-receiving Gmail pause at gate 8; both require every requested rule enabled
+  exactly once to the intended destination. Add offline prose-contract regressions;
+  no new release, installer pin change or live verification is claimed.
+
 - Receiving no longer requires Gmail or a Google account. `cmail setup` now
   forwards to any inbox you own and ends after the forwarding rules with a
   `Receiving is set up` summary (exit 0, no final Enter prompt). Gmail
@@ -11,8 +22,8 @@
   receiving as the default and sending as opt-in. The skill's pass 2 pipes only
   `y`, and it runs `send-as` only when the user asks to send. The README, landing
   page and setup guides lead with "custom-domain email in a few simple steps"
-  (install, `cmail setup`, send a test), and the CLI help and setup banner state
-  that sending is optional and only on request. The landing page adds a
+  (review source, `./cmail setup`, send a test), and the CLI help and setup banner
+  state that sending is optional and only on request. The landing page adds a
   "Do I need Gmail or a Google account?" FAQ.
 
 - cmail-setup skill 2.0.0 runs setup autonomously. The agent installs cmail and

@@ -9,12 +9,14 @@ to receive mail, skip step 13. The HTML guide has enabled, keyboard-operable
 checkboxes, saved progress and reset. GitHub Markdown checkboxes
 are a reading/printing fallback, not persistent interactive controls.
 
-**The short version: a few simple steps.** Check prerequisites (step 1), install
-cmail (step 2), run `cmail setup`, then send yourself a test (step 14).
-`cmail setup` carries out steps 3–12 for you and pauses only for browser approvals, the Cloudflare token,
-the nameserver confirmation and one verification click; read those steps to
-review or troubleshoot. **Sending is optional and only on request:** step 13
-(`cmail send-as`) is not part of the default setup.
+**The short version: a few simple steps** with the reviewed development source
+snapshot (not v0.1.0), until a compatible release/installer ships. Check
+prerequisites (step 1), review/select source (step 2), run `./cmail setup`, then
+send yourself a test (step 14). `./cmail setup` carries out steps 3–12 for you and
+pauses only for browser approvals, the Cloudflare token, the nameserver
+confirmation and one verification click; read those steps to review or
+troubleshoot. **Sending is optional and only on request** in this source workflow:
+step 13 (`./cmail send-as`) is not part of the default setup.
 
 **Before choosing Gmail for (optional) sending:** [Google’s current Send as help](https://support.google.com/mail/answer/22370)
 announces removal of third-party Send as starting **January 2027**. Inbound
@@ -46,34 +48,44 @@ DNSSEC/DS records. Plan migration before changing anything. Only if sending: che
 Google policy and whether App Passwords are permitted. Missing access is not a
 purchase signal.
 
-### 2. Install from reviewed source
+### 2. Select reviewed current source (or legacy installation)
 
 - [ ] Verify the trusted CLI and select the actual config path.
 
-Obtain/review the [upstream default-branch source](https://github.com/luongnv89/cmail)
-(clone, or unpack its source archive). A clone route after review:
+For this guide's receive-only/optional-send workflow, clone
+[upstream](https://github.com/luongnv89/cmail) and select the immutable feature
+revision below. This is a reviewed development source snapshot, **not v0.1.0**,
+until a compatible release/installer ships. Review `cmail` and `lib/` before
+execution:
 
 ```bash
 git clone https://github.com/luongnv89/cmail
 cd cmail
-bash install.sh
-"$HOME/.local/bin/cmail" help
-export PATH="$HOME/.local/bin:$PATH"
-cmail help
+git checkout --detach cda65f0554a870ed8079e93741a331918118acec
+./cmail help
 ```
 
-Installer bootstrap requires Bash/curl/standard utilities, not jq/gddy/sudo/provider
-access. It downloads the pinned v0.1.0 runtime, does not run setup or edit profiles.
-v0.1.0 itself has neither installer nor newer skill/checker. Keep the checkout for
-the checker. No released remote bootstrap or Homebrew package is promised.
-[Distribution contract](distribution.md): paths, upgrades, limitations and status.
+**Check before setup:** trusted `./cmail help` must load offline and list
+setup/send-as/status/doctor/help. If `send-as` is missing, stop: this is not the
+runtime for this source workflow. Use `./cmail`, never PATH `cmail`, in the
+following steps; config defaults to checkout `.env`. Help proves no provider
+readiness. Keep the checkout for the checker/skill.
 
-Defaults: launcher `~/.local/bin/cmail`, runtimes `~/.local/share/cmail/runtime.*`,
-config `~/.config/cmail/.env`. Absolute install overrides: CMAIL_BIN_DIR,
-CMAIL_DATA_DIR, CMAIL_CONFIG_DIR. All paths/parents must be user-controlled and
-non-symlink; existing config is preserved. Runtime ENV_FILE overrides config;
-source `./cmail` defaults to checkout `.env`. Do not edit retained runtime config.
-Help must load setup/status/doctor/help offline; this proves no provider readiness.
+**Legacy installation alternative (not this quickstart):** after reviewing
+`install.sh` and the [distribution contract](distribution.md), `bash install.sh`
+downloads the pinned v0.1.0 runtime regardless of checkout revision. Its setup
+still includes the Gmail guide and it lacks `send-as`. v0.1.0 itself has neither
+installer nor newer skill/checker. No released remote bootstrap or Homebrew
+package is promised. Installer bootstrap requires Bash/curl/standard utilities,
+not jq/gddy/sudo/provider access; it does not run setup or edit profiles.
+
+Legacy defaults: launcher `~/.local/bin/cmail`, runtimes
+`~/.local/share/cmail/runtime.*`, config `~/.config/cmail/.env`. Absolute install
+overrides: CMAIL_BIN_DIR, CMAIL_DATA_DIR, CMAIL_CONFIG_DIR. All paths/parents must
+be user-controlled and non-symlink; existing config is preserved. Verify the
+trusted installed launcher with `"$HOME/.local/bin/cmail" help`. To reuse its
+config with source, export `ENV_FILE="$HOME/.config/cmail/.env"` for every source
+command and check that same file in step 7; do not edit retained runtime config.
 
 ### 3. Prepare runtime tools
 
@@ -85,7 +97,7 @@ review [gddy’s official installer](https://developer.godaddy.com/en/docs/api-u
 before execution. Its `~/.local/bin` needs PATH. Compare `gddy tree`/help against
 cmail’s domain/nameserver commands. Newer purchase syntax may differ from pinned
 cmail; stop on incompatibility and use staged dashboard actions instead.
-`cmail setup`/`doctor` may install missing tools; `status`/`doctor` can create/secure
+`./cmail setup`/`doctor` may install missing tools; `status`/`doctor` can create/secure
 local config. Doctor can print non-secret config and is not the safe checker.
 
 ### 4. GoDaddy authentication and existing domain
@@ -169,16 +181,18 @@ Token active status is not proof of resource access or successful writes.
 
 - [ ] Check the selected config without sourcing or exposing it.
 
-Pick installed default `~/.config/cmail/.env`, install-time CMAIL_CONFIG_DIR,
-runtime ENV_FILE, or source `.env`. Preserve existing data. For a new default only,
-from the reviewed checkout, after verifying user-owned non-symlink parents:
+For the source workflow use checkout `.env` (default for `./cmail`). Preserve
+existing data. For a new file only, from the reviewed checkout, after verifying
+user-owned non-symlink parents:
 
 ```bash
-(umask 077; mkdir -p "$HOME/.config/cmail";
-  cp -n .env.example "$HOME/.config/cmail/.env")
-chmod 700 "$HOME/.config/cmail"
-chmod 600 "$HOME/.config/cmail/.env"
+(umask 077; cp -n .env.example .env)
+chmod 600 .env
 ```
+
+Alternatively reuse installed default `~/.config/cmail/.env` (or install-time
+CMAIL_CONFIG_DIR) via an explicit runtime ENV_FILE. Export that selected path
+before every `./cmail` command, and use the same path for both checks below.
 
 Edit privately using `KEY='literal value'`, no duplicate/unknown keys or spaces
 around `=`. Fill DOMAIN, DEST_EMAIL, ADDRESSES, CLOUDFLARE_API_TOKEN; explicitly set
@@ -190,8 +204,8 @@ backticks, expansions, scripts and multiline values; do not source to validate.
 The newer source checkout, not the runtime installer, contains the checker:
 
 ```bash
-python3 skills/cmail-setup/scripts/check_config.py "$HOME/.config/cmail/.env"
-bash -n "$HOME/.config/cmail/.env" >/dev/null 2>&1
+python3 skills/cmail-setup/scripts/check_config.py .env
+bash -n .env >/dev/null 2>&1
 ```
 
 Use your selected path. Require both exits 0 and matching intent. The checker
@@ -234,7 +248,7 @@ lookup is extra corroboration. Polling lasts about 20 minutes; allow 24–48 hou
 propagation, wait/recheck rather than repeatedly writing. Inspect uncertain writes
 before retrying; no automatic rollback.
 
-**DRY_RUN is not globally safe:** `DRY_RUN=1 cmail setup` previews only nameserver
+**DRY_RUN is not globally safe:** `DRY_RUN=1 ./cmail setup` previews only nameserver
 replacement. It can still create zones, enable routing/DNS, register destinations,
 create rules and offer purchases. Monolithic setup does not enforce this staged
 guide’s external gates. Prefer staged dashboards or the separate setup skill;
@@ -280,7 +294,9 @@ and inspect fresh state. Create success/truncated status does not prove correctn
 
 **Skip this step if you only need to receive mail.** It applies only when you
 want to send from the custom address and DEST_EMAIL is a Gmail/Google account.
-`cmail send-as` prints the same guidance; `cmail setup` does not run it.
+`./cmail send-as` prints the same guidance; source `./cmail setup` does not run it.
+The legacy pinned installation still shows the Gmail guide during setup; ignore
+that guide for receive-only use (the skill recognizes its post-receiving pause).
 
 Recheck [January 2027 policy and alias instructions](https://support.google.com/mail/answer/22370).
 If unavailable/prohibited, stop outbound and use an approved alternative outside

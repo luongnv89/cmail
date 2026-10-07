@@ -515,5 +515,108 @@ class SkillContractTests(unittest.TestCase):
                 self.assertTrue(any("gate" in e.lower() for e in case["expectations"]))
 
 
+class Gate8ContractTests(unittest.TestCase):
+    """Issue #17: prose requirements plus synthetic evidence, not a runtime API."""
+
+    CURRENT_SUMMARY = "Receiving is set up"
+    LEGACY_STOP = "Setup stopped at: Send FROM your custom address (manual, ~5 min)"
+    LEGACY_PAUSE = "Gmail guide paused without input"
+    ALIASES = ("hello@example.com", "contact@example.com")
+    TARGET = "recipient@example.net"
+
+    def test_documented_disjunction_keeps_exact_rules_mandatory(self):
+        matrix = (SKILL / "references/verification.md").read_text()
+        gate = matrix.split("## Gate 8", 1)[1].split("## Gate 9", 1)[0]
+        flat = " ".join(gate.replace("**", "").split())
+        completion, rules = flat.split("- In both cases,", 1)
+        current, legacy = completion.split("or a trusted legacy runtime", 1)
+        for requirement in ("both completion evidence and fresh exact-rule evidence",
+                            "either a trusted current runtime", "`Receiving is set up` and exited 0"):
+            self.assertIn(requirement, current)
+        for requirement in ("offline help lacks `send-as`", self.LEGACY_STOP,
+                            "and `Gmail guide paused without input` after all receiving stages",
+                            "same setup pass", "pause exits nonzero"):
+            self.assertIn(requirement, legacy)
+        for requirement in ('ENV_FILE="$cfg" "$launcher" status', "must succeed",
+                            "each requested `<local>@<domain> -> DEST_EMAIL [true]` exactly once",
+                            "intended DEST_EMAIL", "another target or disabled flag still fails",
+                            "Unrelated aliases may exist", "incomplete", "duplicate",
+                            "any failure before the checkpoint is not success",
+                            "missing `send-as` alone", "current summary with nonzero exit"):
+            self.assertIn(requirement, rules)
+        protocol = " ".join((SKILL / "references/autonomous-run.md").read_text().split())
+        self.assertIn("Exact `" + self.LEGACY_STOP + "`", protocol)
+        self.assertIn("after all receiving stages in the same pass", protocol)
+
+    def evidence(self, legacy=False):
+        return dict(trusted=True, help_has_send_as=not legacy,
+                    stages_complete=True, same_pass=True,
+                    summary=None if legacy else self.CURRENT_SUMMARY,
+                    checkpoint=self.LEGACY_STOP if legacy else None,
+                    pause=self.LEGACY_PAUSE if legacy else None,
+                    exit_code=1 if legacy else 0, status_exit=0,
+                    rules=[(alias, self.TARGET, True) for alias in self.ALIASES])
+
+    def accepts(self, evidence):
+        # Test-only model of the conjunctive/disjunctive prose pinned above.
+        # No production helper or provider execution is justified by this issue.
+        current = (evidence['help_has_send_as'] is True
+                   and evidence['summary'] == self.CURRENT_SUMMARY
+                   and evidence['exit_code'] == 0)
+        legacy = (evidence['help_has_send_as'] is False
+                  and evidence['checkpoint'] == self.LEGACY_STOP
+                  and evidence['pause'] == self.LEGACY_PAUSE
+                  and evidence['exit_code'] != 0)
+        if not (evidence['trusted'] and evidence['stages_complete']
+                and evidence['same_pass'] and (current or legacy)
+                and evidence['status_exit'] == 0):
+            return False
+        for alias in self.ALIASES:
+            entries = [row for row in evidence['rules'] if row[0] == alias]
+            if entries != [(alias, self.TARGET, True)]:
+                return False
+        return True
+
+    def test_current_and_legacy_completion_fixtures(self):
+        for legacy in (False, True):
+            evidence = self.evidence(legacy)
+            self.assertTrue(self.accepts(evidence))
+            evidence['rules'].append(('unrelated@example.com', 'other@example.net', False))
+            self.assertTrue(self.accepts(evidence))
+
+    def test_incomplete_untrusted_or_wrong_checkpoint_fixtures_fail(self):
+        for legacy in (False, True):
+            changes = [dict(trusted=False), dict(stages_complete=False), dict(same_pass=False),
+                       dict(status_exit=1), dict(rules=[])]
+            if legacy:
+                changes += [dict(help_has_send_as=True), dict(help_has_send_as=None),
+                            dict(pause=None), dict(checkpoint=None), dict(exit_code=0),
+                            dict(checkpoint='Setup stopped at: Forwarding addresses'),
+                            dict(checkpoint='Setup stopped at: Send FROM'),
+                            dict(checkpoint=self.LEGACY_STOP + ' unexpected suffix')]
+            else:
+                changes += [dict(exit_code=1), dict(summary=None), dict(help_has_send_as=False)]
+            for change in changes:
+                with self.subTest(legacy=legacy, change=change):
+                    evidence = self.evidence(legacy)
+                    evidence.update(change)
+                    self.assertFalse(self.accepts(evidence))
+
+    def test_missing_disabled_duplicate_wrong_target_rules_fail_in_both_paths(self):
+        for legacy in (False, True):
+            for alias in self.ALIASES:
+                base = self.evidence(legacy)['rules']
+                others = [row for row in base if row[0] != alias]
+                bad_rules = [others, others + [(alias, self.TARGET, False)],
+                             base + [(alias, self.TARGET, True)],
+                             others + [(alias, 'wrong@example.net', True)],
+                             base + [(alias, 'wrong@example.net', False)]]
+                for rules in bad_rules:
+                    with self.subTest(legacy=legacy, alias=alias, rules=rules):
+                        evidence = self.evidence(legacy)
+                        evidence['rules'] = rules
+                        self.assertFalse(self.accepts(evidence))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
