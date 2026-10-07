@@ -11,7 +11,9 @@ Release: [v0.1.0](https://github.com/luongnv89/cmail/releases/tag/v0.1.0) · [Ch
 ## Start here
 
 [cmail introduction](docs/index.html) → [ordered, checkable setup guide](docs/setup.html)
-([Markdown fallback](docs/setup.md)). The guide covers account/key acquisition,
+([Markdown fallback](docs/setup.md)). The configured Pages target is
+[luongnv89.github.io/cmail](https://luongnv89.github.io/cmail/), available after
+Pages is enabled and a deployment succeeds. The guide covers account/key acquisition,
 private config, DNS migration, confirmation and independent delivery tests.
 Checkmarks save only step IDs/booleans in this browser; they do not verify providers.
 No credentials are collected by the site. See [local preview](docs/setup.md#local-preview-and-maintenance).
@@ -293,6 +295,27 @@ use an existing Chrome instead of Playwright's bundled browser. Optional
 server is loopback-only; all external browser requests are blocked. The suite
 checks keyboard controls, persistence/reset, malformed/blocked storage, no-JS,
 and 375/768/1280px layouts; it never calls live providers.
+
+## Website deployment
+
+[GitHub Pages](https://luongnv89.github.io/cmail/) is the site destination.
+The [Pages workflow](.github/workflows/pages.yml) validates the documentation,
+checklist and staged artifact, then deploys updates after relevant changes land
+on `main`. Pull requests validate without deploying. To redeploy, choose
+**Actions → Deploy documentation to GitHub Pages → Run workflow → main**.
+The `github-pages` environment shows the actual deployment URL/status.
+
+Pages must be enabled with **Settings → Pages → Source: GitHub Actions**;
+private repositories also require an eligible GitHub plan. Pages publishes the
+website, not the repository: source/skill/installer links still require repository
+access while private. No billing or repository visibility change is automated.
+
+Only the six files allowlisted in [the staging script](scripts/build-pages.sh)
+are published. Preview the exact artifact with `bash scripts/build-pages.sh`,
+then `python3 -m http.server 8000 --bind 127.0.0.1 --directory _site`.
+Use a fresh staging directory; the script refuses an existing `_site` rather
+than overwriting it. Validate offline with `python3 tests/pages_test.py`
+(no publication or provider calls).
 
 ## Requirements
 
