@@ -1,9 +1,13 @@
-# gmail.sh — guided "Send mail as" (the step that can't be OAuth'd cheaply)
+# gmail.sh — optional guided "Send mail as" (the step that can't be OAuth'd cheaply)
 # shellcheck shell=bash
 
 gmail_sendas_guide() {
-  step "Send FROM your custom address (manual, ~5 min)"
+  step "Send FROM your custom address (optional, manual, ~5 min)"
   cat <<EOF
+Only needed if you want to SEND from your custom address. Receiving already
+works without it. This guide needs $DEST_EMAIL to be a Gmail/Google account
+that can use App Passwords.
+
 Automating Gmail aliases needs Google's restricted gmail.settings.* scope
 (a verified OAuth app — overkill here). Do it once by hand:
 
@@ -34,7 +38,7 @@ If blocked:
   - Confirmation missing: check Spam/All Mail, verify the Cloudflare
     destination is confirmed, the address rule points to it, and Email Routing
     and DNS/MX are active. Resolve any pending steps with ./cmail setup, then
-    resend the Gmail confirmation. Do not mark the alias ready without it.
+    resend the Gmail confirmation (./cmail status shows the saved state). Do not mark the alias ready without it.
 
 Verify from a DIFFERENT mailbox (not $DEST_EMAIL):
   - Send to ${ADDRESSES%%,*}@$DOMAIN and confirm it arrives at $DEST_EMAIL.
@@ -43,6 +47,6 @@ Verify from a DIFFERENT mailbox (not $DEST_EMAIL):
 EOF
   open_url "https://myaccount.google.com/apppasswords"
   open_url "https://mail.google.com/mail/u/0/#settings/accounts"
-  pause || die "Gmail guide paused without input — finish the manual steps in Gmail settings, then run ./cmail setup in an interactive terminal to resume; confirmation and mailbox tests are not automatically verified"
+  pause || die "Gmail guide paused without input — finish the manual steps in Gmail settings, then run ./cmail send-as in an interactive terminal to resume; confirmation and mailbox tests are not automatically verified"
   note "manual Gmail setup is not automatically verified — complete confirmation and both mailbox tests above; re-open Gmail settings to resume if needed"
 }

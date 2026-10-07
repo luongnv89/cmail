@@ -64,8 +64,6 @@ setup_recovery() {
       note "Next: check the destination Inbox/Spam and click Cloudflare's verification link. Resend missing/expired links from Email Routing > Destination addresses; token needs Account > Email Routing Addresses > Edit." ;;
     'Forwarding addresses'*)
       note "Next: open Cloudflare > domain > Email > Email Routing > Routing rules. Check enabled rules point to DEST_EMAIL and token has Zone > Email Routing Rules > Edit. Earlier rules may already exist." ;;
-    'Send FROM'*)
-      note "Next: finish Gmail Settings > Accounts and Import > Send mail as. Use a Google App Password with smtp.gmail.com:587 and verify the confirmation code." ;;
     *) note "Next: check the error above, configuration file permissions and required tools." ;;
   esac >&2
   if [ "${CMAIL_DNS_CHECKPOINT:-0}" = 1 ]; then

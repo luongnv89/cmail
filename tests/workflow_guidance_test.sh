@@ -161,7 +161,7 @@ nameserver_read_failure() { DRY_RUN=0; gddy_set_nameservers alice.ns.cloudflare.
 run_expect 'nameserver read recovery' 1 nameserver_read_failure 'no change applied' 'GoDaddy dashboard' 'gddy domain get example.com --env ote --json' './cmail setup'
 
 gmail_guide() { open_url() { :; }; pause() { :; }; gmail_sendas_guide; }
-run_expect 'manual Gmail troubleshooting and truthful completion' 0 gmail_guide 'App passwords unavailable' '2-Step Verification' 'Work/school policy' 'SMTP rejected' 'Confirmation missing' 'DIFFERENT mailbox' 'Send from Gmail' 'not automatically verified'
+run_expect 'manual Gmail troubleshooting and truthful completion' 0 gmail_guide 'optional' 'Receiving already' 'App passwords unavailable' '2-Step Verification' 'Work/school policy' 'SMTP rejected' 'Confirmation missing' 'DIFFERENT mailbox' 'Send from Gmail' 'not automatically verified'
 if grep -qF 'setup complete' "$TMP/output"; then exit 1; fi
 gmail_without_input() { open_url() { :; }; pause() { return 1; }; gmail_sendas_guide; }
-run_expect 'Gmail guide resume without terminal input' 1 gmail_without_input 'Gmail guide paused without input' 'Gmail settings' './cmail setup' 'not automatically verified'
+run_expect 'Gmail guide resume without terminal input' 1 gmail_without_input 'Gmail guide paused without input' 'Gmail settings' './cmail send-as' 'not automatically verified'

@@ -138,7 +138,7 @@ run_case 'activation API denial fails immediately' 1 'Denied during poll' active
 [ "$(grep -c '^GET ' "$TMP/calls")" = 1 ]
 
 # All steps have next actions; guidance does not disclose credentials.
-for CMAIL_STEP in 'Dependencies' 'Configuration' 'GoDaddy authentication (prod)' 'Choose domain' 'Cloudflare API token' 'Cloudflare zone: example.com' 'GoDaddy: point example.com nameservers at Cloudflare' 'Waiting for zone activation' 'Enable Cloudflare Email Routing' 'Destination address: user@gmail.com' 'Forwarding addresses' 'Send FROM your custom address'; do
+for CMAIL_STEP in 'Dependencies' 'Configuration' 'GoDaddy authentication (prod)' 'Choose domain' 'Cloudflare API token' 'Cloudflare zone: example.com' 'GoDaddy: point example.com nameservers at Cloudflare' 'Waiting for zone activation' 'Enable Cloudflare Email Routing' 'Destination address: user@example.net' 'Forwarding addresses'; do
   CMAIL_DNS_CHECKPOINT=0 setup_recovery >"$TMP/output" 2>&1
   grep -qF 'Next:' "$TMP/output"
   grep -qF './cmail setup' "$TMP/output"
@@ -186,3 +186,28 @@ assert_absent -qF 'GoDaddy authentication' "$TMP/output"
 assert_absent -qF 'Cloudflare API token' "$TMP/output"
 assert_absent -qF 'private-test-sentinel' "$TMP/output"
 printf 'PASS: malformed configuration blocks all provider steps\n'
+
+# Setup is receive-only by default; Gmail send-as runs only via its own command.
+printf '%s\n' 'env_init() { :; }' 'env_require_prompt() { :; }' 'env_set() { :; }' >"$TMP/cli/lib/env.sh"
+printf '%s\n' 'cf_ensure_token() { :; }' 'cf_zone_ensure() { CF_ZONE_ID=test-zone; CF_NS=(alice bob); }' 'cf_zone_wait_active() { :; }' 'cf_email_enable() { :; }' 'cf_dest_ensure() { :; }' 'cf_rules_ensure() { :; }' >"$TMP/cli/lib/cloudflare.sh"
+printf '%s\n' 'gmail_sendas_guide() { echo GMAIL-GUIDE-RAN; }' >"$TMP/cli/lib/gmail.sh"
+DOMAIN=example.com DEST_EMAIL=user@example.net ADDRESSES='hello, contact' bash "$TMP/cli/cmail" setup </dev/null >"$TMP/output" 2>&1
+grep -qF 'Receiving is set up' "$TMP/output"
+grep -qF 'hello@example.com -> user@example.net' "$TMP/output"
+grep -qF 'contact@example.com -> user@example.net' "$TMP/output"
+grep -qF 'DIFFERENT mailbox' "$TMP/output"
+grep -qF './cmail send-as' "$TMP/output"
+assert_absent -qF 'GMAIL-GUIDE-RAN' "$TMP/output"
+assert_absent -qF 'Setup stopped at:' "$TMP/output"
+DOMAIN=example.com DEST_EMAIL=user@gmail.com ADDRESSES=hello bash "$TMP/cli/cmail" send-as >"$TMP/output" 2>&1
+grep -qF 'GMAIL-GUIDE-RAN' "$TMP/output"
+set +e
+DOMAIN=example.com DEST_EMAIL='' ADDRESSES=hello bash "$TMP/cli/cmail" send-as >"$TMP/output" 2>&1
+rc=$?
+set -e
+[ "$rc" = 1 ]
+grep -qF 'no DEST_EMAIL in config' "$TMP/output"
+grep -qF './cmail setup first' "$TMP/output"
+assert_absent -qF 'GMAIL-GUIDE-RAN' "$TMP/output"
+bash "$TMP/cli/cmail" help | grep -qF './cmail send-as'
+printf 'PASS: setup is receive-only; send-as is a separate optional command\n'

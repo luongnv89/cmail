@@ -7,7 +7,7 @@
 
 # cmail Setup
 
-> Autonomous cmail setup: the agent installs, configures and runs `cmail setup` itself, troubleshoots failures and verifies every gate, asking only when input is missing, a step needs your hands, or a decision is important.
+> Custom-domain email in a few simple steps: the agent installs, configures and runs `cmail setup` itself, troubleshoots failures and verifies every gate, asking only when input is missing, a step needs your hands, or a decision is important. Mail forwards to any inbox you own; sending is optional and only on request.
 
 Author: Luong NGUYEN <luongnv89@gmail.com>
 
@@ -16,7 +16,10 @@ Author: Luong NGUYEN <luongnv89@gmail.com>
 - Auto-detect OS, installed/source cmail, config presence and tools; undetectable
   facts stay unknown. Run the reviewed installer and install missing tools.
 - Fill non-secret config itself, then run `cmail setup` after a read-only preflight.
-- Stop only for missing values, hands-on steps (token, browser approvals, Gmail),
+- Set up receiving to any inbox by default; Gmail send-as runs only when you ask
+  to send from the custom address.
+- Stop only for missing values, hands-on steps (token, browser approvals, Gmail
+  when sending was requested),
   nameserver changes, existing mail/DNSSEC records, purchases, sudo or repeated failure.
 - Keep credentials in your local browser/editor, never in chat.
 - On a failed gate, repair one cause and repeat the original check.
@@ -27,7 +30,7 @@ Author: Luong NGUYEN <luongnv89@gmail.com>
 |---|---|
 | “Help me set up cmail.” | Install, configure and run setup, then verify through independently tested mail delivery. |
 | “My Cloudflare token is active but setup fails.” | Separate resource scope from token activity and recheck access. |
-| “Resume my Gmail send-as setup.” | Check confirmation and both mail directions for each alias. |
+| “I also want to send from hello@my-domain.” | Run the optional Gmail send-as guide, then check confirmation and both mail directions for each alias. |
 
 ## How It Works
 
@@ -42,7 +45,7 @@ graph TD
     G -->|failure| F[Repair one cause and rerun]
     F --> D
     G -->|API stages done| I[Verify gates with status]
-    I --> E[Confirm Gmail and test both directions]
+    I --> E[Test inbound; optional Gmail send-as and outbound]
     style A fill:#4CAF50,color:#fff
     style E fill:#2196F3,color:#fff
 ```
@@ -87,6 +90,7 @@ local manual checks are documented as a fallback.
 
 Progress lines as gates pass, and a short gate report at each stop and at exit:
 result, sanitized evidence, uncertainty and the decision needed. Success requires
-every requested alias's confirmed send-as and independent inbound/outbound arrival.
+every requested alias's independent inbound arrival; when you asked for sending,
+also its confirmed send-as and outbound arrival.
 Token entry, browser approvals, the nameserver decision and mail tests still need
 you; delivery tests do not prove universal deliverability.

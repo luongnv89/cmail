@@ -1,8 +1,10 @@
 # Verification matrix
 
 Use the selected trusted launcher (installed, or source `./cmail`) and always pass
-the selected config as `ENV_FILE`. The current installer pins v0.1.0; these gates
-match that runtime. **You run every check below** unless it is marked hands-on.
+the selected config as `ENV_FILE`. The current installer pins legacy v0.1.0;
+these gates support it and the reviewed current source, with different setup
+completion evidence at gate 8. Record trusted offline help capabilities at gate 1.
+**You run every check below** unless it is marked hands-on.
 Hands-on evidence comes from the user as a sanitized observation (exact
 domain/account, state, time), labelled user-reported. With no evidence, the gate
 is BLOCKED. Do not call internal Bash helpers as a public API.
@@ -97,9 +99,9 @@ is BLOCKED. Do not call internal Bash helpers as a public API.
 
 - Prerequisite: gates 1–6 and access to DEST_EMAIL.
 - Action: setup registers DEST_EMAIL (Cloudflare emails a link) or reuses it.
-  Hands-on: the user clicks the link in that Gmail account.
+  Hands-on: the user clicks the link in that mailbox (any provider).
 - Verify: `status` lists DEST_EMAIL with a `verified=<timestamp>`, not `verified=no`.
-- Failure: wrong Gmail/account, missing/expired link, timeout or unverified state.
+- Failure: wrong mailbox/account, missing/expired link, timeout or unverified state.
 - Repair/recheck: Inbox/Spam in the correct account; resend from Cloudflare →
   Email Routing → Destination addresses (hands-on); rerun pass 1. Never duplicate.
 
@@ -108,28 +110,45 @@ is BLOCKED. Do not call internal Bash helpers as a public API.
 - Prerequisite: gates 1–7.
 - Action: setup creates one rule per ADDRESSES local part and refuses to change a
   conflicting, disabled or duplicate rule.
-- Verify: setup reached the Gmail guide (its rule check passed) and `status` lists
-  each `<local>@<domain> -> DEST_EMAIL [true]` exactly once.
-- Failure: missing, conflicting, disabled, duplicate or wrong-target rule.
+- Verify: require **both** completion evidence and fresh exact-rule evidence:
+  - Completion evidence is **either** a trusted current runtime whose setup
+    printed `Receiving is set up` **and** exited 0, **or** a trusted legacy runtime
+    whose offline help lacks `send-as`, with the exact checkpoint
+    `Setup stopped at: Send FROM your custom address (manual, ~5 min)` **and**
+    `Gmail guide paused without input` **after all receiving stages** in that
+    same setup pass. The legacy pause exits nonzero; it is not a receiving failure.
+  - In **both cases**, `ENV_FILE="$cfg" "$launcher" status` must succeed and list
+    each requested `<local>@<domain> -> DEST_EMAIL [true]` exactly once, to the
+    intended DEST_EMAIL. Inspect all entries for each requested alias: a duplicate
+    with another target or disabled flag still fails. Unrelated aliases may exist.
+- Failure: missing, incomplete, conflicting, disabled, duplicate or wrong-target
+  rule; untrusted runtime, missing completion evidence, or any failure before
+  the checkpoint is not success. A Gmail mention or missing `send-as` alone is
+  insufficient; a current summary with nonzero exit is not completion.
 - Repair/recheck: show the sanitized conflict and stop before correcting it;
   never overwrite unrelated rules. Rerun pass 1 and repeat both checks.
 
-## Gate 9 — Gmail confirmation and two delivery directions
+## Gate 9 — Inbound delivery, plus optional sending
 
-- Prerequisite: gates 1–8, Gmail access and a different independent mailbox.
-- Action: hands-on. Open Gmail Settings → Accounts and Import → Send mail as →
-  Add another email address for the user. For every requested alias: SMTP
-  smtp.gmail.com, port 587/TLS, full DEST_EMAIL username, Google App Password
-  entered only in Gmail. The user completes the emailed confirmation.
-- Verify: each alias is confirmed in Gmail settings. From the independent mailbox
-  the user sends a unique test to that alias and confirms arrival in DEST_EMAIL.
-  Then from Gmail with that custom From to the independent mailbox; confirm
-  arrival and exact From (check Spam, not just Sent). Record alias/direction/time,
-  not message bodies or codes. These tests do not prove universal deliverability.
-- Failure: unavailable App Password, SMTP rejection, unconfirmed alias or either
-  direction undelivered. CLI exit or Enter does not verify any of these.
-- Repair/recheck: enable 2-Step Verification if allowed; respect organization
-  policy/Advanced Protection — an alternative provider is outside this skill, so
-  stop BLOCKED. Inbound/confirmation missing → recheck gates 5–8; outbound → SMTP
-  host/port/TLS/username/App Password. Repeat confirmation and **both** tests per
-  alias. Never disable security controls.
+- Prerequisite: gates 1–8, access to DEST_EMAIL and a different independent
+  mailbox. Sending checks apply only when the user asked to send from the custom
+  address; they also need DEST_EMAIL to be a Gmail/Google account.
+- Action: hands-on. For every requested alias, the user sends a unique test from
+  the independent mailbox to that alias. Only when sending was requested: run
+  `cmail send-as` (see `autonomous-run.md`) and open Gmail Settings → Accounts and
+  Import → Send mail as → Add another email address for the user. For every
+  alias: SMTP smtp.gmail.com, port 587/TLS, full DEST_EMAIL username, Google App
+  Password entered only in Gmail. The user completes the emailed confirmation.
+- Verify: each alias's test arrives in DEST_EMAIL (check Spam). When sending was
+  requested, also: each alias is confirmed in Gmail settings, and a message from
+  Gmail with that custom From to the independent mailbox arrives with the exact
+  From (check Spam, not just Sent). Record alias/direction/time, not message
+  bodies or codes. These tests do not prove universal deliverability.
+- Failure: inbound undelivered; when sending was requested, also unavailable App
+  Password, SMTP rejection, unconfirmed alias or outbound undelivered. CLI exit or
+  Enter does not verify any of these.
+- Repair/recheck: inbound or confirmation missing → recheck gates 5–8. Outbound →
+  SMTP host/port/TLS/username/App Password; enable 2-Step Verification if allowed;
+  respect organization policy/Advanced Protection — an alternative provider is
+  outside this skill, so stop BLOCKED for sending (receiving stays verified).
+  Repeat every required test per alias. Never disable security controls.

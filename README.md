@@ -1,7 +1,34 @@
 # cmail
 
-Interactive setup for a **free custom-domain email address** using
-**Cloudflare Email Routing** (receive) + **Gmail "Send mail as"** (send).
+Get a **free custom-domain email address** like `hello@your-domain` in **a few
+simple steps**, delivered to **the inbox you already use** (Gmail, Outlook,
+iCloud, Proton, a work address, …). Built on **Cloudflare Email Routing**; no
+new mailbox and no Google account needed.
+
+The receive-only workflow below uses a **reviewed development source snapshot**,
+not v0.1.0, until a compatible release/installer ships. Fetch the pin explicitly;
+it need not be advertised on the default branch:
+
+```bash
+git clone https://github.com/luongnv89/cmail
+cd cmail
+git fetch origin cda65f0554a870ed8079e93741a331918118acec
+git checkout --detach cda65f0554a870ed8079e93741a331918118acec
+# Review cmail and lib/ before execution.
+./cmail help         # Must list send-as; stop if missing, before setup.
+./cmail setup        # Approve in browser, paste a token, click one link.
+                     # From another mailbox, email hello@your-domain — done.
+```
+
+Use this checkout's `./cmail`, not a PATH `cmail`; config defaults to checkout
+`.env`. The [installer](#installation) still pins legacy v0.1.0: its setup
+includes the Gmail guide and it has no `send-as` command.
+
+> **Sending is optional, not the default** in this source workflow. `./cmail setup`
+> only sets up receiving. If you also want to *send* as `hello@your-domain`, run
+> `./cmail send-as` afterwards, only on request. It guides Gmail "Send mail as"
+> and needs a Gmail/Google account. See
+> [Optional: send from your custom address](#optional-send-from-your-custom-address).
 
 Inspired by this [Tokifyi thread](https://x.com/tokifyi/status/2025741929997361371):
 $0/month for email — you only pay for the domain itself.
@@ -20,8 +47,8 @@ No credentials are collected by the site. See [local preview](docs/setup.md#loca
 
 **Gmail sending policy:** [Google's current help](https://support.google.com/mail/answer/22370)
 announces removal of third-party “Send as” starting **January 2027**. Check current
-availability/account eligibility before relying on cmail's custom-domain outbound
-path. Inbound Cloudflare forwarding is separate; alternative SMTP/Workspace setup
+availability/account eligibility before relying on cmail's optional custom-domain
+outbound path. Inbound Cloudflare forwarding is separate; alternative SMTP/Workspace setup
 is outside this workflow. Public provider references were checked 7 October 2026,
 not live authenticated setup or delivery.
 
@@ -67,7 +94,10 @@ export PATH="$HOME/.local/bin:$PATH"   # only if this directory is not on PATH
 cmail help
 ```
 
-Only when ready for the guided, potentially live-changing workflow, run
+This default installed runtime is **legacy v0.1.0**: `cmail setup` still includes
+the Gmail sending guide and has no `cmail send-as`. For receiving-only setup and
+optional sending, use the reviewed source quickstart below instead. Only when
+ready for the legacy guided, potentially live-changing workflow, run installed
 `cmail setup`. Installation success proves CLI availability, not functioning
 DNS, provider permissions or end-to-end email delivery.
 
@@ -81,22 +111,34 @@ To uninstall, remove the installed launcher and the managed cmail runtime
 store; retain `~/.config/cmail` unless you explicitly want to delete your
 configuration/credentials. No shell profile changes need undoing.
 
-## Quickstart (source release)
+## Quickstart (reviewed current source)
 
-Clone the existing v0.1.0 release (no installer in this tag):
+Use this immutable feature-containing development snapshot, **not v0.1.0**, until
+a compatible release/installer ships. Clone upstream and fetch the pin explicitly;
+it need not be advertised on the default branch. Select the exact revision,
+then review `cmail` and `lib/` before executing it:
 
 ```bash
-git clone --branch v0.1.0 --depth 1 https://github.com/luongnv89/cmail && cd cmail
+git clone https://github.com/luongnv89/cmail
+cd cmail
+git fetch origin cda65f0554a870ed8079e93741a331918118acec
+git checkout --detach cda65f0554a870ed8079e93741a331918118acec
+./cmail help         # Must list send-as; stop if missing, before setup.
 ./cmail setup
 ```
 
-For the development version, omit `--branch v0.1.0 --depth 1` to clone the default branch instead.
+All workflow commands below refer to this checkout's `./cmail`, not PATH `cmail`.
+It defaults to checkout `.env`; to reuse private installed config, explicitly set
+`ENV_FILE="$HOME/.config/cmail/.env"` for every `./cmail` invocation. Do not run
+`bash install.sh` as part of this quickstart: its default pin selects legacy
+v0.1.0, regardless of the checkout revision.
 
 The script walks you through each step. Authentication is browser-based
 (OAuth) wherever possible:
 
 1. **Dependencies** — installs `gddy`, `jq`, `curl` if missing
-2. **Configuration** — collect your destination Gmail and forwarding local parts
+2. **Configuration** — collect your destination inbox (any provider) and
+   forwarding local parts
 3. **GoDaddy authentication** — `gddy auth login` opens browser OAuth consent
 4. **Domain** — pick one from your GoDaddy account (or register a new one
    via `gddy`, with an explicit price confirmation)
@@ -111,15 +153,29 @@ The script walks you through each step. Authentication is browser-based
    failures explain how to check delegation and resume
 9. **Email Routing** — skip enabled routing; otherwise Cloudflare adds and
    locks the required routing DNS records via its API
-10. **Destination** — register/reuse your Gmail; click the verification
-    email while the script polls until confirmed
+10. **Destination** — register/reuse your destination inbox; click the
+    verification email while the script polls until confirmed
 11. **Addresses** — create forwarding rules (`hello@`, `contact@`, …);
     conflicting or disabled existing rules require your attention
-12. **Send-as** — guided manual Gmail setup with an app password;
-    test inbound and outbound separately (not automatically verified)
+
+Setup ends here: receiving works. Test it by sending from a **different
+mailbox** to your custom address (not automatically verified).
 
 Re-runnable and idempotent — state lives in `.env`, existing resources
 are detected and skipped.
+
+### Optional: send from your custom address
+
+Only if you also want to **send** as `hello@your-domain`, and your
+`DEST_EMAIL` is a Gmail/Google account that can use App Passwords:
+
+```bash
+./cmail send-as
+```
+
+It guides the manual Gmail "Send mail as" setup with an App Password. Gmail's
+confirmation code arrives through the forwarding that `setup` created, so run
+`setup` first. Test outbound separately; pressing Enter does not verify it.
 
 ## Agent-assisted verified setup
 
@@ -130,11 +186,13 @@ Copy the whole directory into your agent's skill location; see its
 installer does not install agent skills, and no tagged skill release is claimed.
 
 Ask “Use cmail-setup to help me set up custom email” or `/cmail-setup` in an
-agent supporting slash skills. The agent installs cmail and its tools, fills the
-non-secret config, runs a read-only preflight and then runs `cmail setup` itself,
+agent supporting slash skills. The agent selects a trusted source or legacy
+installed runtime and its tools, fills the non-secret config, runs a read-only
+preflight and then runs that runtime's setup itself,
 troubleshooting and rerunning on failure. It verifies each gate before advancing.
 It asks only when a value is missing, a step needs you (Cloudflare token entry,
-browser approvals, Gmail send-as, delivery tests), or a decision is important:
+browser approvals, delivery tests, and Gmail send-as only if you ask for
+sending), or a decision is important:
 nameserver replacement, existing mail/DNSSEC records, purchases or sudo.
 Credentials stay in your local browser/editor, never chat.
 
@@ -144,9 +202,13 @@ provider access or delivery. Redistribution licensing remains a maintainer decis
 
 ## Commands
 
+These are the reviewed current-source commands; legacy v0.1.0 lacks `send-as`
+and includes the Gmail guide in setup.
+
 | Command | Description |
 |---|---|
-| `./cmail setup` | Full guided setup |
+| `./cmail setup` | Guided receive setup (forwarding to any inbox) |
+| `./cmail send-as` | Optional: guided Gmail "Send mail as" for sending from your custom address |
 | `./cmail status` | Show zone, routing, destination, and rule state |
 | `./cmail doctor` | Check tools + auth; may install missing dependencies |
 
@@ -163,7 +225,7 @@ fail-fast validation shell before loading it, so assignments are evaluated twice
 | Var | Meaning |
 |---|---|
 | `DOMAIN` | Custom domain to use |
-| `DEST_EMAIL` | Gmail address that receives forwarded mail |
+| `DEST_EMAIL` | Any email address you own that receives forwarded mail; must be a Gmail/Google account only for `send-as` |
 | `ADDRESSES` | Comma-separated local parts, e.g. `hello,contact,me` |
 | `CLOUDFLARE_API_TOKEN` | CF token: Zone permissions (Zone:Edit, Zone Settings:Edit, DNS:Edit, Email Routing Rules:Edit) plus Account permission (Email Routing Addresses:Edit) |
 | `GDDY_ENV` | GoDaddy environment (default `prod`) |
@@ -177,11 +239,12 @@ fail-fast validation shell before loading it, so assignments are evaluated twice
 - **Cloudflare API token** — Cloudflare has no self-service OAuth for
   arbitrary scripts; the script opens the token page, lists the five
   permissions to add, then verifies whatever you paste.
-- **Destination verification** — Cloudflare emails a link to your Gmail;
-  you must click it (script waits and continues automatically).
-- **Gmail "Send mail as"** — automating it needs the restricted
-  `gmail.settings.*` OAuth scope, which requires a verified Google Cloud
-  app — disproportionate for a personal setup. Guided manual instead.
+- **Destination verification** — Cloudflare emails a link to your
+  destination inbox; you must click it (script waits and continues automatically).
+- **Gmail "Send mail as"** (optional, `./cmail send-as`) — automating it
+  needs the restricted `gmail.settings.*` OAuth scope, which requires a
+  verified Google Cloud app — disproportionate for a personal setup.
+  Guided manual instead.
 - **Domain purchase** — supported via `gddy` but always asks before
   spending money.
 
@@ -229,13 +292,13 @@ one using `CF_ACCOUNT_ID` rather than silently choosing the first.
 | HTTP 401/403 | Check token activity, operation-specific permission, and account/zone resource scope at the token settings URL. |
 | Network / HTTP 429 / HTTP 5xx | Fix DNS/proxy/connectivity, wait after rate limiting, or check [Cloudflare status](https://www.cloudflarestatus.com/). Inspect the dashboard before retrying an uncertain write. |
 | Email Routing activation fails | Check Email → Email Routing and conflicting MX/TXT records. Do not delete existing mail-provider records without planning migration. |
-| Destination verification times out | Sign into the correct Gmail account, check Inbox/Spam, click the Cloudflare link. Resend missing/expired links in Email Routing → Destination addresses; pending entries are kept. |
+| Destination verification times out | Sign into the correct destination mailbox, check Inbox/Spam, click the Cloudflare link. Resend missing/expired links in Email Routing → Destination addresses; pending entries are kept. |
 | Existing forwarding rule conflicts | In Email Routing → Routing rules, enable/correct the address's rule to forward to `DEST_EMAIL`. Setup will not overwrite it or report a wrong/disabled rule as ready. |
-| Gmail send-as is blocked | Enable 2-Step Verification and use a Google App Password, not the login password. Account policy may prohibit app passwords; use an approved SMTP provider instead. Check username, port 587/TLS, and the confirmation email. |
+| Gmail send-as is blocked (`./cmail send-as`) | Enable 2-Step Verification and use a Google App Password, not the login password. Account policy may prohibit app passwords; use an approved SMTP provider instead. Check username, port 587/TLS, and the confirmation email. Receiving is unaffected. |
 
-After the manual Gmail step, use a **different mailbox** to test inbound
-forwarding, then send from the custom alias to that mailbox and check the
-From address and delivery. Pressing Enter does not verify Gmail setup.
+After setup, use a **different mailbox** to test inbound forwarding. If you ran
+the optional `send-as` step, also send from the custom alias to that mailbox and
+check the From address and delivery. Pressing Enter does not verify Gmail setup.
 
 ## Troubleshooting Email Routing
 
@@ -326,9 +389,9 @@ runs on macOS Bash 3.2. Setup/doctor install missing dependencies themselves
 
 ## Limitations
 
-- Cloudflare only **forwards** mail — no mailbox/storage (Gmail's storage
-  is used).
-- Outbound via Gmail isn't DKIM-signed with your domain — fine for
+- Cloudflare only **forwards** mail — no mailbox/storage (your destination
+  inbox's storage is used).
+- Optional outbound via Gmail isn't DKIM-signed with your domain — fine for
   personal use; upgrade to Google Workspace if deliverability matters.
 - Gmail sending limits and third-party send-as availability are Google/account
   dependent; see the January 2027 policy warning above. Neither CLI completion nor

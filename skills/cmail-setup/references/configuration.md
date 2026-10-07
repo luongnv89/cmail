@@ -32,7 +32,8 @@ reports CLOUDFLARE_API_TOKEN and GDDY_PAT only as set/empty/absent, and ends
 with READY or NOT READY.
 
 Take empty values from the user's message: DOMAIN (owned, registrable domain only;
-no scheme/path), DEST_EMAIL (receiving Gmail account), ADDRESSES (comma-separated
+no scheme/path), DEST_EMAIL (any receiving mailbox the user owns; it must be a
+Gmail/Google account only if they also want sending), ADDRESSES (comma-separated
 local parts, no `@domain`), GDDY_ENV (`prod` for real resources; `ote` cannot
 prove production setup). With DOMAIN unknown, list candidates with
 `gddy domain list --env <env> --json | jq -r '.data[] | .domain // .name'` and
@@ -40,7 +41,7 @@ offer them. Ask one batched question for whatever is still missing, then write
 only the keys that need a value:
 
 ```text
-python3 <skill-directory>/scripts/set_config.py <file> DOMAIN=<domain> DEST_EMAIL=<gmail> ADDRESSES=<locals>
+python3 <skill-directory>/scripts/set_config.py <file> DOMAIN=<domain> DEST_EMAIL=<inbox> ADDRESSES=<locals>
 ```
 
 The setter validates each value, refuses secret keys, keeps every other line
@@ -79,7 +80,7 @@ whoever launches it; this skill cannot change that runtime transport.
    may reset the mode) and rerun the summary. The checker rejects non-ASCII
    characters such as smart quotes an editor may insert. CF_ACCOUNT_ID is an optional 32-character hex
    **Account ID**, not Zone ID; CF_ZONE_ID must refer to this DOMAIN.
-3. **Gmail:** the App Password from https://myaccount.google.com/apppasswords goes
+3. **Gmail (optional sending only):** the App Password from https://myaccount.google.com/apppasswords goes
    directly into Gmail's SMTP dialog, **not `.env`** and not an agent tool. Do not
    use the normal login password, share confirmation codes or disable policy.
 
@@ -103,7 +104,7 @@ literal-assignment subset (including cmail's `%q` backslash escapes) and rejects
 expansions, commands, unknown keys, duplicates, CR/CRLF and other control
 characters, unquoted tilde/glob/brace syntax, symlinks and any mode other than 600.
 A rejected but valid complex Bash file needs a local simplification, never
-sourcing to bypass the gate. It does not verify Gmail ownership, credential
+sourcing to bypass the gate. It does not verify mailbox ownership, credential
 validity, resource authorization or network state. Do not print `bash -n`
 diagnostics: they can contain a secret line. Without Python 3, offer installing
 it (brew without sudo is auto) or do user-local manual checks and record their

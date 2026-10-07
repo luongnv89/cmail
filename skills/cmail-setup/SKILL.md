@@ -1,17 +1,25 @@
 ---
 name: "cmail-setup"
-description: "Set up, resume or troubleshoot cmail custom-domain email (GoDaddy → Cloudflare Email Routing → Gmail): runs cmail setup itself, asking only for missing input, secrets or risky approvals. Don't use for other registrars, mail migrations or campaigns."
+description: "Set up, resume or troubleshoot cmail custom-domain email (GoDaddy → Cloudflare Email Routing → any inbox, optional Gmail send-as): runs cmail setup itself, asking only for missing input, secrets or risky approvals. Don't use for other registrars, mail migrations or campaigns."
 compatibility: "macOS/Linux, Bash 3.2+, curl, jq, gddy, dig; Python 3 for the bundled config helpers."
 effort: "high"
 metadata:
-  version: "2.0.0"
+  version: "2.1.0"
   author: "Luong NGUYEN <luongnv89@gmail.com>"
 ---
 
 # Autonomous cmail setup
 
 Use this skill when the user asks to set up, resume or troubleshoot cmail
-(GoDaddy → Cloudflare Email Routing → Gmail); you run the commands. Run `cmail setup` as the primary path: prepare its inputs, run it,
+(GoDaddy → Cloudflare Email Routing → any inbox the user owns); you run the
+commands. With reviewed current source, receiving takes a few simple steps and
+needs no Google account: `./cmail setup` sets up receiving only. The default
+installer pins legacy v0.1.0, whose setup still includes the Gmail guide and lacks
+`send-as`; its post-receiving pause is accepted only by gate 8's exact checks.
+Ignore that guide for receive-only requests. Sending from the custom address
+(`cmail send-as`, Gmail only) is optional and never the default: include it only
+when the user asks to send, and do not ask for DEST_EMAIL to be Gmail otherwise.
+Run `cmail setup` as the primary path: prepare its inputs, run it,
 troubleshoot any failure, then verify the result gate by gate. A setup request is
 consent for every **auto** action below. Ask only at a **stop**.
 
@@ -22,13 +30,15 @@ checks; trusted `cmail help`/`status`; installing cmail and missing tools withou
 sudo; creating the config and setting its non-secret keys; background
 `gddy auth login` (opens the user's browser); `cmail setup` passes the preflight
 allows, including the zone, destination and rules setup creates; reruns after a
-repair; opening dashboards, Gmail settings or the config editor for the user.
+repair; opening dashboards, the config editor or (when sending was requested)
+Gmail settings for the user.
 
 **Stop — ask once, with evidence and a recommendation:**
 
 - **Missing:** a value no probe or config holds (DOMAIN, DEST_EMAIL, ADDRESSES),
   the Cloudflare token, or a hands-on step: browser approval, verification link,
-  Gmail send-as, delivery tests from another mailbox. Batch missing values into one
+  delivery tests from another mailbox, Gmail send-as (only when sending was
+  requested). Batch missing values into one
   question.
 - **Super important:** nameserver replacement; routing over existing
   non-Cloudflare MX or DNSSEC/DS records; domain purchase (exact domain, price,
@@ -127,14 +137,34 @@ lines). `status` exit 0 alone is not a verdict.
    match to discover whether it is trusted.
    Only then use the quoted trusted absolute path with `help` (or trusted
    `./cmail help`), not unsupported `cmail --version`. Confirm
-   setup/status/doctor/help and library load. A different binary or broken
-   library load fails this gate.
-3. If missing, read and run the reviewed checkout's **`bash install.sh`** (needs
-   Bash 3.2+ and curl; downloads a pinned runtime; sets up no provider).
+   setup/status/doctor/help and library load; record whether `send-as` is listed
+   to distinguish current-source and legacy completion evidence. A different
+   binary or broken library load fails this gate.
+3. Select source execution or deliberate legacy installation. For the latter,
+   read and run the reviewed checkout's **`bash install.sh`** (needs Bash 3.2+ and
+   curl; downloads a pinned runtime; sets up no provider).
    v0.1.0 lacks the installer; no remote bootstrap or `brew install cmail` exists.
-   Without a checkout, clone https://github.com/luongnv89/cmail into a user-owned
-   directory, read its `install.sh`, then run it.
-4. Defaults: launcher `~/.local/bin/cmail`, runtimes `~/.local/share/cmail/`,
+   For the new receive-only/optional-send workflow, prefer the reviewed source
+   snapshot in README instead of installing the legacy default. Clone upstream
+   into a user-owned directory and fetch the pin explicitly; it need not be
+   advertised on the default branch. Select the immutable feature revision:
+
+   ```bash
+   git clone https://github.com/luongnv89/cmail
+   cd cmail
+   git fetch origin cda65f0554a870ed8079e93741a331918118acec
+   git checkout --detach cda65f0554a870ed8079e93741a331918118acec
+   # Review cmail and lib/ before execution.
+   ./cmail help
+   ```
+
+   This is a development source snapshot, not v0.1.0, until a compatible
+   release/installer ships. Help must list `send-as` before this source workflow
+   proceeds; stop if missing. Select this checkout's trusted absolute `cmail`
+   path, not PATH `cmail`, and checkout `.env` (or explicitly reused ENV_FILE).
+   For deliberate legacy installation, read the checkout's `install.sh`, then run
+   it; the default pinned runtime does not gain features from the checkout.
+4. Legacy installation defaults: launcher `~/.local/bin/cmail`, runtimes `~/.local/share/cmail/`,
    config `~/.config/cmail/.env`. Installer overrides are absolute `CMAIL_BIN_DIR`,
    `CMAIL_DATA_DIR`, `CMAIL_CONFIG_DIR`; runtime override is `ENV_FILE`.
    Call the launcher by absolute path; report the PATH line for the user's profile instead of editing it.
@@ -161,8 +191,9 @@ Follow the steps in `references/autonomous-run.md`: preflight, pass 1 with stdin
 closed in the background, classify the stop with its table (`Setup stopped at:`), the
 nameserver stop, pass 2 only after approval. Relay hands-on steps (browser
 approval, verification link) at once. Then verify gates 3–9 per
-`references/verification.md`. Finish Gmail alias confirmation and independent inbound/outbound delivery for **every
-requested alias**; a CLI exit or a send queue is not proof.
+`references/verification.md`. Finish an independent inbound delivery test for
+**every requested alias**; when sending was requested, also Gmail alias
+confirmation and an outbound test per alias. A CLI exit or a send queue is not proof.
 
 ## Completion report
 
@@ -178,7 +209,8 @@ Repair / recheck: <specific action and exact check, or none>
 ```
 
 At exit, put the main outcome first: COMPLETE only if all nine gates are VERIFIED,
-including every alias's two delivery tests; otherwise PARTIAL or BLOCKED naming the
+including every alias's inbound test (and outbound test when sending was
+requested); otherwise PARTIAL or BLOCKED naming the
 earliest incomplete gate. Include Evidence, Uncertainty, Decision (approval needed,
 or “No approval needed.”) and the next action. List what you ran; never claim an
 unrun command ran. A short text report suffices; no dashboard.
