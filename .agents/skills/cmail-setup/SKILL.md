@@ -146,11 +146,13 @@ lines). `status` exit 0 alone is not a verdict.
    v0.1.0 lacks the installer; no remote bootstrap or `brew install cmail` exists.
    For the new receive-only/optional-send workflow, prefer the reviewed source
    snapshot in README instead of installing the legacy default. Clone upstream
-   into a user-owned directory and select the immutable feature revision:
+   into a user-owned directory and fetch the pin explicitly; it need not be
+   advertised on the default branch. Select the immutable feature revision:
 
    ```bash
    git clone https://github.com/luongnv89/cmail
    cd cmail
+   git fetch origin cda65f0554a870ed8079e93741a331918118acec
    git checkout --detach cda65f0554a870ed8079e93741a331918118acec
    # Review cmail and lib/ before execution.
    ./cmail help

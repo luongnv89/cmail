@@ -6,11 +6,13 @@ iCloud, Proton, a work address, …). Built on **Cloudflare Email Routing**; no
 new mailbox and no Google account needed.
 
 The receive-only workflow below uses a **reviewed development source snapshot**,
-not v0.1.0, until a compatible release/installer ships:
+not v0.1.0, until a compatible release/installer ships. Fetch the pin explicitly;
+it need not be advertised on the default branch:
 
 ```bash
 git clone https://github.com/luongnv89/cmail
 cd cmail
+git fetch origin cda65f0554a870ed8079e93741a331918118acec
 git checkout --detach cda65f0554a870ed8079e93741a331918118acec
 # Review cmail and lib/ before execution.
 ./cmail help         # Must list send-as; stop if missing, before setup.
@@ -112,12 +114,14 @@ configuration/credentials. No shell profile changes need undoing.
 ## Quickstart (reviewed current source)
 
 Use this immutable feature-containing development snapshot, **not v0.1.0**, until
-a compatible release/installer ships. Clone upstream, select the exact revision,
+a compatible release/installer ships. Clone upstream and fetch the pin explicitly;
+it need not be advertised on the default branch. Select the exact revision,
 then review `cmail` and `lib/` before executing it:
 
 ```bash
 git clone https://github.com/luongnv89/cmail
 cd cmail
+git fetch origin cda65f0554a870ed8079e93741a331918118acec
 git checkout --detach cda65f0554a870ed8079e93741a331918118acec
 ./cmail help         # Must list send-as; stop if missing, before setup.
 ./cmail setup

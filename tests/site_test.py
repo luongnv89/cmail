@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Offline site/document contract checks; no provider calls or third-party packages."""
+import os
 import re
+import shutil
+import subprocess
+import tempfile
 import unittest
 from html import unescape
 from html.parser import HTMLParser
@@ -129,9 +133,10 @@ class SiteTests(unittest.TestCase):
                     commands = [line.split('#', 1)[0].strip() for line in block.splitlines()]
                     commands = [line for line in commands if line]
                     expected = ['git clone https://github.com/luongnv89/cmail', 'cd cmail',
+                                'git fetch origin ' + feature_sha,
                                 'git checkout --detach ' + feature_sha, './cmail help']
-                    self.assertEqual(commands[:4], expected)
-                    self.assertTrue(all(command == './cmail setup' for command in commands[4:]))
+                    self.assertEqual(commands[:5], expected)
+                    self.assertTrue(all(command == './cmail setup' for command in commands[5:]))
                     self.assertNotIn('bash install.sh', block)
                     self.assertNotIn('--branch v0.1.0', block)
                 flat = ' '.join(re.sub(r'<[^>]*>', '', text).replace('**', '').split())
@@ -145,11 +150,47 @@ class SiteTests(unittest.TestCase):
                     self.assertRegex(flat, r'(?:must (?:load offline and )?list|lists).*send-as')
                 self.assertRegex(flat, r'(?:stop if missing|If `?send-as`? is missing, stop)')
         # Capability check is offline: no config or provider access is needed.
-        import subprocess
         help_result = subprocess.run([str(ROOT / 'cmail'), 'help'], cwd=ROOT,
                                      text=True, capture_output=True, timeout=5)
         self.assertEqual(help_result.returncode, 0, help_result.stderr)
         self.assertIn('./cmail send-as', help_result.stdout)
+
+    @unittest.skipUnless(shutil.which('git'), 'Git unavailable; offline SHA-fetch fixture requires Git')
+    def test_issue17_explicit_fetch_makes_nondefault_pr_snapshot_available(self):
+        # file:// avoids local-clone object copying; no network/provider access.
+        env = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
+        env.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull,
+                   GIT_AUTHOR_NAME='Offline Fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
+                   GIT_COMMITTER_NAME='Offline Fixture', GIT_COMMITTER_EMAIL='fixture@example.invalid',
+                   GIT_TERMINAL_PROMPT='0')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            upstream, clone = root / 'upstream', root / 'clone'
+
+            def git(cwd, *args, check=True):
+                result = subprocess.run(['git', *args], cwd=cwd, env=env,
+                                        capture_output=True, text=True, timeout=10)
+                if check:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                return result
+
+            git(root, 'init', str(upstream))
+            git(upstream, 'checkout', '-b', 'main')
+            git(upstream, 'commit', '--allow-empty', '-m', 'default snapshot')
+            git(upstream, 'checkout', '-b', 'feature')
+            git(upstream, 'commit', '--allow-empty', '-m', 'feature snapshot')
+            pin = git(upstream, 'rev-parse', 'HEAD').stdout.strip()
+            git(upstream, 'update-ref', 'refs/pull/16/head', pin)
+            git(upstream, 'checkout', 'main')
+            git(upstream, 'branch', '-D', 'feature')
+            git(root, 'clone', '--single-branch', '--branch', 'main',
+                upstream.as_uri(), str(clone))
+            self.assertNotEqual(git(clone, 'cat-file', '-e', pin, check=False).returncode, 0)
+            self.assertNotEqual(git(clone, 'checkout', '--detach', pin, check=False).returncode, 0)
+            git(clone, 'fetch', 'origin', pin)
+            git(clone, 'checkout', '--detach', pin)
+            self.assertEqual(git(clone, 'rev-parse', 'HEAD').stdout.strip(), pin)
+            self.assertEqual(git(clone, 'branch', '--show-current').stdout.strip(), '')
 
     def test_issue17_guides_use_checkout_config_or_explicit_reuse(self):
         for name in ['docs/setup.md', 'docs/setup.html']:

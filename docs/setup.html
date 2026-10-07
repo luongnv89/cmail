@@ -26,9 +26,10 @@
           <p><strong>Check:</strong> You own/control the intended domain, can open both provider accounts and your receiving inbox, and have a DNS/mail migration plan. Missing access is not a reason to buy another domain.</p><label class="check" for="step-readiness"><input id="step-readiness" type="checkbox">I checked prerequisites and migration impact</label>
         </li>
         <li class="step" id="install"><h2>Select reviewed current source (or legacy installation)</h2>
-          <p>For this guide’s receive-only/optional-send workflow, clone <a href="https://github.com/luongnv89/cmail">upstream</a> and select the immutable feature revision below. This is a reviewed development source snapshot, <strong>not v0.1.0</strong>, until a compatible release/installer ships. Review <code>cmail</code> and <code>lib/</code> before execution:</p>
+          <p>For this guide’s receive-only/optional-send workflow, clone <a href="https://github.com/luongnv89/cmail">upstream</a> and select the immutable feature revision below. This is a reviewed development source snapshot, <strong>not v0.1.0</strong>, until a compatible release/installer ships. Fetch the pin explicitly; it need not be advertised on the default branch. Review <code>cmail</code> and <code>lib/</code> before execution:</p>
           <pre><code>git clone https://github.com/luongnv89/cmail
 cd cmail
+git fetch origin cda65f0554a870ed8079e93741a331918118acec
 git checkout --detach cda65f0554a870ed8079e93741a331918118acec
 ./cmail help</code></pre>
           <p>Keep this checkout for the checker/skill. Use <code>./cmail</code>, never PATH <code>cmail</code>, in the following steps; config defaults to checkout <code>.env</code>.</p>

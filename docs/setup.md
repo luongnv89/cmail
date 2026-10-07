@@ -55,12 +55,13 @@ purchase signal.
 For this guide's receive-only/optional-send workflow, clone
 [upstream](https://github.com/luongnv89/cmail) and select the immutable feature
 revision below. This is a reviewed development source snapshot, **not v0.1.0**,
-until a compatible release/installer ships. Review `cmail` and `lib/` before
-execution:
+until a compatible release/installer ships. Fetch the pin explicitly; it need not
+be advertised on the default branch. Review `cmail` and `lib/` before execution:
 
 ```bash
 git clone https://github.com/luongnv89/cmail
 cd cmail
+git fetch origin cda65f0554a870ed8079e93741a331918118acec
 git checkout --detach cda65f0554a870ed8079e93741a331918118acec
 ./cmail help
 ```
