@@ -14,8 +14,7 @@ ensure_tool() { # ensure_tool <cmd> [pkg-name]
   local cmd="$1" pkg="${2:-$1}"
   command -v "$cmd" >/dev/null && { ok "$cmd present"; return 0; }
   warn "$cmd missing — installing ($pkg)"
-  _pkg_install "$pkg" && command -v "$cmd" >/dev/null \
-    || die "could not install $cmd — check network access, package-manager availability and install permissions (sudo where required). Install '$pkg' manually, ensure '$cmd' is on PATH (command -v $cmd), then re-run ./cmail setup"
+  if ! _pkg_install "$pkg" || ! command -v "$cmd" >/dev/null; then die "could not install $cmd — check network access, package-manager availability and install permissions (sudo where required). Install '$pkg' manually, ensure '$cmd' is on PATH (command -v $cmd), then re-run ./cmail setup"; fi
   ok "$cmd installed"
 }
 

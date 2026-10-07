@@ -78,6 +78,17 @@ for file in "${files[@]}"; do
     || fail "download failed: $file (previous installation unchanged)"
   [ -s "$stage/$file" ] || fail "empty download: $file"
 done
+# Older pinned runtimes need only the original libraries. New runtimes name
+# additional allowlisted modules explicitly; fetch those before validation.
+for module in cli output plan; do
+  if grep -qF "lib/$module.sh" "$stage/cmail"; then
+    curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+      --connect-timeout 15 --max-time 120 \
+      "https://raw.githubusercontent.com/luongnv89/cmail/$ref/lib/$module.sh" -o "$stage/lib/$module.sh" \
+      || fail "download failed: lib/$module.sh (previous installation unchanged)"
+    [ -s "$stage/lib/$module.sh" ] || fail "empty download: lib/$module.sh"
+  fi
+done
 "$BASH" -n "$stage/cmail" || fail 'invalid cmail script'
 for file in "$stage"/lib/*.sh "$stage/.env.example"; do
   "$BASH" -n "$file" || fail "invalid script: ${file##*/}"

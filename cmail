@@ -5,9 +5,21 @@
 set -euo pipefail
 
 CMAIL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-for f in ui env deps godaddy cloudflare gmail; do
-  . "$CMAIL_DIR/lib/$f.sh"
-done
+# shellcheck source=lib/cli.sh
+. "$CMAIL_DIR/lib/cli.sh"
+cli_parse "$@"
+# shellcheck source=lib/ui.sh
+. "$CMAIL_DIR/lib/ui.sh"
+# shellcheck source=lib/env.sh
+. "$CMAIL_DIR/lib/env.sh"
+# shellcheck source=lib/deps.sh
+. "$CMAIL_DIR/lib/deps.sh"
+# shellcheck source=lib/godaddy.sh
+. "$CMAIL_DIR/lib/godaddy.sh"
+# shellcheck source=lib/cloudflare.sh
+. "$CMAIL_DIR/lib/cloudflare.sh"
+# shellcheck source=lib/gmail.sh
+. "$CMAIL_DIR/lib/gmail.sh"
 
 usage() {
   cat <<EOF
@@ -96,21 +108,34 @@ cmd_status() {
 }
 
 cmd_doctor() {
-  ensure_deps
-  env_init
-  step "Auth status"
-  gddy auth status 2>/dev/null | jq -r '.data[]? | "gddy \(.env): expired=\(.expired)"' || warn "gddy auth status unavailable"
-  if cf_token_valid; then ok "Cloudflare token valid"; else warn "Cloudflare token missing/invalid"; fi
-  step "Current .env"
-  grep -vE 'TOKEN|PAT|SECRET' "$ENV_FILE" | grep -v '^\s*$' || true
-  note "(secret values hidden)"
+  local tool failed=0 invalid=0
+  for tool in bash curl jq gddy; do
+    if command -v "$tool" >/dev/null; then printf 'PASS  %s available\n' "$tool"
+    else printf 'FAIL  %s missing — install it and check PATH\n' "$tool"; failed=1; fi
+  done
+  if [ ! -e "$ENV_FILE" ] && [ ! -L "$ENV_FILE" ]; then
+    printf 'FAIL  configuration missing — run cmail config init\n'; invalid=1
+  elif config_load && config_ready; then
+    printf 'PASS  configuration ready\n'
+  else
+    printf 'FAIL  configuration incomplete — run cmail config check\n'; invalid=1
+  fi
+  if [ "$CMAIL_OFFLINE" = 0 ] && [ "$invalid" = 0 ] && [ "$failed" = 0 ]; then
+    if cf_token_valid; then printf 'PASS  Cloudflare token active\n'
+    else printf 'FAIL  Cloudflare token check — check token and connectivity\n'; failed=1; fi
+    if gddy auth status --json 2>/dev/null | jq -e --arg e "$GDDY_ENV" 'any(.data[]?; .env==$e and .expired==false)' >/dev/null; then
+      printf 'PASS  GoDaddy authentication available\n'
+    else printf 'FAIL  GoDaddy authentication — run gddy auth login\n'; failed=1; fi
+  fi
+  [ "$invalid" = 0 ] || return 3
+  [ "$failed" = 0 ] || return 1
 }
 
-case "${1:-help}" in
-  setup)   cmd_setup ;;
+case "$CLI_COMMAND" in
+  setup) cmd_setup ;;
   send-as) cmd_send_as ;;
-  status)  cmd_status ;;
-  doctor)  cmd_doctor ;;
-  help|-h|--help) usage ;;
-  *) usage; exit 1 ;;
+  status) cmd_status ;;
+  doctor) cmd_doctor ;;
+  config) if [ "$CLI_SUBCOMMAND" = path ]; then printf '%s\n' "$ENV_FILE"; else cli_error 'configuration commands are being implemented'; fi ;;
+  completion) cli_error 'completion scripts are being implemented' ;;
 esac

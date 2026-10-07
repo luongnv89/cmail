@@ -57,10 +57,10 @@ install || { printf 'fresh install failed: %s\n' "$(< "$TMP/error")" >&2; exit 1
 grep -q 'custom-domain email' "$TMP/help" || fail 'installed help'
 [ ! -e "$CMAIL_CONFIG_DIR/.env" ] || fail 'install created config'
 pass 'fresh install is runnable with shell-metacharacter paths and no setup'
-[ "$(wc -l < "$CURL_LOG" | tr -d ' ')" = 9 ] || fail 'incomplete runtime download'
+[ "$(wc -l < "$CURL_LOG" | tr -d ' ')" = 10 ] || fail 'incomplete runtime download'
 grep -q -- '--proto =https --proto-redir =https' "$CURL_LOG" || fail 'unsafe transport'
 grep -q 'eb45f9558ecc5874e6a21d6f1b93fe1379f46841' "$CURL_LOG" || fail 'unpinned source'
-pass 'complete nine-file runtime from pinned HTTPS source'
+pass 'complete runtime including CLI parser from pinned HTTPS source'
 [ "$(stat -f %Lp "$CMAIL_CONFIG_DIR" 2>/dev/null || stat -c %a "$CMAIL_CONFIG_DIR")" = 700 ] || fail 'config directory not private'
 pass 'new config directory is private'
 printf 'DOMAIN=example.com\n' > "$CMAIL_CONFIG_DIR/.env"
@@ -110,6 +110,7 @@ ENV_FILE="$TMP/override-config" "$CMAIL_BIN_DIR/cmail" help >/dev/null
 [ ! -e "$TMP/config-loaded" ] || fail 'help sourced config'
 pass 'help never evaluates user config'
 printf 'DOMAIN=override.example\n' > "$TMP/override-config"
+chmod 600 "$TMP/override-config"
 if ENV_FILE="$TMP/override-config" "$CMAIL_BIN_DIR/cmail" status > "$TMP/status" 2>&1; then fail 'status should lack token'; fi
 [ "$(stat -f %Lp "$TMP/override-config" 2>/dev/null || stat -c %a "$TMP/override-config")" = 600 ] || fail 'override not used by env_init'
 cmp "$CMAIL_CONFIG_DIR/.env" "$TMP/saved-config" || fail 'explicit override ignored'

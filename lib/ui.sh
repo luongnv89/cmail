@@ -1,30 +1,31 @@
 # ui.sh — logging, prompts, browser opening
 # shellcheck shell=bash
 
-if [ -t 1 ]; then
+if [ -t 2 ] && [ "${CMAIL_NO_COLOR:-0}" = 0 ] && [ -z "${NO_COLOR+x}" ]; then
   C_BLUE=$'\033[1;34m'; C_GREEN=$'\033[1;32m'; C_YELLOW=$'\033[1;33m'
   C_RED=$'\033[1;31m'; C_DIM=$'\033[2m'; C_OFF=$'\033[0m'
 else
   C_BLUE='' C_GREEN='' C_YELLOW='' C_RED='' C_DIM='' C_OFF=''
 fi
 
-log()   { printf '%s==>%s %s\n' "$C_BLUE" "$C_OFF" "$*"; }
-ok()    { printf '%s ✓%s %s\n' "$C_GREEN" "$C_OFF" "$*"; }
-warn()  { printf '%s !%s %s\n' "$C_YELLOW" "$C_OFF" "$*"; }
+log()   { if [ "${CMAIL_QUIET:-0}" = 0 ]; then printf '%s==>%s %s\n' "$C_BLUE" "$C_OFF" "$*" >&2; fi; }
+ok()    { if [ "${CMAIL_QUIET:-0}" = 0 ]; then printf '%s ✓%s %s\n' "$C_GREEN" "$C_OFF" "$*" >&2; fi; }
+warn()  { printf '%s !%s %s\n' "$C_YELLOW" "$C_OFF" "$*" >&2; }
 die()   { printf '%sERROR:%s %s\n' "$C_RED" "$C_OFF" "$*" >&2; exit 1; }
-step()  { CMAIL_STEP="$*"; printf '\n%s── %s ──%s\n' "$C_BLUE" "$*" "$C_OFF"; }
-note()  { printf '%s    %s%s\n' "$C_DIM" "$*" "$C_OFF"; }
+step()  { CMAIL_STEP="$*"; if [ "${CMAIL_QUIET:-0}" = 0 ]; then printf '\n%s── %s ──%s\n' "$C_BLUE" "$*" "$C_OFF" >&2; fi; }
+note()  { if [ "${CMAIL_QUIET:-0}" = 0 ]; then printf '%s    %s%s\n' "$C_DIM" "$*" "$C_OFF" >&2; fi; }
 
 confirm() { # confirm <question> — returns 0 on yes
   local ans
-  printf '%s ?%s %s [y/N] ' "$C_YELLOW" "$C_OFF" "$1"
+  printf '%s ?%s %s [y/N] ' "$C_YELLOW" "$C_OFF" "$1" >&2
   read -r ans
   case "$ans" in [yY]|[yY][eE][sS]) return 0 ;; *) return 1 ;; esac
 }
 
 open_url() { # open_url <url> — best-effort browser open, always prints
   local url="$1"
-  note "open: $url"
+  printf 'Open: %s\n' "$url" >&2
+  [ "${CMAIL_NO_BROWSER:-0}" = 0 ] || return 0
   if [ -n "${BROWSER:-}" ]; then "$BROWSER" "$url" >/dev/null 2>&1 & return; fi
   case "$(uname -s)" in
     Darwin) open "$url" >/dev/null 2>&1 & ;;
@@ -35,11 +36,12 @@ open_url() { # open_url <url> — best-effort browser open, always prints
   sleep 1
 }
 
-pause() { printf '%s… press Enter to continue%s ' "$C_DIM" "$C_OFF"; read -r; }
+pause() { printf '%s… press Enter to continue%s ' "$C_DIM" "$C_OFF" >&2; read -r; }
 
 # Called once by setup's EXIT trap, including unexpected shell/tool failures.
 # Never print the failed command: it may contain credentials.
 setup_recovery() {
+  local CMAIL_QUIET=0
   printf '\nSetup stopped at: %s\n' "${CMAIL_STEP:-startup}" >&2
   case "${CMAIL_STEP:-}" in
     Dependencies*)

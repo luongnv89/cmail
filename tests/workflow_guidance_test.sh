@@ -65,42 +65,42 @@ run_expect 'gddy PATH recovery' 1 missing_gddy_after_install 'unavailable after 
 
 failed_create() { cp() { return 1; }; env_init; }
 run_expect 'config creation recovery' 1 failed_create 'could not create config' 'parent directory' './cmail setup'
-printf 'TEST_VALUE=private-test-sentinel\n' >"$ENV_FILE"
+printf 'GDDY_PAT=private-test-sentinel\n' >"$ENV_FILE"
 failed_secure() { chmod() { return 1; }; env_init; }
 run_expect 'config permissions recovery' 1 failed_secure 'could not secure config' 'chmod 600'
-valid_config() { env_init; [ "$TEST_VALUE" = 'private-test-sentinel' ]; }
+valid_config() { env_init; [ "$GDDY_PAT" = 'private-test-sentinel' ]; }
 run_expect 'valid private config loads silently' 0 valid_config
-printf 'TEST_VALUE="private-test-sentinel\n' >"$ENV_FILE"
-run_expect 'config syntax recovery without value disclosure' 1 env_init 'could not read or parse config' 'shell assignment syntax' './cmail setup'
+printf 'GDDY_PAT="private-test-sentinel\n' >"$ENV_FILE"
+run_expect 'config syntax recovery without value disclosure' 3 env_init 'could not load config' 'shell assignment syntax' './cmail setup'
 printf 'printf "private-test-sentinel\\n"; false\n' >"$ENV_FILE"
-run_expect 'config load recovery without value disclosure' 1 env_init 'could not load config' 'without sharing secrets'
-printf 'GDDY_ENV = ote\nTEST_VALUE=private-test-sentinel\n' >"$ENV_FILE"
-run_expect 'intermediate invalid assignment cannot retain production defaults silently' 1 env_init 'NAME=value' 'no spaces around' 'without sharing secrets'
-printf 'false\nTEST_VALUE=private-test-sentinel\n' >"$ENV_FILE"
-run_expect 'intermediate config failure is not masked by a final assignment' 1 env_init 'could not load config'
-empty_input() { unset TEST_INPUT; env_require_prompt TEST_INPUT 'Test input' <<<''; }
-run_expect 'empty input recovery' 1 empty_input 'TEST_INPUT is required' 'private config' './cmail setup'
-eof_input() { unset TEST_INPUT; env_require_prompt TEST_INPUT 'Test input' --secret </dev/null; }
+run_expect 'config load recovery without value disclosure' 3 env_init 'could not load config' 'without sharing secrets'
+printf 'GDDY_ENV = ote\nGDDY_PAT=private-test-sentinel\n' >"$ENV_FILE"
+run_expect 'intermediate invalid assignment cannot retain production defaults silently' 3 env_init 'NAME=value' 'no spaces around' 'without sharing secrets'
+printf 'false\nGDDY_PAT=private-test-sentinel\n' >"$ENV_FILE"
+run_expect 'intermediate config failure is not masked by a final assignment' 3 env_init 'could not load config'
+empty_input() { unset GDDY_PAT; env_require_prompt GDDY_PAT 'Test input' <<<''; }
+run_expect 'empty input recovery' 1 empty_input 'GDDY_PAT is required' 'private config' './cmail setup'
+eof_input() { unset GDDY_PAT; env_require_prompt GDDY_PAT 'Test input' --secret </dev/null; }
 run_expect 'missing terminal input recovery' 1 eof_input 'input unavailable' 'interactive terminal'
-existing_input() { TEST_INPUT=private-test-sentinel; env_require_prompt TEST_INPUT 'Test input' </dev/null; }
+existing_input() { GDDY_PAT=private-test-sentinel; env_require_prompt GDDY_PAT 'Test input' </dev/null; }
 run_expect 'existing input does not prompt' 0 existing_input
 
 # Config writes use a synthetic fixture, never a repository/user config.
-printf 'TEST_INPUT=old\nOTHER=value\n' >"$ENV_FILE"
-save_input() { env_set TEST_INPUT private-test-sentinel; [ "$TEST_INPUT" = private-test-sentinel ]; }
+printf 'GDDY_PAT=old\nGDDY_ENV=ote\n' >"$ENV_FILE"
+save_input() { env_set GDDY_PAT private-test-sentinel; [ "$GDDY_PAT" = private-test-sentinel ]; }
 run_expect 'config upsert' 0 save_input
-grep -qxF 'OTHER=value' "$ENV_FILE"
-grep -qxF 'TEST_INPUT=private-test-sentinel' "$ENV_FILE"
+grep -qxF 'GDDY_ENV=ote' "$ENV_FILE"
+grep -qxF "GDDY_PAT='private-test-sentinel'" "$ENV_FILE"
 save_quoted_input() {
-  env_set TEST_INPUT 'hello, contact; $(do-not-run)'
+  env_set GDDY_PAT 'hello, contact; $(do-not-run)'
   bash -n "$ENV_FILE"
-  unset TEST_INPUT
+  unset GDDY_PAT
   env_init
-  [ "$TEST_INPUT" = 'hello, contact; $(do-not-run)' ]
+  [ "$GDDY_PAT" = 'hello, contact; $(do-not-run)' ]
 }
 run_expect 'config values with spaces/metacharacters remain assignments' 0 save_quoted_input
-failed_save() { ENV_FILE="$TMP"; env_set TEST_INPUT private-test-sentinel; }
-run_expect 'config write recovery' 1 failed_save 'could not save TEST_INPUT' 'permissions' './cmail setup'
+failed_save() { ENV_FILE="$TMP"; env_set GDDY_PAT private-test-sentinel; }
+run_expect 'config write recovery' 3 failed_save 'could not save GDDY_PAT' 'permissions' 'cmail config'
 
 gddy() {
   printf '%s\n' "$*" >>"$TMP/calls"

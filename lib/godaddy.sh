@@ -1,7 +1,7 @@
 # godaddy.sh — gddy auth + domain + nameserver helpers
 # shellcheck shell=bash
 
-GDDY_ENV="${GDDY_ENV:-prod}"
+
 
 gddy_ensure_auth() { # OAuth browser login if no valid credential for env
   step "GoDaddy authentication ($GDDY_ENV)"
@@ -25,7 +25,7 @@ gddy_pick_domain() { # sets DOMAIN (and saves to .env)
   domains=$(jq -er 'if (.data | type) == "array" then [.data[] | (.domain // .name // empty)] | sort | join("\n") else error("invalid domain list") end' <<<"$domains" 2>/dev/null) \
     || die "could not read GoDaddy domain list — check gddy domain list --env $GDDY_ENV --json and your GoDaddy dashboard; update gddy if its response format changed, then re-run ./cmail setup"
   if [ -n "$domains" ]; then
-    echo "Your GoDaddy domains:"; echo "$domains" | sed 's/^/  - /'
+    printf 'Your GoDaddy domains:\n  - %s\n' "${domains//$'\n'/$'\n  - '}"
     echo "  - (type any other name to register a new one)"
   fi
   local val

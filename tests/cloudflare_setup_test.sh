@@ -152,6 +152,8 @@ printf 'PASS: recovery guidance covers all setup steps and DNS checkpoint\n'
 # Exercise the actual orchestrator and EXIT trap with isolated fixture helpers.
 mkdir -p "$TMP/cli/lib"
 cp "$ROOT/cmail" "$TMP/cli/cmail"
+cp "$ROOT/VERSION" "$TMP/cli/VERSION"
+cp "$ROOT/lib/cli.sh" "$TMP/cli/lib/cli.sh"
 cp "$ROOT/lib/ui.sh" "$TMP/cli/lib/ui.sh"
 for module in env deps godaddy cloudflare gmail; do : >"$TMP/cli/lib/$module.sh"; done
 printf '%s\n' 'ensure_deps() { step "Dependencies"; }' >"$TMP/cli/lib/deps.sh"
@@ -179,7 +181,7 @@ set +e
 ENV_FILE="$TMP/cli/.env" bash "$TMP/cli/cmail" setup >"$TMP/output" 2>&1
 rc=$?
 set -e
-[ "$rc" = 1 ]
+[ "$rc" = 3 ]
 grep -qF 'could not load config' "$TMP/output"
 grep -qF 'Setup stopped at: Configuration' "$TMP/output"
 assert_absent -qF 'GoDaddy authentication' "$TMP/output"
@@ -209,5 +211,5 @@ set -e
 grep -qF 'no DEST_EMAIL in config' "$TMP/output"
 grep -qF './cmail setup first' "$TMP/output"
 assert_absent -qF 'GMAIL-GUIDE-RAN' "$TMP/output"
-bash "$TMP/cli/cmail" help | grep -qF './cmail send-as'
+bash "$TMP/cli/cmail" help | grep -F './cmail send-as' >/dev/null
 printf 'PASS: setup is receive-only; send-as is a separate optional command\n'
