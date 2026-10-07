@@ -2,10 +2,12 @@
 
 ## Ask for non-secret intent
 
-Confirm DOMAIN (owned, registrable domain only; no scheme/path), DEST_EMAIL
-(receiving Gmail account), ADDRESSES (comma-separated local parts, no `@domain`),
-GDDY_ENV (`prod` for real resources; `ote` cannot prove production setup), intended
-Cloudflare account, aliases needing send-as, OS, config path and existing DNS/mail.
+Reuse the OS and config path from discovery; confirm them only if `unknown`.
+Confirm any of these not already given: DOMAIN (owned, registrable domain only; no
+scheme/path), DEST_EMAIL (receiving Gmail account), ADDRESSES (comma-separated
+local parts, no `@domain`), GDDY_ENV (`prod` for real resources; `ote` cannot prove
+production setup), intended Cloudflare account, aliases needing send-as and
+existing DNS/mail.
 Never request CLOUDFLARE_API_TOKEN, GDDY_PAT or a Google App Password in chat.
 
 ## Acquire secrets in the user's browser

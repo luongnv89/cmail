@@ -264,12 +264,30 @@ class SkillContractTests(unittest.TestCase):
         probes = (SKILL / "references/discovery.md").read_text()
         for text in ("uname -s", "git rev-parse --show-toplevel", "command -v cmail",
                      "type -t cmail", "~/.config/cmail/.env", "command -v bash curl jq gddy",
-                     "Browser access: unknown", "contents not read", "Forbidden during discovery"):
+                     "Browser access: unknown", "contents not read", "Forbidden during discovery",
+                     "whence -w cmail", "Target machine", "printenv ENV_FILE CMAIL_BIN_DIR",
+                     'ls -l "$ENV_FILE"', "none in cwd", "earliest unverified gate"):
             self.assertIn(text, probes)
-        for prompt in ("Ask OS", "ask which gate failed", "To start, please tell me"):
-            self.assertNotIn(prompt, body)
+        flat = " ".join(probes.split())
+        # Target-machine rule: probes describe the agent shell; a mismatch stays unknown.
+        self.assertIn("Probe results describe the agent's shell", flat)
+        self.assertIn("A probe on a non-target shell does not answer", flat)
+        self.assertIn("target machine", section.replace("\n", " "))
+        # Environment dumps could expose provider secrets during discovery.
+        forbidden = flat.split("Forbidden during discovery", 1)[1].split("## ", 1)[0]
+        for dump in ("`env`", "`set`", "`printenv`", "`export -p`"):
+            self.assertIn(dump, forbidden)
+        texts = [body] + [p.read_text() for p in sorted((SKILL / "references").glob("*.md"))]
+        old_questions = re.compile(r"ask\s+os\b|terminal\s+availability|installed\s+or\s+a\s+source"
+                                   r"\s+checkout|ask\s+which\s+gate\s+failed|to\s+start,\s+please\s+tell\s+me",
+                                   re.IGNORECASE)
+        for text in texts:
+            self.assertIsNone(old_questions.search(text))
         recovery = (SKILL / "references/troubleshooting.md").read_text()
         self.assertIn("do not open by asking which step failed", recovery)
+        link = ROOT / ".claude/skills/cmail-setup"
+        self.assertTrue(link.is_symlink())
+        self.assertEqual(link.resolve(), (ROOT / ".agents/skills/cmail-setup").resolve())
 
     def test_agent_discovery_copy_matches_source(self):
         mirror = ROOT / ".agents/skills/cmail-setup"

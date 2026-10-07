@@ -141,7 +141,8 @@ read-only checks in gate order. Undetectable facts, including browser access, st
 a found cmail, reads `.env`, calls providers or changes state.
 
 Three prompts were added (ids 12–14: bare setup request, vague breakage, advice-only
-without a shell tool); they are scenario cases, not measured behavioral runs. Two
+without a shell tool; fourteen total); they are scenario cases, not measured
+behavioral runs. Two
 offline contract methods were added: discovery precedes mode/gates and the removed
 opening questions stay absent, and the `.agents/skills/cmail-setup` discovery copy
 stays byte-identical to `skills/cmail-setup`. Both were red before the change.
@@ -152,3 +153,12 @@ file, and two edge-case bullets duplicated by the safety contract and advice-onl
 mode were folded in. `asm eval --json` measured 87 before and after (license 0,
 all other categories at least 8; body 1,499 words). Skill-standard Gate 2 remains a
 BLOCKER on license only; human understanding of the new opening remains unconfirmed.
+
+Review follow-up: probes now describe the agent's shell, so a conflicting user fact
+or a resume cue with no install marks the target machine `unknown` until Gate 1.
+Discovery adds an exact path-override `printenv`, `ENV_FILE` metadata, zsh
+`whence -w`, a guarded checkout `.env` probe and a ban on environment dumps; Gate 2
+reuses the discovered OS/config path. The contract test now regex-scans `SKILL.md`
+and every reference for the removed questions and checks the `.claude` symlink.
+Re-measured: 30 offline methods pass; `asm eval --json` 87 (structure 9, PII 8,
+license 0, all others 10); body 1,499 words.

@@ -41,14 +41,15 @@ In unattended mode, report BLOCKED instead of waiting for an answer.
 
 ## Discover context first
 
-Open with discovery, not questions about setup mode, OS, terminal/browser access
-or installation status. With a shell tool, run the read-only probes in
-`references/discovery.md` and print its context block before anything else.
+Open with discovery, not questions about mode, OS, terminal/browser access or
+install status. With a shell tool, run the read-only probes in
+`references/discovery.md` and print its context block first.
 Discovery never executes a found `cmail`, never reads or sources `.env`, makes no
 network/provider call and changes nothing; it grants no consent and verifies no gate.
-Record an undetectable or failed probe, including browser access, as `unknown`,
-never guessed. Ask only when the **current gate** needs an undetectable fact, and
-only at that gate.
+Record an undetectable or failed probe, including browser access, as `unknown`.
+Probes describe the agent's shell; if a user fact conflicts or a resume finds no
+install, mark the target machine `unknown` until Gate 1.
+Ask for an undetectable fact only when the **current gate** needs it.
 
 ## Select the mode
 
@@ -57,9 +58,9 @@ Infer the mode from request cues and discovery; do not ask for it.
 - **New setup:** no failure/resume cue; start at gate 1.
 - **Resume/troubleshoot:** read `references/troubleshooting.md`. Start at the named
   gate, else rerun read-only checks from gate 1 to the earliest unverified gate.
-  Never trust a previous success after its inputs, account, domain or config changed.
-- **Advice-only (no shell tool):** give the probes as one local check. Facts stay
-  `unknown` until reported, then user-reported. Missing results block progress.
+  Distrust earlier successes whose inputs, account, domain or config changed.
+- **Advice-only (no shell tool):** follow `references/discovery.md`; missing
+  results block progress.
 
 ## Safety and gate contract
 
@@ -105,7 +106,8 @@ may create/chmod it, and its summary is not a complete verification verdict.
 
 ## Gate 1 — Installation and tools
 
-1. Start from discovery; rerun stale or `unknown` probes, never ask what one answers.
+1. Confirm an `unknown` target machine; rerun stale/`unknown` probes; never ask
+   what a target-shell probe answers.
 2. Recheck `command -v cmail`, Bash `type -t cmail` and the expected launcher.
    **Before executing help**, reject aliases/functions or an unexpected executable.
    Inspect the selected file locally without executing it: require user-controlled
@@ -138,7 +140,7 @@ may create/chmod it, and its summary is not a complete verification verdict.
 
 Read `references/configuration.md` now. Ask for non-secret DOMAIN, DEST_EMAIL,
 ADDRESSES, intended Cloudflare account and GDDY_ENV (prod or ote) not already given,
-and existing-service impact; confirm the discovered config path. Ask whether the
+and existing-service impact; reuse the discovered config path. Ask whether the
 domain is owned; never turn an access failure into a purchase. Explain forwarding
 vs mailbox and Gmail send limits.
 Guide local config creation/editing and secret acquisition using that reference.
@@ -173,7 +175,7 @@ VERIFIED, including every alias's two delivery tests. Otherwise use PARTIAL or
 BLOCKED and name the earliest incomplete gate. Include Evidence, Uncertainty and
 Decision (specific approval needed, or “No approval needed.”) plus the next action.
 Do not claim that suggested commands ran or a hypothetical setup succeeded.
-A short text report suffices; one setup needs no interactive dashboard.
+A short text report suffices; no interactive dashboard.
 
 ### Expected output
 
