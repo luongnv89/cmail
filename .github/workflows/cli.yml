@@ -1,0 +1,37 @@
+name: CLI checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install Linux check tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq shellcheck zsh fish
+      - name: Install macOS check tools
+        if: runner.os == 'macOS'
+        run: brew install jq shellcheck fish
+      - name: Lint runtime and Bash completion
+        run: make lint
+      - name: Run offline tests and completion checks
+        run: make test
+      - name: Check macOS system Bash compatibility
+        if: runner.os == 'macOS'
+        run: CMAIL_TEST_BASH=/bin/bash make test

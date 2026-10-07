@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 TEST_BASH="${CMAIL_TEST_BASH:-bash}"
 export PYTHONDONTWRITEBYTECODE=1
-for tool in "$TEST_BASH" jq python3 node shellcheck; do
+for tool in "$TEST_BASH" jq python3 node; do
   command -v "$tool" >/dev/null || { printf 'Test dependency missing: %s\n' "$tool" >&2; exit 1; }
 done
 TMP=$(mktemp -d)

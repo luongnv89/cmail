@@ -24,5 +24,7 @@ output_checks() {
 }
 output_elapsed() {
   local seconds="$1"
-  printf '%sm %ss (%s seconds)' "$((seconds / 60))" "$((seconds % 60))" "$seconds"
+  local unit=seconds
+  [ "$seconds" != 1 ] || unit=second
+  printf '%sm %ss (%s %s)' "$((seconds / 60))" "$((seconds % 60))" "$seconds" "$unit"
 }

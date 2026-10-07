@@ -54,7 +54,7 @@ cf_rules_ensure() { :; }
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertIn('hello@example.com -> owner@example.net',result.stdout)
         self.assertIn('contact@example.com -> owner@example.net',result.stdout)
-        seconds=int(re.search(r'\((\d+) seconds\)',result.stdout).group(1))
+        seconds=int(re.search(r'\((\d+) seconds?\)',result.stdout).group(1))
         self.assertGreaterEqual(seconds,1)
         self.assertIn('DIFFERENT mailbox',result.stdout)
         self.assertNotIn('synthetic-token',result.stdout+result.stderr)

@@ -59,7 +59,7 @@ config_read() {
   [ "$size" = "$clean" ] || { config_error 'selected config contains unsupported controls'; return 3; }
   while IFS= read -r line || [ -n "$line" ]; do
     number=$((number + 1))
-    [[ "$line" != *[![:print:][:blank:]]* ]] || { config_error "line $number: unsupported controls"; return 3; }
+    [[ "${line//$'\t'/}" != *[[:cntrl:]]* ]] || { config_error "line $number: unsupported controls"; return 3; }
     # Trim only ASCII spaces/tabs, including around comments and assignments.
     line="${line#"${line%%[!$' \t']*}"}"
     line="${line%"${line##*[!$' \t']}"}"
@@ -196,4 +196,84 @@ env_require_prompt() {
   fi
   [ -n "$val" ] || die "$key is required — enter a non-empty value when re-running ./cmail setup, or set $key in your private config first; do not share secret values"
   env_set "$key" "$val"
+}
+
+config_init() {
+  if [ -e "$ENV_FILE" ] || [ -L "$ENV_FILE" ]; then
+    config_read || return 3
+    printf 'Configuration already exists: %s\n' "$ENV_FILE"
+    return 0
+  fi
+  local parent="${ENV_FILE%/*}"
+  [ ! -L "$parent" ] || { config_error 'configuration parent must not be a symlink'; return 3; }
+  (umask 077; mkdir -p "$parent") || die 'could not create configuration directory; check permissions'
+  (umask 077; set -o noclobber; cat "$CMAIL_DIR/.env.example" > "$ENV_FILE") 2>/dev/null \
+    || die 'could not create configuration; check the selected path and directory permissions'
+  printf 'Created private configuration: %s\nNext: cmail setup\n' "$ENV_FILE"
+}
+
+config_public_value() {
+  local key="$1" value="${!1:-}" token
+  # Long opaque aliases may be misplaced tokens; display only their state.
+  if [ "$key" = ADDRESSES ] && [[ "$value" =~ [A-Za-z0-9_+-]{32,} ]]; then value='<redacted>'; fi
+  for token in "${CLOUDFLARE_API_TOKEN:-}" "${GDDY_PAT:-}"; do
+    if [ -n "$token" ] && [[ "$value" = *"$token"* ]]; then value='<redacted>'; fi
+  done
+  CONFIG_PUBLIC_VALUE="$value"
+}
+config_show() {
+  config_load || return 3
+  local key state settings='{}' secrets='{}'
+  [ "$CMAIL_FORMAT" != json ] || output_require_json
+  [ "$CMAIL_FORMAT" != text ] || printf 'Config: %s\n' "$ENV_FILE"
+  for key in "${CMAIL_CONFIG_KEYS[@]}"; do
+    if config_secret "$key"; then
+      if [ -n "${!key:-}" ]; then state='set'; else state=empty; fi
+      if [ "$CMAIL_FORMAT" = json ]; then secrets=$(jq -nc --argjson current "$secrets" --arg key "$key" --arg state "$state" '$current+{($key):$state}')
+      else printf '%-22s %s\n' "$key" "$state"; fi
+    else
+      config_public_value "$key"
+      if [ "$CMAIL_FORMAT" = json ]; then settings=$(jq -nc --argjson current "$settings" --arg key "$key" --arg value "$CONFIG_PUBLIC_VALUE" '$current+{($key):$value}')
+      else printf '%-22s %s\n' "$key" "$CONFIG_PUBLIC_VALUE"; fi
+    fi
+  done
+  if [ "$CMAIL_FORMAT" = json ]; then
+    output_envelope 'config show' "$(jq -nc --arg path "$ENV_FILE" --argjson settings "$settings" --argjson secrets "$secrets" '{path:$path,settings:$settings,secrets:$secrets}')"
+  fi
+}
+config_check() {
+  local code=0
+  output_checks_start
+  if config_load && config_ready; then
+    output_check config pass 'configuration ready' 'Use cmail setup --dry-run to inspect provider state.'
+  else
+    output_check config fail 'configuration invalid or incomplete' 'Correct the fields reported on stderr, then rerun cmail config check.'
+    code=3
+  fi
+  output_checks 'config check'
+  return "$code"
+}
+config_set_command() {
+  local key="${CLI_ARGS[0]}" value='' read_status=0 LC_ALL=C
+  config_key_valid "$key" || cli_error 'unknown setting; see cmail config set --help'
+  if config_secret "$key" && [ "$CLI_STDIN" = 0 ]; then cli_error 'secret settings require --stdin; pipe from a private source, never pass a token as an argument'; fi
+  if [ "$CLI_STDIN" = 1 ]; then
+    [ ! -t 0 ] || cli_error '--stdin needs piped input or a private file; use setup for hidden terminal token entry'
+    # Read to EOF, a NUL, or the size cap. Unlike command substitution this
+    # detects NUL without silently discarding it. Only one trailing LF is allowed.
+    IFS= read -r -d '' -n 4098 value || read_status=$?
+    [ "$read_status" != 0 ] && [ "${#value}" -lt 4098 ] \
+      || { config_error 'stdin must contain one value, without NUL, at most 4096 bytes'; return 3; }
+    value="${value%$'\n'}"
+  else value="${CLI_ARGS[1]}"; fi
+  [ "${#value}" -le 4096 ] || { config_error 'value exceeds 4096 bytes'; return 3; }
+  if [ -n "$value" ] && ! config_field_valid "$key" "$value"; then config_error "$key has invalid input"; return 3; fi
+  env_set "$key" "$value" || return 3
+  printf 'Updated %s (value hidden).\n' "$key"
+}
+cmd_config() {
+  case "$CLI_SUBCOMMAND" in
+    init) config_init ;; show) config_show ;; check) config_check ;;
+    set) config_set_command ;; path) printf '%s\n' "$ENV_FILE" ;;
+  esac
 }

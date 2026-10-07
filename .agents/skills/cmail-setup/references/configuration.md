@@ -87,8 +87,9 @@ whoever launches it; this skill cannot change that runtime transport.
 ## Literal-only config
 
 Use `KEY='literal value'`. Do not put `$()`, backticks, variable expansions,
-commands, multiline values or shell snippets in config: current cmail loads it as
-Bash twice, so syntax validity alone does not make it safe. Unknown or
+commands, multiline values or shell snippets in config. Legacy snapshots load
+Bash assignments twice; the new 0.2.0-dev CLI uses a literal parser. The portable
+checker remains intentionally narrower, so syntax validity alone is insufficient. Unknown or
 runtime-control keys such as PATH or BASH_ENV are a stop: the user reviews and
 removes them locally; never delete them silently or call them safe to source.
 

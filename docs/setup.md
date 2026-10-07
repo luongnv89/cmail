@@ -2,6 +2,10 @@
 
 [Introduction](index.html) · [Interactive checklist](setup.html) · [Runtime README](https://github.com/luongnv89/cmail/blob/main/README.md) · [Agent skill](https://github.com/luongnv89/cmail/blob/main/skills/cmail-setup/SKILL.md)
 
+This checklist documents the previous pinned snapshot. For the newer
+`0.2.0-dev` reviewed-checkout CLI, including full read-only previews, terminal
+requirements and elapsed-time summaries, use the [current CLI guide](https://github.com/luongnv89/cmail/blob/main/docs/cli.md).
+
 This sequence is Cloudflare incoming forwarding to any inbox you own (Gmail,
 Outlook, iCloud, Proton, …) plus an **optional** manual Gmail send-as step for
 sending, not mailbox hosting or Google Workspace provisioning. If you only need

@@ -158,6 +158,6 @@ case "$CLI_COMMAND" in
   send-as) cmd_send_as ;;
   status) cmd_status ;;
   doctor) cmd_doctor ;;
-  config) if [ "$CLI_SUBCOMMAND" = path ]; then printf '%s\n' "$ENV_FILE"; else cli_error 'configuration commands are being implemented'; fi ;;
-  completion) cli_error 'completion scripts are being implemented' ;;
+  config) cmd_config ;;
+  completion) cat "$CMAIL_DIR/completions/cmail.${CLI_ARGS[0]}" ;;
 esac

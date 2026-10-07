@@ -1,5 +1,13 @@
 # Distribution decision and status
 
+## Current reviewed-checkout installation
+
+`bash install.sh --local` installs the complete `0.2.0-dev` runtime and its
+completion files from this reviewed checkout, without downloads, setup, or
+provider access. Config and upgrade/rollback protections are preserved.
+The new CLI is not published in a tagged release; remote installation keeps
+its existing immutable legacy pin. See [current CLI usage](https://github.com/luongnv89/cmail/blob/main/docs/cli.md).
+
 ## Chosen route: upstream GitHub source distribution
 
 cmail's upstream repository and its GitHub releases are the chosen distribution
@@ -13,7 +21,8 @@ bash install.sh
 ```
 
 See [README installation](https://github.com/luongnv89/cmail/blob/main/README.md#installation) for verification, paths,
-configuration and upgrades. The installer downloads exactly nine runtime files
+configuration and upgrades. Remote installation downloads the nine base runtime files
+and additional allowlisted libraries/completions when the selected runtime uses them,
 from the upstream repository at an immutable commit, stages them privately,
 checks Bash syntax and offline help, then replaces a generated launcher by a
 same-directory rename. It does not extract archives. Previous installed
@@ -54,10 +63,9 @@ A Bash CLI is a plausible formula candidate, but cmail is **not currently
 ready for a core submission**. No LICENSE exists in this repository; public
 source access alone is not an open-source license. The maintainer must decide
 licensing and distribution rights; this change does not select a license.
-Dependency integration also needs work: cmail setup/doctor currently install
-missing curl/jq/gddy themselves, whereas a Homebrew package should declare
-appropriate dependencies and avoid bypassing brew's version management with
-nested installers. A formula must place the complete runtime in libexec and
+The current development CLI checks dependencies without installing them; legacy
+v0.1.0 still has nested installers. A Homebrew package would need to declare
+appropriate dependencies and target a reviewed compatible release. A formula must place the complete runtime in libexec and
 keep mutable user config outside the keg. Provider-dependent setup cannot be
 a formula test; help and private-config behavior can be tested offline.
 

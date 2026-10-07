@@ -2,6 +2,7 @@
 """Offline CLI subprocess contracts. Credentials and providers are synthetic."""
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -322,6 +323,129 @@ esac''')
                               text=True,capture_output=True,timeout=5)
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertNotIn('POST',self.calls.read_text())
+
+    def test_config_init_private_idempotent(self):
+        target=self.directory/'new'/'config'
+        result=self.invoke('config','init','--config',str(target))
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(target.stat().st_mode & 0o777,0o600)
+        self.assertEqual(target.parent.stat().st_mode & 0o777,0o700)
+        before=target.read_bytes()
+        result=self.invoke('config','init','--config',str(target))
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(target.read_bytes(),before)
+
+    def test_config_show_redacts_and_obeys_precedence(self):
+        for fmt in ('text','json'):
+            result=self.invoke('config','show','--format',fmt,env={'DOMAIN':'override.example'})
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertIn('override.example',result.stdout)
+            self.assertNotIn('synthetic-token',result.stdout+result.stderr)
+            if fmt=='json':
+                self.assertEqual(json.loads(result.stdout)['data']['secrets']['CLOUDFLARE_API_TOKEN'],'set')
+
+    def test_config_show_masks_misplaced_opaque_alias(self):
+        result=self.invoke('config','show','--format=json',env={'ADDRESSES':'a'*40})
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertNotIn('a'*40,result.stdout)
+
+    def test_config_check_readiness_and_error_report(self):
+        self.assertEqual(self.invoke('config','check').returncode,0)
+        result=self.invoke('config','check','--format=json',env={'CLOUDFLARE_API_TOKEN':''})
+        self.assertEqual(result.returncode,3)
+        self.assertEqual(json.loads(result.stdout)['data']['checks'][0]['state'],'fail')
+
+    def test_config_set_public_and_zone_invalidation(self):
+        self.config.write_text(FIXTURE+'CF_ZONE_ID='+('a'*32)+'\n')
+        result=self.invoke('config','set','DOMAIN','new.example')
+        self.assertEqual(result.returncode,0,result.stderr)
+        data=json.loads(self.invoke('config','show','--format=json').stdout)['data']['settings']
+        self.assertEqual(data['DOMAIN'],'new.example')
+        self.assertEqual(data['CF_ZONE_ID'],'')
+        self.assertEqual(self.config.stat().st_mode & 0o777,0o600)
+
+    def test_config_secret_stdin_roundtrip_never_echoes(self):
+        value="opaque '$literal"
+        result=self.invoke('config','set','GDDY_PAT','--stdin',input=value+'\n')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertNotIn(value,result.stdout+result.stderr)
+        result=self.invoke('config','show','--format=json')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(json.loads(result.stdout)['data']['secrets']['GDDY_PAT'],'set')
+        self.assertNotIn(value,result.stdout+result.stderr)
+
+    def test_config_stdin_rejects_controls_and_large_input(self):
+        before=self.config.read_bytes()
+        for value in ('first\nsecond\n','hello\0world','a'*4097):
+            with self.subTest(value=value[:10]):
+                result=self.invoke('config','set','GDDY_PAT','--stdin',input=value)
+                self.assertEqual(result.returncode,3,result.stderr)
+                self.assertEqual(self.config.read_bytes(),before)
+
+    def test_config_stdin_accepts_size_limit_with_optional_newline(self):
+        for suffix in ('','\n'):
+            result=self.invoke('config','set','GDDY_PAT','--stdin',input='a'*4096+suffix)
+            self.assertEqual(result.returncode,0,result.stderr)
+
+    def test_secret_arguments_and_unknown_keys_rejected(self):
+        for args in [('GDDY_PAT','never-echo-this'),('UNKNOWN','value')]:
+            result=self.invoke('config','set',*args)
+            self.assertEqual(result.returncode,2,result.stderr)
+            self.assertNotIn('never-echo-this',result.stdout+result.stderr)
+
+    def test_config_path_precedence(self):
+        chosen=self.directory/'chosen'
+        result=self.invoke('config','path',env={'CMAIL_CONFIG':str(chosen)})
+        self.assertEqual(result.stdout.strip(),str(chosen))
+        result=self.invoke('config','path','--config',str(self.config),env={'CMAIL_CONFIG':str(chosen)})
+        self.assertEqual(result.stdout.strip(),str(self.config))
+
+    def test_completion_generation_offline(self):
+        for shell in ('bash','zsh','fish'):
+            result=self.invoke('completion',shell)
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertEqual(result.stdout,(ROOT/'completions'/('cmail.'+shell)).read_text())
+            self.assertNotIn('synthetic-token',result.stdout)
+        self.assertFalse(self.calls.exists())
+
+    def test_bash_completion_contexts(self):
+        script='. "$1/completions/cmail.bash"; shift; COMP_WORDS=(cmail "$@"); COMP_CWORD=$((${#COMP_WORDS[@]}-1)); _cmail_complete; printf "%s\\n" "${COMPREPLY[@]}"'
+        for words,expected in [(('',),'setup'),(('config',''),'set'),(('config','set',''),'DOMAIN'),
+                               (('--config','somepath','doctor','--'),'--offline'),
+                               (('status','--format',''),'json')]:
+            result=subprocess.run([self.shell,'-c',script,'probe',str(ROOT),*words],
+                                   env=self.env,text=True,capture_output=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertIn(expected,result.stdout.splitlines())
+
+    @unittest.skipUnless(shutil.which('zsh'), 'zsh is not installed')
+    def test_zsh_completion_contexts(self):
+        file = ROOT/'completions/cmail.zsh'
+        syntax = subprocess.run(['zsh','-n',str(file)],text=True,capture_output=True)
+        self.assertEqual(syntax.returncode,0,syntax.stderr)
+        script = '''compadd() { [[ "$1" != -a ]] || shift; print -rl -- "${(@P)1}"; }
+_files() { print files; }
+file=$1; shift; words=(cmail "$@"); CURRENT=${#words}; _probe() { source "$file"; }; _probe'''
+        for words,expected in [(('',),'setup'),(('config',''),'set'),(('config','set',''),'DOMAIN'),
+                               (('--config','somepath','doctor','--'),'--offline'),
+                               (('status','--format',''),'json')]:
+            result=subprocess.run(['zsh','-f','-c',script,'probe',str(file),*words],
+                                   env=self.env,text=True,capture_output=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertIn(expected,result.stdout.splitlines())
+
+    @unittest.skipUnless(shutil.which('fish'), 'fish is not installed')
+    def test_fish_completion_contexts(self):
+        file = ROOT/'completions/cmail.fish'
+        syntax = subprocess.run(['fish','--no-config','-n',str(file)],text=True,capture_output=True)
+        self.assertEqual(syntax.returncode,0,syntax.stderr)
+        for command,expected in [('cmail ','setup'),('cmail config ','set'),
+                                 ('cmail config set ','DOMAIN'),('cmail doctor --','--offline'),
+                                 ('cmail status --format ','json')]:
+            result=subprocess.run(['fish','--no-config','-c','source $argv[1]; complete -C $argv[2]',str(file),command],
+                                   env=self.env,text=True,capture_output=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertIn(expected,[line.split('\t')[0] for line in result.stdout.splitlines()])
 
 if __name__ == '__main__':
     unittest.main()

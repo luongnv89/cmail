@@ -45,7 +45,11 @@ check 'single quote concatenation' 0 config_load
 fixture 'DOMAIN=example.com'
 chmod 644 "$ENV_FILE"
 check 'read-only load refuses insecure file without chmod' 3 config_load
-[ "$(stat -f %Lp "$ENV_FILE" 2>/dev/null || stat -c %a "$ENV_FILE")" = 644 ]
+python3 - "$ENV_FILE" <<'PY'
+from pathlib import Path
+import sys
+assert Path(sys.argv[1]).stat().st_mode & 0o777 == 0o644
+PY
 chmod 600 "$ENV_FILE"
 ln -s "$ENV_FILE" "$TMP/link"
 symlink() { ENV_FILE="$TMP/link"; config_load; }

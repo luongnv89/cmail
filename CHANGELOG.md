@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Add the `0.2.0-dev` CLI: strict arguments, command-level help/version, text/JSON
+  reports, read-only doctor/status, full setup previews, literal configuration
+  with environment precedence, private atomic config commands, secret stdin
+  input, bash/zsh/fish completions, and complete local-checkout installation.
+- Show actual elapsed setup time on success/failure and in preview JSON; include
+  user input and provider verification waits. Bound provider requests/polling,
+  require terminal stdin for guided commands, preserve provider confirmations,
+  paginate rule inspection/reuse, and use GoDaddy's quote-token purchase flow
+  with displayed prices, fees, and agreement titles/links before confirmation.
+- Add subprocess, configuration, terminal, timing, and installation regressions,
+  `make test`/`make lint`, and macOS/Linux CLI CI. Document the current CLI and
+  distinguish it from historical snapshot/legacy automation recipes. No release
+  publication or live DNS/email verification is included.
+
 - Fix the runtime mismatch in receive-only/optional-send quickstarts (#17).
   README, landing page and both setup guides now select the immutable reviewed
   development source snapshot `cda65f0554a870ed8079e93741a331918118acec`, check

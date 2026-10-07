@@ -4,7 +4,7 @@ description: "Set up, resume or troubleshoot cmail custom-domain email (GoDaddy 
 compatibility: "macOS/Linux, Bash 3.2+, curl, jq, gddy, dig; Python 3 for the bundled config helpers."
 effort: "high"
 metadata:
-  version: "2.1.0"
+  version: "2.2.0"
   author: "Luong NGUYEN <luongnv89@gmail.com>"
 ---
 
@@ -22,6 +22,12 @@ when the user asks to send, and do not ask for DEST_EMAIL to be Gmail otherwise.
 Run `cmail setup` as the primary path: prepare its inputs, run it,
 troubleshoot any failure, then verify the result gate by gate. A setup request is
 consent for every **auto** action below. Ask only at a **stop**.
+
+For the new `0.2.0-dev` CLI, use `bash install.sh --local` on the reviewed
+checkout and follow the capability gate in `references/autonomous-run.md`.
+It requires terminal stdin for setup, uses a full read-only preview, and prints
+elapsed setup time. Historical closed/piped-stdin recipes below remain scoped
+to their older runtimes. Delivery must still be verified independently.
 
 ## Autonomy contract
 

@@ -6,6 +6,12 @@ gate order; do not open by asking which step failed. Read the `ERROR:` line for
 the cause. For a hands-on check, ask only for its sanitized result and time; never
 request full logs, `.env`, auth payloads, headers, codes, screenshots or secrets.
 
+For `0.2.0-dev`, a terminal-input error means run through a pseudo-terminal,
+not a closed/piped-stdin pass. `--dry-run` is a complete read-only preview in
+this version. Select current versus historical recipes via the capability gate
+in `autonomous-run.md`; status text/JSON and elapsed summaries are described in
+the current CLI guide.
+
 Each row: apply the repair yourself when marked **auto**, otherwise at a stop;
 then rerun the original check (usually setup pass 1, which skips finished work).
 
