@@ -1,163 +1,135 @@
 # Verification matrix
 
-Use the selected installed launcher or source `./cmail`, with the selected config
-path. Do not assume `cmail help`'s adjacent-config or “doctor changes nothing” text
-matches the installed launcher: the launcher sets ENV_FILE and doctor mutates files.
-The current installer pins v0.1.0; these gates are compatible with that runtime.
-
-All provider commands below are **user-local**, unrecorded and without tracing.
-The user returns a sanitized observation, not credentials or raw output. Dashboard
-evidence is valid when it states the exact domain/account, observed state and time;
-label it user-reported. If no evidence is available, stop BLOCKED. Do not invent
-step subcommands or use internal Bash helpers as a public API.
+Use the selected trusted launcher (installed, or source `./cmail`) and always pass
+the selected config as `ENV_FILE`. The current installer pins v0.1.0; these gates
+match that runtime. **You run every check below** unless it is marked hands-on.
+Hands-on evidence comes from the user as a sanitized observation (exact
+domain/account, state, time), labelled user-reported. With no evidence, the gate
+is BLOCKED. Do not call internal Bash helpers as a public API.
 
 ## Gate 1 — Installed CLI and dependencies
 
-- Prerequisite: supported macOS/Linux and a terminal; install consent if needed.
-- Action: discovery and pre-execution provenance check as described in SKILL.md
-  (Bash `type -t cmail`, zsh `whence -w cmail`); only then trusted absolute-path
-  help, or reviewed `bash install.sh` if needed. Read the trusted launcher's
-  `default_config=` line as metadata for gate 2, never by executing it.
-  Discover Bash/curl/jq/gddy and guide missing tools.
-- Verify: executable provenance and user-controlled path/runtime established before
-  executing help (not just an alias/function or familiar output); help loads without missing libraries
-  and lists setup/status/doctor/help. Bash is 3.2+; curl/jq/gddy version/help succeeds.
-- Failure: command missing is different from corrupt runtime or wrong binary.
-- Repair/recheck: fix current-session PATH or reinstall with the same user-owned
-  paths after permission; repeat discovery/help and every missing-tool check.
+- Prerequisite: supported macOS/Linux shell on the target machine.
+- Action: discovery and the pre-execution provenance check in SKILL.md (Bash
+  `type -t cmail`, zsh `whence -w cmail`); only then trusted absolute-path help,
+  or read-then-run `bash install.sh`. Read the trusted launcher's
+  `default_config=` line as metadata for gate 2, never by executing it. Install
+  missing curl/jq/gddy per SKILL.md.
+- Verify: provenance and user-controlled path/runtime established before executing
+  help (not just an alias/function or familiar output); help loads without missing
+  libraries and lists setup/status/doctor/help. Bash is 3.2+; curl/jq/gddy/dig
+  version/help succeeds.
+- Failure: command missing differs from corrupt runtime or wrong binary.
+- Repair/recheck: reinstall with the same user-owned paths or install the tool;
+  repeat discovery/help and every missing-tool check.
 
 ## Gate 2 — Inputs and config
 
-- Prerequisite: gate 1, agreed path and permission to edit config.
-- Action: local assignment-only config per `configuration.md`; gather non-secret
-  domain, destination Gmail, local parts, prod/ote and intended account.
-- Verify: selected file is user-owned, regular, non-symlink and mode 600; required
-  fields are literal/nonempty, addresses valid and environment explicit. Offline
-  checker exits 0; `bash -n` privately exits 0. Check user intent against values
-  locally. Secret presence is not credential validity.
+- Prerequisite: gate 1 and a selected config path.
+- Action: create/complete the config per `configuration.md`; non-secret keys via
+  `set_config.py`, the token by the user in their editor (hands-on).
+- Verify: summary prints READY; checker exits 0; `bash -n` privately exits 0;
+  config is not tracked by git. Secret presence is not credential validity.
 - Failure: absent field, syntax error, insecure permissions or executable expansion.
-- Repair/recheck: edit locally or chmod 600 after permission; repeat both checks.
-  Do not source a downloaded config to learn its values.
+- Repair/recheck: `set_config.py` for non-secret keys, `chmod 600` for mode, the
+  user's editor for the token or complex lines; repeat summary and both checks.
 
 ## Gate 3 — Registrar authentication and domain ownership
 
-- Prerequisite: gates 1–2; consent to local browser authentication.
-- Action: prefer `gddy auth login --env prod` (use ote only if explicitly chosen).
-  Optional PAT acquisition is local. Inspect `gddy auth status --json` and
-  `gddy domain get <validated-domain> --env <prod-or-ote> --json` locally.
+- Prerequisite: gates 1–2.
+- Action: preflight auth status; background `gddy auth login --env <env>` when
+  needed (hands-on browser approval); filtered `gddy domain get`.
   Values in angle brackets are data, not literal commands; validate and quote them.
-- Verify: authentication for selected environment is not expired; exact domain
-  lookup succeeds in the intended account and current nameservers are readable.
-  PAT set, an auth message, or DOMAIN set alone proves none of this. With a PAT,
-  the successful domain read is essential; OAuth status may not describe PAT state.
-  An OTE sandbox does not prove production ownership; live setup remains BLOCKED
+- Verify: unexpired auth for the selected environment (or a PAT whose domain read
+  succeeds); exact domain read succeeds and current nameservers are readable.
+  An OTE sandbox does not prove production ownership; live setup stays BLOCKED
   until prod is selected and this gate is rechecked.
 - Failure: authentication/lookup error, wrong environment/account or no ownership.
-- Repair/recheck: correct account/environment, renew locally, repeat exact domain
-  read. For an unowned domain, stop; only offer purchase after ownership/availability
-  checks and explicit domain/price/prod consent. A purchase timeout requires checking
-  orders/billing/ownership first; never auto-repurchase. Verify ownership afterward.
+- Repair/recheck: renew login, correct account/environment, repeat the domain
+  read. An unowned domain is a purchase stop (exact domain, price, prod). After a
+  purchase timeout check orders/billing/ownership; never auto-repurchase.
 
 ## Gate 4 — Cloudflare token, account and zone
 
-- Prerequisite: gates 1–3 and local token acquisition.
-- Action: inspect Cloudflare token settings and domain Overview locally. Use a trusted
-  user-local API client with the **actual configured token** to make read-only GETs
-  to `/user/tokens/verify`, `/zones/<zone-id>` and
-  `/accounts/<owning-account-id>/email/routing/addresses`. Take IDs from the intended
-  domain's Overview and validate them first. Keep token input in protected local
-  input/storage, not shell argv, chat or captured tools; do not source config to probe.
-  Return only sanitized result/identity/time, never headers or full responses.
-  For a genuinely absent zone, first check the actual token's `/zones?name=<domain>`
-  result plus intended account access/scopes and dashboard inventory. An empty list
-  alone cannot authorize creation. Obtain consent, create locally, then perform the
-  exact-zone read before marking this gate VERIFIED.
-- Verify: authenticated reads using that token return HTTP 2xx **and** API success;
-  token is active; exact-zone result matches DOMAIN, zone ID and intended owning
-  account ID, with at least two assigned nameservers; account-scoped address list
-  is readable. Dashboard login/visibility and configured scopes alone do not prove
-  token resource access. Missing/403/malformed read evidence means BLOCKED, even if
-  the browser can change the resource. Confirm the five operation permissions in
-  `configuration.md`. Read access does not prove write permission: record granted
-  scopes and separately verify each consented operation's post-state in later gates.
+- Prerequisite: gates 1–3 and the token in config.
+- Action: setup pass 1 checks the **actual configured token** (`/user/tokens/verify`),
+  finds or creates the zone (`/zones?name=<domain>`, `/zones/<zone-id>`) and
+  reads its nameservers. `cmail status` then reads `/zones/<zone-id>` and
+  `/accounts/<owning-account-id>/email/routing/addresses`. cmail requires HTTP 2xx
+  and API success for each request and redacts the token from errors.
+- Verify: log shows `Cloudflare token verified` and `zone <id> — nameservers`
+  (at least two); `status` succeeds for the exact zone and lists destinations of the
+  owning account. Dashboard login/visibility and configured scopes do not prove
+  token resource access; missing or failed reads mean BLOCKED.
+  Read access does not prove write permission; later gates check each write.
   CF_ACCOUNT_ID bypasses discovery, not authorization.
 - Failure: 401/403, no visible account, multiple accounts, invalid ID or wrong zone.
-- Repair/recheck: select intended account; correct only the necessary resource scope
-  or permission locally; repeat the same actual-token status and exact-zone/account
-  authenticated reads. Do not
-  use all accounts as an automatic workaround or create a duplicate zone.
+- Repair/recheck: multiple accounts → stop to choose, then `set_config.py
+  CF_ACCOUNT_ID=<id>`; scope errors → the user edits the token's resources
+  (hands-on; never "all accounts"); rerun pass 1. Never create a duplicate zone.
 
 ## Gate 5 — Delegation and active zone
 
-- Prerequisite: gates 1–4; inventory web/mail/TXT/other DNS and DNSSEC/DS; user has
-  confirmed migration to Cloudflare and the DNSSEC transition plan. Specific consent
-  names the domain and full replacement nameserver set. No consent means BLOCKED.
-- Action: compare GoDaddy DNS → Nameservers with Cloudflare Overview. If different,
-  guide the approved registrar update locally. If matching, no write is needed.
+- Prerequisite: gates 1–4; public DNS inventory; nameserver approval naming the
+  domain and full replacement set (the stop in `autonomous-run.md`), unless the
+  nameservers already match. No approval means BLOCKED.
+- Action: pass 2 applies the approved change; setup then polls for Active.
   `DRY_RUN=1` is a nameserver preview only; it cannot satisfy this gate.
-- Verify: fresh registrar read/dashboard shows exactly the assigned nameserver set
-  (case/order/trailing-dot normalized); Cloudflare exact domain shows Active.
-  If available, a public DNS NS lookup independently corroborates delegation.
-  A submitted nameserver change is not active-zone evidence.
+- Verify: fresh filtered `gddy domain get` shows exactly the assigned set
+  (case/order/trailing-dot normalized); `status` shows zone status `active`;
+  `dig +short NS` corroborates. A submitted change is not active-zone evidence.
 - Failure: failed read, uncertain write, mismatch, pending activation or broken DNSSEC.
-- Repair/recheck: inspect current registrar state before retrying a write; compare
-  both dashboards and the DS plan. Pending propagation can take 24–48 hours; wait
-  and repeat the same registrar/zone checks, not the write. Never auto-roll back.
+- Repair/recheck: read registrar state before any retry; propagation can take
+  24–48 hours — report PENDING and rerun pass 1 later, not the write. Never auto-roll back.
 
 ## Gate 6 — Email Routing active
 
-- Prerequisite: gates 1–5, planned existing-mail migration, explicit DNS/routing consent.
-- Action: Cloudflare → domain → Email → Email Routing; enable only after user reviews
-  conflicting MX/TXT. Activation adds/locks routing DNS records; it is a DNS write.
-- Verify: exact domain routing is enabled and dashboard DNS requirements are satisfied;
-  after any API activation, obtain a fresh read/dashboard state (not just HTTP 2xx).
-  `cmail status` exit 0 or `email routing: ?` is not a readiness check.
+- Prerequisite: gates 1–5; no unresolved non-Cloudflare MX (preflight stop).
+- Action: setup enables routing, which adds and locks Cloudflare MX/TXT records.
+- Verify: `status` email routing reports enabled/ready for the exact zone and
+  `dig +short MX` returns Cloudflare's `route*.mx.cloudflare.net` hosts.
+  `email routing: ?` or `status` exit 0 alone is not readiness.
 - Failure: permission error, disabled/unknown status, DNS conflicts.
-- Repair/recheck: correct Zone Settings permission/resource scope, plan record
-  migration; do not auto-delete MX/TXT. Repeat fresh routing and DNS-requirements check.
+- Repair/recheck: Zone Settings permission (hands-on token edit) or a record
+  migration plan (stop); never auto-delete MX/TXT. Rerun pass 1, repeat both checks.
 
 ## Gate 7 — Verified destination
 
-- Prerequisite: gates 1–6 and access to DEST_EMAIL in the correct Gmail account.
-- Action: Cloudflare Email Routing → Destination addresses; reuse existing entry.
-  Register/resend only with consent to email; user clicks the verification link.
-- Verify: exact destination in the zone's **owning account** has a verified timestamp
-  / verified state in a fresh dashboard/list read. Pending entry or click alone fails.
+- Prerequisite: gates 1–6 and access to DEST_EMAIL.
+- Action: setup registers DEST_EMAIL (Cloudflare emails a link) or reuses it.
+  Hands-on: the user clicks the link in that Gmail account.
+- Verify: `status` lists DEST_EMAIL with a `verified=<timestamp>`, not `verified=no`.
 - Failure: wrong Gmail/account, missing/expired link, timeout or unverified state.
-- Repair/recheck: Inbox/Spam in the correct account; consented resend for expired link;
-  repeat destination state check. Keep the pending entry; do not create duplicates.
+- Repair/recheck: Inbox/Spam in the correct account; resend from Cloudflare →
+  Email Routing → Destination addresses (hands-on); rerun pass 1. Never duplicate.
 
 ## Gate 8 — Exact enabled forwarding rules
 
-- Prerequisite: gates 1–7 and consent to create/correct rules.
-- Action: Cloudflare Routing rules; inspect **every** ADDRESSES local part.
-- Verify: for each `<local>@<domain>`, exactly one intended enabled literal `to`
-  matcher forwards to exactly DEST_EMAIL; no disabled/conflicting duplicate or other
-  action. Use full dashboard rule details, not a truncated status summary.
-  After creation obtain a fresh read; a successful POST alone is insufficient.
+- Prerequisite: gates 1–7.
+- Action: setup creates one rule per ADDRESSES local part and refuses to change a
+  conflicting, disabled or duplicate rule.
+- Verify: setup reached the Gmail guide (its rule check passed) and `status` lists
+  each `<local>@<domain> -> DEST_EMAIL [true]` exactly once.
 - Failure: missing, conflicting, disabled, duplicate or wrong-target rule.
-- Repair/recheck: show sanitized conflict to the user; correct only after consent,
-  do not overwrite unrelated rules. Repeat full rule inspection for every alias.
+- Repair/recheck: show the sanitized conflict and stop before correcting it;
+  never overwrite unrelated rules. Rerun pass 1 and repeat both checks.
 
 ## Gate 9 — Gmail confirmation and two delivery directions
 
-- Prerequisite: gates 1–8, manual Gmail access and a different independent mailbox.
-- Action: Gmail Settings → See all settings → Accounts and Import → Send mail as
-  → Add another email address. For every requested alias: SMTP smtp.gmail.com,
-  port 587/TLS, full DEST_EMAIL username, Google App Password entered only in Gmail.
-  Complete emailed alias confirmation. Obtain consent for test messages.
-- Verify: each exact alias is confirmed in Gmail settings. From the independent
-  mailbox send a unique benign test to that alias; user confirms arrival in DEST_EMAIL.
-  Then choose that custom From address in Gmail and send to the independent mailbox;
-  confirm recipient arrival and exact From address (check Spam, not just Sent).
-  Record alias/direction/time and user-reported delivery, not message bodies/codes.
-  A reply back to the alias is a useful extra check. These tests do not prove universal
-  deliverability, domain DKIM or compliance with Gmail sending limits.
+- Prerequisite: gates 1–8, Gmail access and a different independent mailbox.
+- Action: hands-on. Open Gmail Settings → Accounts and Import → Send mail as →
+  Add another email address for the user. For every requested alias: SMTP
+  smtp.gmail.com, port 587/TLS, full DEST_EMAIL username, Google App Password
+  entered only in Gmail. The user completes the emailed confirmation.
+- Verify: each alias is confirmed in Gmail settings. From the independent mailbox
+  the user sends a unique test to that alias and confirms arrival in DEST_EMAIL.
+  Then from Gmail with that custom From to the independent mailbox; confirm
+  arrival and exact From (check Spam, not just Sent). Record alias/direction/time,
+  not message bodies or codes. These tests do not prove universal deliverability.
 - Failure: unavailable App Password, SMTP rejection, unconfirmed alias or either
-  direction undelivered. CLI Enter/pause/exit success does not verify any of these.
-- Repair/recheck: enable 2-Step Verification if allowed; respect organization policy/
-  Advanced Protection. Use an approved alternative if App Passwords are prohibited,
-  but that alternative is outside this skill; stop BLOCKED, not “Gmail complete”.
-  For missing confirmation/inbound, recheck routing/destination/rules; for outbound,
-  check SMTP username/port/TLS and current local password. Retry confirmation and
-  **both** delivery tests after repair, per alias. Never disable security controls.
+  direction undelivered. CLI exit or Enter does not verify any of these.
+- Repair/recheck: enable 2-Step Verification if allowed; respect organization
+  policy/Advanced Protection — an alternative provider is outside this skill, so
+  stop BLOCKED. Inbound/confirmation missing → recheck gates 5–8; outbound → SMTP
+  host/port/TLS/username/App Password. Repeat confirmation and **both** tests per
+  alias. Never disable security controls.

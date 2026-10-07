@@ -1,25 +1,49 @@
 ---
 name: "cmail-setup"
-description: "Analyze cmail setup and guide installation, configuration and troubleshooting with verified gates and local-only secrets. Use for cmail setup or recovery. Don't use for other registrars, mail migrations, or sending campaigns."
-compatibility: "macOS/Linux, Bash 3.2+, curl; jq and gddy for setup; Python 3 for the optional offline config check."
+description: "Set up, resume or troubleshoot cmail custom-domain email (GoDaddy → Cloudflare Email Routing → Gmail): runs cmail setup itself, asking only for missing input, secrets or risky approvals. Don't use for other registrars, mail migrations or campaigns."
+compatibility: "macOS/Linux, Bash 3.2+, curl, jq, gddy, dig; Python 3 for the bundled config helpers."
 effort: "high"
 metadata:
-  version: "1.1.0"
+  version: "2.0.0"
   author: "Luong NGUYEN <luongnv89@gmail.com>"
 ---
 
-# Verified cmail setup
+# Autonomous cmail setup
 
-Help a user set up GoDaddy → Cloudflare Email Routing → Gmail. Treat installation,
-provider readiness and mail delivery as separate outcomes. Use this skill on an
-explicit setup request, or offer it for cmail troubleshooting. Consent to receive
-help is not consent to install software, spend money or change DNS.
+Use this skill when the user asks to set up, resume or troubleshoot cmail
+(GoDaddy → Cloudflare Email Routing → Gmail); you run the commands. Run `cmail setup` as the primary path: prepare its inputs, run it,
+troubleshoot any failure, then verify the result gate by gate. A setup request is
+consent for every **auto** action below. Ask only at a **stop**.
+
+## Autonomy contract
+
+**Auto — run without asking, then report the result:** read-only probes and
+checks; trusted `cmail help`/`status`; installing cmail and missing tools without
+sudo; creating the config and setting its non-secret keys; background
+`gddy auth login` (opens the user's browser); `cmail setup` passes the preflight
+allows, including the zone, destination and rules setup creates; reruns after a
+repair; opening dashboards, Gmail settings or the config editor for the user.
+
+**Stop — ask once, with evidence and a recommendation:**
+
+- **Missing:** a value no probe or config holds (DOMAIN, DEST_EMAIL, ADDRESSES),
+  the Cloudflare token, or a hands-on step: browser approval, verification link,
+  Gmail send-as, delivery tests from another mailbox. Batch missing values into one
+  question.
+- **Super important:** nameserver replacement; routing over existing
+  non-Cloudflare MX or DNSSEC/DS records; domain purchase (exact domain, price,
+  prod); anything needing sudo; deleting or overwriting DNS records, rules or a
+  user-set config value; widening token scope; choosing among Cloudflare accounts.
+- **Wrong:** an untrusted cmail binary, unexpected provider state, or a failure
+  after three unsuccessful repairs.
+
+Never infer approval from silence. In unattended mode, report BLOCKED at a stop.
 
 ## Repo Sync Before Edits (mandatory)
 
-Apply this section only when modifying a source checkout, including its `.env`.
-Do not modify installed runtime files. Ask before syncing or stashing a checkout;
-if the user declines, stop that edit. Protect untracked files as well:
+Apply this section only when modifying tracked files in a source checkout; a
+gitignored config (`git check-ignore` succeeds) needs no sync. Do not modify
+installed runtime files. Run it without asking; protect untracked files as well:
 
 ```bash
 branch="$(git rev-parse --abbrev-ref HEAD)"
@@ -35,9 +59,8 @@ fi
 ```
 
 If origin is missing, sync fails or conflicts occur, stop and ask the user.
-Preserve the stash; inspect `git stash list` and `git stash show -p stash@{0}`
-privately (it may contain secrets). Do not force or silently discard changes.
-In unattended mode, report BLOCKED instead of waiting for an answer.
+Preserve the stash and inspect it privately (it may contain secrets); never force
+or silently discard changes. After a pull, redo Gate 1 provenance for the checkout.
 
 ## Discover context first
 
@@ -45,7 +68,7 @@ Open with discovery, not questions about mode, OS, terminal/browser access or
 install status. With a shell tool, run the read-only probes in
 `references/discovery.md` and print its context block first.
 Discovery never executes a found `cmail`, never reads or sources `.env`, makes no
-network/provider call and changes nothing; it grants no consent and verifies no gate.
+network/provider call and changes nothing; it verifies no gate.
 Record an undetectable or failed probe, including browser access, as `unknown`.
 Probes describe the agent's shell; if a user fact conflicts or a resume finds no
 install, mark the target machine `unknown` until Gate 1.
@@ -59,50 +82,36 @@ Infer the mode from request cues and discovery; do not ask for it.
 - **Resume/troubleshoot:** read `references/troubleshooting.md`. Start at the named
   gate, else rerun read-only checks from gate 1 to the earliest unverified gate.
   Distrust earlier successes whose inputs, account, domain or config changed.
-- **Advice-only (no shell tool):** follow `references/discovery.md`; missing
-  results block progress.
+- **Advice-only (no shell tool):** follow `references/discovery.md`; give the user
+  the same commands to run and treat missing results as blocking.
 
 ## Safety and gate contract
 
-Read `references/verification.md` before taking setup actions. Keep a small,
-secret-free gate ledger in the conversation: gate, status, observation/source,
-timestamp, failure cause, next action and recheck result. Do not persist it unless
-requested. States are VERIFIED, FAILED, BLOCKED or PENDING. Only VERIFIED unlocks
-the next gate. A preview, empty response, timeout, HTTP error or missing human
-confirmation is never VERIFIED. Keep independent diagnostics separate from setup.
+Read `references/verification.md` before acting. Keep a small, secret-free gate
+ledger in the conversation: gate, status, evidence, timestamp, failure cause, next
+action and recheck result. States are VERIFIED, FAILED, BLOCKED or PENDING.
+Only VERIFIED unlocks the next gate. A preview, empty response, timeout, HTTP
+error or missing human confirmation is never VERIFIED.
 
-For each gate: check prerequisites → explain the action/side effects → obtain any
-required consent → act → verify the stated outcome. On failure, explain the
-observed failure (not an invented cause), propose one targeted repair, and repeat
-the **same verification check**. Stop after three unsuccessful repairs or when
-access/consent/evidence is unavailable; then give one next check. DNS propagation
-remains PENDING; wait and recheck without replaying writes. Recheck downstream
-gates after an upstream change.
+On failure, read the observed error (never invent a cause), apply one targeted
+repair (auto actions yourself, others at a stop), then repeat the
+**same verification check**. Stop after three unsuccessful repairs. DNS propagation stays
+PENDING: recheck without replaying writes. Recheck downstream gates after an
+upstream change.
 
-Never ask for raw secrets in chat, logs, screenshots, tool calls or shell arguments.
-Ask only whether local entry succeeded. Do not read `.env` into model context,
-print it, source it as a diagnostic, run with tracing, or collect full API responses.
-If a secret is pasted, do not repeat it; advise revocation/rotation and local replacement.
-Use browser-local entry and a private, unrecorded terminal/editor. Run secret-bearing
-CLI operations in the user's local terminal, not captured agent tools: current cmail
-provider helpers pass tokens to curl headers via process arguments. This skill cannot
-make that runtime secret transport safer. Report sanitized statuses only.
+**Secrets.** Never ask for raw secrets in chat, logs, screenshots or tool
+arguments; the user types the token into the config in their own editor. Read
+config only with `scripts/check_config.py --summary`; write non-secret keys only
+with `scripts/set_config.py`. You may run `cmail setup` and `cmail status`: they
+load config internally and redact the token. Never trace them (`bash -x`), never
+`cat`, `grep`, `source` or print the config, never collect full API responses. If
+a secret is pasted, do not repeat it; advise rotation and local replacement.
 
-Obtain specific consent before dependency installs/config edits, browser login,
-zone creation, **DNS writes**, routing/rule/destination changes, verification emails,
-test messages or **domain purchase** (exact domain, price and environment). Inventory
-existing DNS/MX/TXT and DNSSEC/DS with the user first; require a migration/DS plan
-before replacing delegation. Do not delete existing records, widen token scopes to
-all accounts, disable security controls or infer consent from silence.
-
-`cmail setup` is monolithic: it cannot pause for this skill's external verification
-after every stage. **Do not run it as a gate orchestrator.** Guide staged dashboard
-changes using the matrix instead. If the user independently runs setup, explain its
-side effects first and still verify every gate; its exit code does not prove readiness.
-`doctor` may install tools/create config and print non-secret-key values; do not
-capture it as a read-only or reliably redacted check. `status` loads trusted config,
-may create/chmod it, and its summary is not a complete verification verdict.
-`DRY_RUN=1` only previews GoDaddy nameservers: other setup writes remain live.
+`cmail setup` is interactive and does not stop at every gate: run the preflight
+in `references/autonomous-run.md` first, keep stdin closed, and pipe an answer only
+by its two-pass rule. `DRY_RUN=1` previews nameservers only, then waits ~20
+minutes; it is not a probe. Avoid `doctor` (it installs tools and prints config
+lines). `status` exit 0 alone is not a verdict.
 
 ## Gate 1 — Installation and tools
 
@@ -120,49 +129,44 @@ may create/chmod it, and its summary is not a complete verification verdict.
    `./cmail help`), not unsupported `cmail --version`. Confirm
    setup/status/doctor/help and library load. A different binary or broken
    library load fails this gate.
-3. If missing, guide the reviewed checkout's **`bash install.sh`** after consent.
-   Installer bootstrap needs Bash 3.2+, curl and standard utilities, not jq/gddy/git.
-   It downloads a pinned runtime; it does not set up providers. v0.1.0 lacks the
-   installer; no released remote bootstrap or `brew install cmail` is promised.
-   Without a checkout, guide obtaining the upstream default-branch source from
-   https://github.com/luongnv89/cmail, reviewing it, then entering its directory.
-4. Explain default launcher `~/.local/bin/cmail`, runtimes `~/.local/share/cmail/`,
+3. If missing, read and run the reviewed checkout's **`bash install.sh`** (needs
+   Bash 3.2+ and curl; downloads a pinned runtime; sets up no provider).
+   v0.1.0 lacks the installer; no remote bootstrap or `brew install cmail` exists.
+   Without a checkout, clone https://github.com/luongnv89/cmail into a user-owned
+   directory, read its `install.sh`, then run it.
+4. Defaults: launcher `~/.local/bin/cmail`, runtimes `~/.local/share/cmail/`,
    config `~/.config/cmail/.env`. Installer overrides are absolute `CMAIL_BIN_DIR`,
    `CMAIL_DATA_DIR`, `CMAIL_CONFIG_DIR`; runtime override is `ENV_FILE`.
-   Source execution defaults to checkout `.env`. Recheck resolved launcher/help;
-   add `~/.local/bin` to the current PATH only with permission.
-5. Check `command -v bash`, `curl --version`, `jq --version`, `gddy --version`
-   and `gddy auth --help` / `gddy domain --help`. Help must support
-   domain/auth commands. List missing tools; guide the OS's existing brew/apt-get/
-   pacman/dnf package manager for curl/jq after consent. Do not auto-install a
-   package manager or grant sudo. For gddy use the official instructions at
-   https://developer.godaddy.com/en/docs/api-users/cli/set-up and review its installer
-   before local execution. Recheck each missing tool's discovery and help/version.
+   Call the launcher by absolute path; report the PATH line for the user's profile instead of editing it.
+5. Check `command -v bash`, `curl --version`, `jq --version`, `gddy --version`,
+   `dig -v` and `gddy auth --help` / `gddy domain --help`. Install missing curl/jq
+   with brew or another no-sudo package manager (sudo is a stop). For gddy,
+   download https://github.com/godaddy/cli/releases/latest/download/install.sh
+   to a file, read it, run it.
+   Recheck each tool. Tools installed first keep setup's sudo installer from running.
 
 ## Gate 2 — Inputs and private configuration
 
-Read `references/configuration.md` now. Ask for non-secret DOMAIN, DEST_EMAIL,
-ADDRESSES, intended Cloudflare account and GDDY_ENV (prod or ote) not already given,
-and existing-service impact; confirm the selected config path. Ask whether the
-domain is owned; never turn an access failure into a purchase. Explain forwarding
-vs mailbox and Gmail send limits.
-Guide local config creation/editing and secret acquisition using that reference.
-Verify config existence, ownership, permissions, literal assignments and required
-fields with `scripts/check_config.py` (or local manual checks if Python is unavailable).
-Its success proves file readiness only, not credentials or provider permissions.
+Follow the instructions in `references/configuration.md`: select the config, create it from
+the trusted template if absent, and run `scripts/check_config.py --summary`.
+Fill missing or template-default keys from the request with `scripts/set_config.py`;
+ask one batched question only for values still missing. If the token is empty,
+stop: give the token recipe, open the file in the user's editor and wait for
+"done". Then the checker, private `bash -n` and the not-tracked check must pass.
+Checker success proves the file, not credentials or provider access.
 
-## Gates 3–9 — Provider and mailbox verification
+## Gates 3–9 — Run `cmail setup`, then verify
 
-Follow gates 3–9 in `references/verification.md` in order: registrar access,
-token resource access, zone/delegation, routing, destination, rules and Gmail.
-For uncertain writes, inspect current state before proposing a retry. No dependent
-writes during PENDING.
-Finish manual Gmail alias confirmation and independent inbound/outbound delivery
-for **every requested alias**. Pressing Enter or seeing a send queue is not proof.
+Follow the steps in `references/autonomous-run.md`: preflight, pass 1 with stdin
+closed in the background, classify the stop with its table (`Setup stopped at:`), the
+nameserver stop, pass 2 only after approval. Relay hands-on steps (browser
+approval, verification link) at once. Then verify gates 3–9 per
+`references/verification.md`. Finish Gmail alias confirmation and independent inbound/outbound delivery for **every
+requested alias**; a CLI exit or a send queue is not proof.
 
 ## Completion report
 
-After **each** gate (including failures), print this compact report:
+Print one line per verified gate, and this block at a stop, failure and exit:
 
 ```text
 Gate <number> — <name>
@@ -173,29 +177,31 @@ Result: PASS | FAIL | BLOCKED | PENDING
 Repair / recheck: <specific action and exact check, or none>
 ```
 
-At exit, put the main outcome first. Use COMPLETE only if all nine gates are
-VERIFIED, including every alias's two delivery tests. Otherwise use PARTIAL or
-BLOCKED and name the earliest incomplete gate. Include Evidence, Uncertainty and
-Decision (specific approval needed, or “No approval needed.”) plus the next action.
-Never claim suggested commands ran or a hypothetical setup succeeded.
-A short text report suffices; no interactive dashboard.
+At exit, put the main outcome first: COMPLETE only if all nine gates are VERIFIED,
+including every alias's two delivery tests; otherwise PARTIAL or BLOCKED naming the
+earliest incomplete gate. Include Evidence, Uncertainty, Decision (approval needed,
+or “No approval needed.”) and the next action. List what you ran; never claim an
+unrun command ran. A short text report suffices; no dashboard.
 
 ### Expected output
 
-Example: `Result: BLOCKED — gate 4, zone access. Evidence: user-reported HTTP 403
-at zone lookup. Uncertainty: write access and mail delivery untested. Decision:
-No approval needed for read-only recheck. Next: verify intended Zone Resources
-locally, then repeat the same lookup; do not create a duplicate zone.`
+Example:
+
+```text
+Result: BLOCKED — gate 5, nameserver approval. Evidence: pass 1 stopped at
+"aborted before nameserver change"; GoDaddy NS ns1/ns2.domaincontrol.com → Cloudflare
+ada/bob.ns.cloudflare.com; MX none, DS none, A record present. Decision: approve
+the switch after copying the A record to Cloudflare; then pass 2 runs.
+```
 
 ## Edge cases
 
-- Unsupported registrar/mail service: stop at the scope boundary; do not improvise migration.
-- Complex shell config or runtime-control keys: reject, simplify locally and recheck.
+- Unsupported registrar or mail service: stop at the scope boundary.
+- Other MX, SPF or DS records: stop before pass 1, even if nameservers match.
+- `DRY_RUN=1` or an empty required value: fix config first; never pipe answers.
 
 ## Maintainer evaluation
 
-Evaluate with `evals/evals.json` per `evals/README.md`, never with real credentials,
-provider writes or mail sends. Provider steps need user consent and evidence; never
-delegate them. Grade outputs for main result findability, fact/assumption
-separation, claim-to-evidence traceability and clear next decision; absent human
-feedback means understanding is unconfirmed.
+Evaluate with `evals/evals.json` per `evals/README.md`, never with real
+credentials, provider writes or mail sends; absent human feedback means
+understanding is unconfirmed.

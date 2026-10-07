@@ -130,12 +130,13 @@ Copy the whole directory into your agent's skill location; see its
 installer does not install agent skills, and no tagged skill release is claimed.
 
 Ask “Use cmail-setup to help me set up custom email” or `/cmail-setup` in an
-agent supporting slash skills. It verifies each gate before advancing, explains
-failed checks and rechecks after repair. Credentials stay in your local browser/
-editor, never chat. DNS changes and purchases require specific consent. Gmail
-confirmation and independent inbound/outbound delivery are separate manual gates.
-The monolithic `cmail setup` command cannot enforce all these external gates;
-the skill guides staged dashboard actions instead of blindly running it.
+agent supporting slash skills. The agent installs cmail and its tools, fills the
+non-secret config, runs a read-only preflight and then runs `cmail setup` itself,
+troubleshooting and rerunning on failure. It verifies each gate before advancing.
+It asks only when a value is missing, a step needs you (Cloudflare token entry,
+browser approvals, Gmail send-as, delivery tests), or a decision is important:
+nameserver replacement, existing mail/DNSSEC records, purchases or sudo.
+Credentials stay in your local browser/editor, never chat.
 
 An optional Python 3 checker validates private literal config without sourcing or
 printing it. Offline tests/evaluation cases do not prove a real user's setup,

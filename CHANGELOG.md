@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- cmail-setup skill 2.0.0 runs setup autonomously. The agent installs cmail and
+  missing tools, writes non-secret config with a new `set_config.py` helper, reads
+  config through `check_config.py --summary` (non-secret values only), runs a
+  read-only preflight and then executes `cmail setup` itself with stdin closed.
+  Stops are classified from setup's `Setup stopped at:` line and repaired from a
+  step-keyed troubleshooting table. The agent asks only for missing values,
+  hands-on steps (token entry, browser approvals, Gmail), nameserver replacement,
+  existing MX/DNSSEC records, purchases, sudo or repeated failure; approval input
+  is piped only for the nameserver confirmation after a closed-stdin pass.
+
 - cmail-setup skill 1.1.0 opens with read-only context discovery (OS, source
   checkout, installed launcher, config presence, tools, request cues) instead of
   asking about setup mode, OS/access or installation status. Undetectable facts,

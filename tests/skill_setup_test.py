@@ -191,6 +191,109 @@ class ConfigTests(unittest.TestCase):
             self.assertIn(b"encoding", result.stderr)
 
 
+SETTER = SKILL / "scripts/set_config.py"
+
+
+class HelperTests(unittest.TestCase):
+    def private(self, tmp, text, name="private.env"):
+        path = Path(tmp) / name
+        path.write_text(text)
+        path.chmod(0o600)
+        return path
+
+    def run_script(self, *args):
+        return subprocess.run([sys.executable] + [str(a) for a in args], text=True, capture_output=True)
+
+    def test_summary_shows_public_values_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.private(tmp, FIXTURE + "GDDY_PAT=\n")
+            result = self.run_script(SCRIPT, "--summary", path)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for line in ("DOMAIN=example.com", "DEST_EMAIL=user@gmail.com", "ADDRESSES=hello,contact",
+                         "CLOUDFLARE_API_TOKEN set", "GDDY_PAT empty", "CF_ZONE_ID absent", "READY:"):
+                self.assertIn(line, result.stdout)
+            self.assertNotIn("synthetic fixture", result.stdout + result.stderr)
+            partial = self.private(tmp, "DOMAIN=example.com\nCLOUDFLARE_API_TOKEN=\n", "partial.env")
+            result = self.run_script(SCRIPT, "--summary", partial)
+            self.assertEqual(result.returncode, 3)
+            self.assertIn("NOT READY: DEST_EMAIL", result.stdout)
+            self.assertIn("CLOUDFLARE_API_TOKEN empty", result.stdout)
+            # A token pasted on a public line must never be echoed.
+            misplaced = self.private(tmp, FIXTURE + "CF_ACCOUNT_ID=SYNTHETIC_tok_123\n", "misplaced.env")
+            result = self.run_script(SCRIPT, "--summary", misplaced)
+            self.assertEqual(result.returncode, 3)
+            self.assertIn("CF_ACCOUNT_ID=<invalid>", result.stdout)
+            self.assertNotIn("SYNTHETIC_tok_123", result.stdout + result.stderr)
+
+    def test_smart_quotes_and_non_ascii_rejected(self):
+        for raw in ("\u2019abc\u2019", "caf\u00e9"):
+            with tempfile.TemporaryDirectory() as tmp:
+                path = self.private(tmp, FIXTURE.replace("'synthetic fixture only'", raw))
+                result = self.run_script(SCRIPT, path)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("non-ASCII", result.stderr)
+                self.assertNotIn("abc", result.stderr)
+
+    def test_summary_keeps_file_safety_checks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.private(tmp, FIXTURE)
+            path.chmod(0o644)
+            self.assertEqual(self.run_script(SCRIPT, "--summary", path).returncode, 1)
+            path.chmod(0o600)
+            path.write_text(FIXTURE + "GDDY_PAT=$(id)\n")
+            result = self.run_script(SCRIPT, "--summary", path)
+            self.assertEqual(result.returncode, 1)
+            self.assertNotIn("synthetic fixture", result.stdout + result.stderr)
+
+    def test_setter_updates_public_keys_and_preserves_secrets(self):
+        template = (ROOT / ".env.example").read_text().replace("CLOUDFLARE_API_TOKEN=", "CLOUDFLARE_API_TOKEN='synthetic fixture only'")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.private(tmp, template)
+            # The template's ADDRESSES=hello default needs --replace to change.
+            refused = self.run_script(SETTER, path, "ADDRESSES=hello,contact")
+            self.assertEqual(refused.returncode, 1)
+            self.assertIn("--replace", refused.stderr)
+            self.assertEqual(self.run_script(SETTER, path, "ADDRESSES=hello", "GDDY_ENV=prod").returncode, 0)
+            result = self.run_script(SETTER, "--replace", path, "DOMAIN=example.com", "DEST_EMAIL=user@gmail.com",
+                                     "ADDRESSES=hello,contact", "DRY_RUN=0")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn("example.com", result.stdout)
+            text = path.read_text()
+            self.assertIn("CLOUDFLARE_API_TOKEN='synthetic fixture only'", text)
+            self.assertEqual(text.count("DOMAIN="), 1)
+            self.assertEqual(oct(path.stat().st_mode & 0o777), oct(0o600))
+            self.assertEqual(self.run_script(SCRIPT, path).returncode, 0)
+            values = config.parse(text)
+            self.assertEqual((values["DOMAIN"], values["ADDRESSES"], values["DRY_RUN"]), ("example.com", "hello,contact", "0"))
+            sourced = subprocess.run(["/bin/bash", "--noprofile", "--norc", "-c",
+                                      '. "$1"; printf "%s|%s" "$DOMAIN" "$ADDRESSES"', "synthetic", str(path)],
+                                     env={"PATH": "/usr/bin:/bin", "HOME": tmp}, text=True, capture_output=True, timeout=3)
+            self.assertEqual(sourced.stdout, "example.com|hello,contact")
+
+    def test_setter_refuses_secrets_invalid_values_and_unsafe_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.private(tmp, FIXTURE)
+            before = path.read_bytes()
+            for arg in ("CLOUDFLARE_API_TOKEN=x", "GDDY_PAT=x", "DOMAIN=https://x", "PATH=/tmp",
+                        "ADDRESSES=a,a", "DOMAIN", "DOMAIN=example.org DOMAIN=example.net"):
+                with self.subTest(arg=arg):
+                    result = self.run_script(SETTER, path, *arg.split(" "))
+                    self.assertEqual(result.returncode, 1)
+                    self.assertIn("Nothing was written", result.stderr)
+                    self.assertEqual(path.read_bytes(), before)
+            self.assertEqual(self.run_script(SETTER, path).returncode, 2)
+            self.assertEqual(self.run_script(SETTER, "--replace", path).returncode, 2)
+            self.assertEqual(self.run_script(SETTER, path, "DOMAIN=example.org").returncode, 1)
+            self.assertEqual(path.read_bytes(), before)
+            unsafe = self.private(tmp, FIXTURE + "GDDY_PAT=$(id)\n", "unsafe.env")
+            self.assertEqual(self.run_script(SETTER, unsafe, "DOMAIN=example.org").returncode, 1)
+            link = Path(tmp) / "link"
+            link.symlink_to(path)
+            self.assertEqual(self.run_script(SETTER, link, "DOMAIN=example.org").returncode, 1)
+            self.assertEqual(path.read_bytes(), before)
+            self.assertEqual(list(Path(tmp).glob(".cmail-config.*")), [])
+
+
 class SkillContractTests(unittest.TestCase):
     def test_references_resolve(self):
         body = (SKILL / "SKILL.md").read_text()
@@ -211,9 +314,9 @@ class SkillContractTests(unittest.TestCase):
     def test_installer_and_config_contract(self):
         body = (SKILL / "SKILL.md").read_text()
         for text in ("bash install.sh", "v0.1.0 lacks", "ENV_FILE", "CMAIL_CONFIG_DIR", "~/.config/cmail/.env",
-                     "cmail --version", "Do not run it as a gate orchestrator"):
-            # The monolithic-setup restriction is Markdown emphasized.
+                     "cmail --version", "Run `cmail setup` as the primary path", "references/autonomous-run.md"):
             self.assertIn(text, body.replace("**", ""))
+        self.assertNotIn("gate orchestrator", body)
         self.assertTrue((ROOT / "install.sh").is_file())
         self.assertIn('CMAIL_CONFIG_DIR', (ROOT / "install.sh").read_text())
 
@@ -316,6 +419,51 @@ class SkillContractTests(unittest.TestCase):
         self.assertEqual(source_files, mirror_files)
         for rel in source_files:
             self.assertEqual((SKILL / rel).read_bytes(), (mirror / rel).read_bytes(), str(rel))
+
+    def test_autonomy_contract_and_run_protocol(self):
+        body = (SKILL / "SKILL.md").read_text().replace("**", "")
+        auto, stop = body.index("Auto — run without asking"), body.index("Stop — ask once")
+        self.assertLess(auto, stop)
+        self.assertLess(stop, body.index("## Gate 1"))
+        for text in ("nameserver replacement", "domain purchase", "sudo", "Missing:", "Super important:",
+                     "Wrong:", "three unsuccessful repairs", "check_config.py --summary", "set_config.py"):
+            self.assertIn(text, body)
+        run = " ".join((SKILL / "references/autonomous-run.md").read_text().split())
+        for text in ('ENV_FILE="$cfg" "$launcher" setup </dev/null', "printf 'y\\n\\n' |",
+                     "aborted before nameserver change", "Setup stopped at:", "paused without input",
+                     "Never pipe `yes`", "Stop before pass 1", "route*.mx.cloudflare.net", "in the background",
+                     "Run every pass in the background", "DRY_RUN must be absent or `0`", "DRY_RUN=0 ENV_FILE",
+                     "first match wins", "needs attention", "treat the same records as approved",
+                     "creating zone … in account <id>"):
+            self.assertIn(text, run)
+        # Pass 1 (stdin closed) must be specified before any piped approval input.
+        self.assertLess(run.index("</dev/null"), run.index("printf 'y"))
+        recovery = (SKILL / "references/troubleshooting.md").read_text()
+        for step in ("`Dependencies`", "`Configuration`", "`GoDaddy authentication`", "`Choose domain`",
+                     "`Cloudflare API token`", "`Cloudflare zone:`", "`GoDaddy: point`",
+                     "`Waiting for zone activation`", "`Enable Cloudflare Email Routing`",
+                     "`Destination address:`", "`Forwarding addresses`", "`Send FROM`"):
+            self.assertIn(step, recovery)
+        steps = (ROOT / "lib/ui.sh").read_text()
+        for step in ("Dependencies", "Configuration", "'GoDaddy authentication'", "'Choose domain'",
+                     "'Cloudflare API token'", "'Cloudflare zone:'", "'GoDaddy: point'",
+                     "'Waiting for zone activation'", "'Enable Cloudflare Email Routing'",
+                     "'Destination address:'", "'Forwarding addresses'", "'Send FROM'"):
+            self.assertIn(step, steps)
+        for text in ("aborted before nameserver change", "paused without input"):
+            self.assertIn(text, (ROOT / "lib/godaddy.sh").read_text() + (ROOT / "lib/gmail.sh").read_text())
+
+    def test_setup_prompts_fail_closed_on_stdin(self):
+        # Pass 1 relies on closed stdin declining prompts; pass 2 on "y" then Enter.
+        script = '. "$1/lib/ui.sh"; if confirm "apply nameserver change"; then echo YES; else echo NO; fi; pause && echo PAUSED || echo NOPAUSE'
+        def run(stdin):
+            return subprocess.run(["bash", "-c", script, "probe", str(ROOT)], input=stdin, text=True,
+                                  capture_output=True, timeout=5).stdout
+        self.assertIn("NO", run(""))
+        self.assertIn("NOPAUSE", run(""))
+        self.assertIn("YES", run("y\n\n"))
+        self.assertIn("PAUSED", run("y\n\n"))
+        self.assertIn("NO", run("\n"))
 
     def test_eval_floor_and_process_assertions(self):
         suite = json.loads((SKILL / "evals/evals.json").read_text())

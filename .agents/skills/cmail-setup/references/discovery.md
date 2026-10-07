@@ -11,7 +11,7 @@ locates or lists; none executes cmail, reads config contents or changes state.
 | Installed launcher | `command -v cmail`; `type -t cmail` in bash or `whence -w cmail` in zsh; `ls -ld ~/.local/bin/cmail ~/.local/share/cmail` | path and type; located, not executed |
 | Path overrides | Labelled per-variable loop below | `NAME=path`; empty means unset in the agent shell |
 | Config presence | `ls -l ~/.config/cmail/.env`; `ls -l "$ENV_FILE"` when set; checkout `.env` only when `cmail`, `install.sh` and `lib/env.sh` all exist at the git root | owner, mode, size only; see config selection |
-| Tools | `command -v bash curl jq gddy brew apt-get dnf pacman` | found / missing |
+| Tools | `command -v bash curl jq gddy brew apt-get dnf pacman dig python3` | found / missing |
 
 A non-interactive agent shell cannot see the user's interactive aliases or shell
 functions, so whether `cmail` is an alias or function in the user's terminal is
@@ -94,7 +94,7 @@ Unknown: <each undetectable or failed probe>
 
 ## Advice-only
 
-Without a shell tool, give the user the probes above as one combined local check
-and ask them to report the sanitized results. Keep every fact `unknown` until they
+Without a shell tool, nothing runs automatically: give the user the probes above as
+one combined local check and ask them to report the sanitized results. Keep every fact `unknown` until they
 report; label reported facts user-reported. Facts the user already stated (for
 example, "on my Mac") are user-reported, not observed.
