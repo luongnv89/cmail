@@ -2,15 +2,25 @@
 
 [Introduction](index.html) · [Interactive checklist](setup.html) · [Runtime README](https://github.com/luongnv89/cmail/blob/main/README.md) · [Agent skill](https://github.com/luongnv89/cmail/blob/main/skills/cmail-setup/SKILL.md)
 
-This sequence is Cloudflare incoming forwarding plus manual Gmail send-as, not
-mailbox hosting or Google Workspace provisioning. The HTML guide has enabled,
-keyboard-operable checkboxes, saved progress and reset. GitHub Markdown checkboxes
+This sequence is Cloudflare incoming forwarding to any inbox you own (Gmail,
+Outlook, iCloud, Proton, …) plus an **optional** manual Gmail send-as step for
+sending, not mailbox hosting or Google Workspace provisioning. If you only need
+to receive mail, skip step 13. The HTML guide has enabled, keyboard-operable
+checkboxes, saved progress and reset. GitHub Markdown checkboxes
 are a reading/printing fallback, not persistent interactive controls.
 
-**Before choosing Gmail for sending:** [Google’s current Send as help](https://support.google.com/mail/answer/22370)
+**The short version: a few simple steps.** Check prerequisites (step 1), install
+cmail (step 2), run `cmail setup`, then send yourself a test (step 14).
+`cmail setup` carries out steps 3–12 for you and pauses only for browser approvals, the Cloudflare token,
+the nameserver confirmation and one verification click; read those steps to
+review or troubleshoot. **Sending is optional and only on request:** step 13
+(`cmail send-as`) is not part of the default setup.
+
+**Before choosing Gmail for (optional) sending:** [Google’s current Send as help](https://support.google.com/mail/answer/22370)
 announces removal of third-party Send as starting **January 2027**. Inbound
-forwarding is separate. Check the current policy and account eligibility; an
-alternative SMTP service/Workspace migration is outside this guide.
+forwarding is separate and needs no Google account. Check the current policy and
+account eligibility; an alternative SMTP service/Workspace migration is outside
+this guide.
 
 Public authoritative references were fetched 7 October 2026. Dashboard labels and
 policies may change. No logged-in provider actions, DNS writes, purchases or live
@@ -27,12 +37,14 @@ profile/site origin; it is your review record, not live verification.
 
 Use macOS/Linux with a trusted terminal, Bash 3.2+, curl and standard utilities.
 Git is needed only to clone source; Python 3 is optional for the checker. Have an
-owned GoDaddy domain, a Cloudflare account, a receiving Gmail account and a
-**different mailbox** for tests. Choose DOMAIN (bare domain), DEST_EMAIL (full
-Gmail address), ADDRESSES (comma-separated local parts, e.g. `hello,contact`) and
-aliases needing sending. Inventory existing web/mail/MX/TXT/subdomain DNS and
-DNSSEC/DS records. Plan migration before changing anything. Check Google policy
-and whether App Passwords are permitted. Missing access is not a purchase signal.
+owned GoDaddy domain, a Cloudflare account, a receiving inbox (any provider; a
+Gmail/Google account only if you also want to send) and a **different mailbox**
+for tests. Choose DOMAIN (bare domain), DEST_EMAIL (full receiving address),
+ADDRESSES (comma-separated local parts, e.g. `hello,contact`) and whether any
+aliases need sending. Inventory existing web/mail/MX/TXT/subdomain DNS and
+DNSSEC/DS records. Plan migration before changing anything. Only if sending: check
+Google policy and whether App Passwords are permitted. Missing access is not a
+purchase signal.
 
 ### 2. Install from reviewed source
 
@@ -243,10 +255,10 @@ not Gmail outbound domain DKIM alignment.
 
 ### 11. Verify destination
 
-- [ ] Verify exact Gmail destination in zone’s owning account.
+- [ ] Verify exact destination in zone’s owning account.
 
 Email Routing → Destination Addresses, account-scoped: reuse verified/pending
-DEST_EMAIL. If absent approve add/verification email. Open the correct Gmail
+DEST_EMAIL. If absent approve add/verification email. Open the correct mailbox
 Inbox/Spam and click Cloudflare Verify email address yourself. Refresh until exact
 entry has verified state/timestamp. For absent/expired link deliberately resend;
 keep pending entries, do not duplicate. A click alone is not proof.
@@ -262,9 +274,13 @@ to exactly destination; no conflicting duplicate, disabled rule or wrong action.
 Catch-all not needed. Do not silently overwrite unrelated rules; approve correction
 and inspect fresh state. Create success/truncated status does not prove correctness.
 
-### 13. Manual Gmail aliases
+### 13. Optional: manual Gmail aliases for sending
 
-- [ ] Confirm every eligible requested outbound alias.
+- [ ] Confirm every eligible requested outbound alias, or skip sending.
+
+**Skip this step if you only need to receive mail.** It applies only when you
+want to send from the custom address and DEST_EMAIL is a Gmail/Google account.
+`cmail send-as` prints the same guidance; `cmail setup` does not run it.
 
 Recheck [January 2027 policy and alias instructions](https://support.google.com/mail/answer/22370).
 If unavailable/prohibited, stop outbound and use an approved alternative outside
@@ -287,18 +303,18 @@ custom From when composing, intentionally choose default From/reply-to if desire
 Enter/CLI success/password creation/Sent entry is not delivery. Recipients may see
 Gmail “on behalf of”; domain DKIM alignment is not guaranteed.
 
-### 14. Independent delivery in both directions
+### 14. Independent delivery tests
 
-- [ ] Observe inbound and outbound receipt for every requested alias.
+- [ ] Observe inbound (and, if requested, outbound) receipt for every alias.
 
 Send a unique benign test from a different mailbox to each alias; confirm in
-DEST_EMAIL including Spam (same-account tests can be suppressed). Compose from the
-exact custom From to independent mailbox; confirm recipient arrival, actual
+DEST_EMAIL including Spam (same-account tests can be suppressed). Only if you set
+up sending in step 13: compose from the exact custom From to independent mailbox; confirm recipient arrival, actual
 From/reply-to, not just Sent. Reply back as extra check. Inbound failure: recheck
 zone/routing DNS/destination/rule. Outbound failure: current policy, SMTP/TLS,
-username/password/confirmation. Repair then repeat both tests. Record only sanitized
-alias/direction/time/result privately, never bodies/secrets/codes. If only inbound
-works, outbound is blocked, not completed. No universal delivery/compliance claim.
+username/password/confirmation. Repair then repeat the affected tests. Record only sanitized
+alias/direction/time/result privately, never bodies/secrets/codes. If sending was
+requested and only inbound works, outbound is blocked, not completed. No universal delivery/compliance claim.
 [Targeted troubleshooting](https://github.com/luongnv89/cmail/blob/main/skills/cmail-setup/references/troubleshooting.md).
 
 ## Local preview and maintenance

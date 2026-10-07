@@ -5,7 +5,10 @@ work already done: dependencies → configuration prompts (DEST_EMAIL, ADDRESSES
 → GoDaddy auth → domain choice → Cloudflare token → zone create/reuse →
 nameserver replacement (confirmation prompt) → wait for Active (polls ~20 min)
 → enable Email Routing → destination registration (polls ~10 min for the link
-click) → forwarding rules → Gmail guide (waits for Enter).
+click) → forwarding rules → `Receiving is set up` summary, then exit 0. Setup
+never runs the Gmail guide: sending is the separate, optional `cmail send-as`
+command (waits for Enter), used only when the user asked to send from the
+custom address.
 
 Every prompt reads stdin. With stdin closed, a prompt fails and setup exits with
 `Setup stopped at: <step>`, so a closed-stdin run never answers a question. When
@@ -88,7 +91,8 @@ Check rows in order; the first match wins.
 | Log evidence | Meaning | Next |
 |---|---|---|
 | `aborted before nameserver change` | Nameservers differ; setup reached the confirmation | Stop: nameserver approval |
-| `Setup stopped at: Send FROM` with `paused without input`, or `exit=0` | Every API stage succeeded | Verify gates 3–8, then Gate 9 |
+| `Receiving is set up` and `exit=0` | Every API stage succeeded | Verify gates 3–8, then Gate 9 |
+| `Setup stopped at: Send FROM` with `paused without input` | Older runtime without `send-as` (its `help` does not list it): every API stage succeeded, then it showed the Gmail guide | Verify gates 3–8, then Gate 9; Gmail steps still apply only when sending was requested |
 | `zone still` and the log shows `nameservers set` or `already point at Cloudflare` | Delegation PENDING | Wait; rerun pass 1 later (matching nameservers skip the write) |
 | `zone status` … `needs attention` | Zone moved, deleted or blocked | Stop (wrong): show the status |
 | `not verified after about 10 minutes` | Destination link not clicked | Stop (hands-on): user clicks the link; rerun pass 1 |
@@ -106,13 +110,13 @@ Cloudflare first so web or other services keep working, and a recommendation. On
 approval of that exact set, run pass 2 in the background with a new log:
 
 ```bash
-printf 'y\n\n' | DRY_RUN=0 ENV_FILE="$cfg" "$launcher" setup >"$log" 2>&1; echo "exit=$?" >>"$log"
+printf 'y\n' | DRY_RUN=0 ENV_FILE="$cfg" "$launcher" setup >"$log" 2>&1; echo "exit=$?" >>"$log"
 ```
 
 Two-pass rule: pipe this input only when pass 1 ended at
 `aborted before nameserver change`, the preflight still passes, and the approval
-is recent. Then the `y` answers the nameserver confirmation and the empty line
-answers the final Gmail pause. Never pipe `yes` or answers to any other prompt:
+is recent. Then the `y` answers the nameserver confirmation, the only prompt left.
+Never pipe `yes` or answers to any other prompt:
 an unexpected prompt (token, domain, registration) would take the `y` as its
 value. After pass 2, confirm the log's `desired nameservers` line still matches
 the approved set and that it shows `nameservers set`; report any mismatch. Classify
@@ -122,5 +126,15 @@ pass 2 with the same table.
 
 Run `ENV_FILE="$cfg" "$launcher" status` and the checks in `verification.md` for
 gates 3–8. Put that exact `status` command in the final report: with a per-domain
-config, a plain `cmail status` reads a different file. Then open `https://mail.google.com/mail/u/0/#settings/accounts` and
-`https://myaccount.google.com/apppasswords` for the user and drive Gate 9.
+config, a plain `cmail status` reads a different file. Then drive Gate 9: the
+inbound test for every alias.
+
+Only when the user asked to **send** from the custom address (and DEST_EMAIL is a
+Gmail/Google account), print the guide with
+`ENV_FILE="$cfg" "$launcher" send-as </dev/null`. It ends with
+`Gmail guide paused without input`, which is expected, not a failure. Relay its
+steps, open `https://mail.google.com/mail/u/0/#settings/accounts` and
+`https://myaccount.google.com/apppasswords` for the user, and add the sending
+checks to Gate 9. On an older runtime whose `help` does not list `send-as`, relay
+the Gate 9 sending steps from `verification.md` instead. Without that request, do
+not mention App Passwords or run `send-as`.

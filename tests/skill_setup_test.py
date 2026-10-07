@@ -444,7 +444,9 @@ class SkillContractTests(unittest.TestCase):
                      "Wrong:", "three unsuccessful repairs", "check_config.py --summary", "set_config.py"):
             self.assertIn(text, body)
         run = " ".join((SKILL / "references/autonomous-run.md").read_text().split())
-        for text in ('ENV_FILE="$cfg" "$launcher" setup </dev/null', "printf 'y\\n\\n' |",
+        for text in ('ENV_FILE="$cfg" "$launcher" setup </dev/null', "printf 'y\\n' |",
+                     'ENV_FILE="$cfg" "$launcher" send-as </dev/null', "Receiving is set up",
+                     "do not mention App Passwords or run",
                      "aborted before nameserver change", "Setup stopped at:", "paused without input",
                      "Never pipe `yes`", "Stop before pass 1", "route*.mx.cloudflare.net", "in the background",
                      "Run every pass in the background", "DRY_RUN must be absent or `0`", "DRY_RUN=0 ENV_FILE",
@@ -457,26 +459,43 @@ class SkillContractTests(unittest.TestCase):
         for step in ("`Dependencies`", "`Configuration`", "`GoDaddy authentication`", "`Choose domain`",
                      "`Cloudflare API token`", "`Cloudflare zone:`", "`GoDaddy: point`",
                      "`Waiting for zone activation`", "`Enable Cloudflare Email Routing`",
-                     "`Destination address:`", "`Forwarding addresses`", "`Send FROM`"):
+                     "`Destination address:`", "`Forwarding addresses`", "`cmail send-as`"):
             self.assertIn(step, recovery)
         steps = (ROOT / "lib/ui.sh").read_text()
         for step in ("Dependencies", "Configuration", "'GoDaddy authentication'", "'Choose domain'",
                      "'Cloudflare API token'", "'Cloudflare zone:'", "'GoDaddy: point'",
                      "'Waiting for zone activation'", "'Enable Cloudflare Email Routing'",
-                     "'Destination address:'", "'Forwarding addresses'", "'Send FROM'"):
+                     "'Destination address:'", "'Forwarding addresses'"):
             self.assertIn(step, steps)
         for text in ("aborted before nameserver change", "paused without input"):
             self.assertIn(text, (ROOT / "lib/godaddy.sh").read_text() + (ROOT / "lib/gmail.sh").read_text())
+        self.assertIn("Receiving is set up", (ROOT / "cmail").read_text())
+
+    def test_sending_is_optional(self):
+        cli = (ROOT / "cmail").read_text()
+        setup = cli.split("cmd_setup() {", 1)[1].split("\n}\n", 1)[0]
+        self.assertNotIn("gmail_sendas_guide", setup)
+        self.assertIn("send-as) cmd_send_as", cli)
+        body = " ".join((SKILL / "SKILL.md").read_text().split())
+        self.assertIn("include it only when the user asks to send", body)
+        gate9 = (SKILL / "references/verification.md").read_text().split("## Gate 9", 1)[1]
+        self.assertIn("only when the user asked to send", " ".join(gate9.split()))
+        for name in ("README.md", "docs/index.html", "docs/setup.html", "docs/setup.md"):
+            text = " ".join((ROOT / name).read_text().split())
+            self.assertIn("few simple steps", text, name)
+            self.assertRegex(text, r"Sending is optional", name)
+            self.assertIn("cmail send-as", text, name)
 
     def test_setup_prompts_fail_closed_on_stdin(self):
-        # Pass 1 relies on closed stdin declining prompts; pass 2 on "y" then Enter.
+        # Pass 1 relies on closed stdin declining prompts; pass 2 on "y" alone.
+        # The pause only belongs to the optional send-as guide.
         script = '. "$1/lib/ui.sh"; if confirm "apply nameserver change"; then echo YES; else echo NO; fi; pause && echo PAUSED || echo NOPAUSE'
         def run(stdin):
             return subprocess.run(["bash", "-c", script, "probe", str(ROOT)], input=stdin, text=True,
                                   capture_output=True, timeout=5).stdout
         self.assertIn("NO", run(""))
         self.assertIn("NOPAUSE", run(""))
-        self.assertIn("YES", run("y\n\n"))
+        self.assertIn("YES", run("y\n"))
         self.assertIn("PAUSED", run("y\n\n"))
         self.assertIn("NO", run("\n"))
 

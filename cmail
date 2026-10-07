@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# cmail — guided free custom-domain email setup (Cloudflare Email Routing + Gmail)
-# Subcommands: setup | status | doctor | help
+# cmail — guided free custom-domain email setup (Cloudflare Email Routing,
+# optional Gmail "Send mail as")
+# Subcommands: setup | send-as | status | doctor | help
 set -euo pipefail
 
 CMAIL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,9 +11,13 @@ done
 
 usage() {
   cat <<EOF
-cmail — free custom-domain email via Cloudflare Email Routing + Gmail
+cmail — free custom-domain email in a few simple steps (Cloudflare Email Routing)
 
-  ./cmail setup     guided, idempotent setup (auth via browser OAuth)
+  ./cmail setup     guided, idempotent receive setup: forward your custom
+                    addresses to any inbox you own (auth via browser OAuth)
+  ./cmail send-as   optional, only on request: guide for sending FROM your
+                    custom address with Gmail "Send mail as" (needs a Google
+                    account); not part of setup
   ./cmail status    show zone / routing / destination / rules state
   ./cmail doctor    verify tools and credentials, change nothing
   ./cmail help      this message
@@ -26,12 +31,14 @@ cmd_setup() {
   CMAIL_STEP="Configuration file"
   CMAIL_DNS_CHECKPOINT=0
   trap 'if [ "$?" -ne 0 ]; then setup_recovery; fi' EXIT
+  log "Setting up RECEIVING: your custom addresses will forward to an inbox you already use."
+  note "Sending is optional and not part of this setup (./cmail send-as, only if you want it)."
   ensure_deps
   step "Configuration"
   env_init
 
   # what we're building — collect early so all prompts happen up front
-  env_require_prompt DEST_EMAIL "Gmail address to receive forwarded mail"
+  env_require_prompt DEST_EMAIL "email address to receive forwarded mail (any provider)"
   env_require_prompt ADDRESSES  "addresses to create, comma-separated (e.g. hello,contact,me)"
 
   gddy_ensure_auth          # browser OAuth — step shown, URL opened
@@ -48,6 +55,29 @@ cmd_setup() {
   cf_email_enable "$zone_id"
   cf_dest_ensure "$zone_id"
   cf_rules_ensure "$zone_id"
+  setup_receive_summary
+}
+
+setup_receive_summary() {
+  step "Receiving is set up"
+  local addr list
+  IFS=',' read -ra list <<<"$ADDRESSES"
+  for addr in "${list[@]}"; do
+    addr="${addr// /}"
+    if [ -n "$addr" ]; then ok "$addr@$DOMAIN -> $DEST_EMAIL"; fi
+  done
+  note "Test it: from a DIFFERENT mailbox (not $DEST_EMAIL), send to ${list[0]// /}@$DOMAIN and"
+  note "check that it arrives at $DEST_EMAIL (look in Spam too). This is not verified automatically."
+  note "Done. Sending is optional: only if you also want to send FROM your custom address"
+  note "with Gmail, run ./cmail send-as"
+}
+
+cmd_send_as() {
+  env_init
+  local key
+  for key in DOMAIN DEST_EMAIL ADDRESSES; do
+    [ -n "${!key:-}" ] || die "no $key in config — run ./cmail setup first so receiving works; send-as confirmation is delivered through forwarding"
+  done
   gmail_sendas_guide
 }
 
@@ -78,6 +108,7 @@ cmd_doctor() {
 
 case "${1:-help}" in
   setup)   cmd_setup ;;
+  send-as) cmd_send_as ;;
   status)  cmd_status ;;
   doctor)  cmd_doctor ;;
   help|-h|--help) usage ;;

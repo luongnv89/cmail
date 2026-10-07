@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Receiving no longer requires Gmail or a Google account. `cmail setup` now
+  forwards to any inbox you own and ends after the forwarding rules with a
+  `Receiving is set up` summary (exit 0, no final Enter prompt). Gmail
+  "Send mail as" moved to the optional `cmail send-as` command, which is not run
+  by default. The DEST_EMAIL prompt, `.env.example`, destination-verification
+  hints, README, site guides and the cmail-setup skill (2.1.0) now describe
+  receiving as the default and sending as opt-in. The skill's pass 2 pipes only
+  `y`, and it runs `send-as` only when the user asks to send. The README, landing
+  page and setup guides lead with "custom-domain email in a few simple steps"
+  (install, `cmail setup`, send a test), and the CLI help and setup banner state
+  that sending is optional and only on request. The landing page adds a
+  "Do I need Gmail or a Google account?" FAQ.
+
 - cmail-setup skill 2.0.0 runs setup autonomously. The agent installs cmail and
   missing tools, writes non-secret config with a new `set_config.py` helper, reads
   config through `check_config.py --summary` (non-secret values only), runs a

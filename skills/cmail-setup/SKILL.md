@@ -1,17 +1,22 @@
 ---
 name: "cmail-setup"
-description: "Set up, resume or troubleshoot cmail custom-domain email (GoDaddy → Cloudflare Email Routing → Gmail): runs cmail setup itself, asking only for missing input, secrets or risky approvals. Don't use for other registrars, mail migrations or campaigns."
+description: "Set up, resume or troubleshoot cmail custom-domain email (GoDaddy → Cloudflare Email Routing → any inbox, optional Gmail send-as): runs cmail setup itself, asking only for missing input, secrets or risky approvals. Don't use for other registrars, mail migrations or campaigns."
 compatibility: "macOS/Linux, Bash 3.2+, curl, jq, gddy, dig; Python 3 for the bundled config helpers."
 effort: "high"
 metadata:
-  version: "2.0.0"
+  version: "2.1.0"
   author: "Luong NGUYEN <luongnv89@gmail.com>"
 ---
 
 # Autonomous cmail setup
 
 Use this skill when the user asks to set up, resume or troubleshoot cmail
-(GoDaddy → Cloudflare Email Routing → Gmail); you run the commands. Run `cmail setup` as the primary path: prepare its inputs, run it,
+(GoDaddy → Cloudflare Email Routing → any inbox the user owns); you run the
+commands. Receiving takes a few simple steps and needs no Google account:
+`cmail setup` sets up receiving only. Sending from the custom address
+(`cmail send-as`, Gmail only) is optional and never the default: include it only
+when the user asks to send, and do not ask for DEST_EMAIL to be Gmail otherwise.
+Run `cmail setup` as the primary path: prepare its inputs, run it,
 troubleshoot any failure, then verify the result gate by gate. A setup request is
 consent for every **auto** action below. Ask only at a **stop**.
 
@@ -22,13 +27,15 @@ checks; trusted `cmail help`/`status`; installing cmail and missing tools withou
 sudo; creating the config and setting its non-secret keys; background
 `gddy auth login` (opens the user's browser); `cmail setup` passes the preflight
 allows, including the zone, destination and rules setup creates; reruns after a
-repair; opening dashboards, Gmail settings or the config editor for the user.
+repair; opening dashboards, the config editor or (when sending was requested)
+Gmail settings for the user.
 
 **Stop — ask once, with evidence and a recommendation:**
 
 - **Missing:** a value no probe or config holds (DOMAIN, DEST_EMAIL, ADDRESSES),
   the Cloudflare token, or a hands-on step: browser approval, verification link,
-  Gmail send-as, delivery tests from another mailbox. Batch missing values into one
+  delivery tests from another mailbox, Gmail send-as (only when sending was
+  requested). Batch missing values into one
   question.
 - **Super important:** nameserver replacement; routing over existing
   non-Cloudflare MX or DNSSEC/DS records; domain purchase (exact domain, price,
@@ -161,8 +168,9 @@ Follow the steps in `references/autonomous-run.md`: preflight, pass 1 with stdin
 closed in the background, classify the stop with its table (`Setup stopped at:`), the
 nameserver stop, pass 2 only after approval. Relay hands-on steps (browser
 approval, verification link) at once. Then verify gates 3–9 per
-`references/verification.md`. Finish Gmail alias confirmation and independent inbound/outbound delivery for **every
-requested alias**; a CLI exit or a send queue is not proof.
+`references/verification.md`. Finish an independent inbound delivery test for
+**every requested alias**; when sending was requested, also Gmail alias
+confirmation and an outbound test per alias. A CLI exit or a send queue is not proof.
 
 ## Completion report
 
@@ -178,7 +186,8 @@ Repair / recheck: <specific action and exact check, or none>
 ```
 
 At exit, put the main outcome first: COMPLETE only if all nine gates are VERIFIED,
-including every alias's two delivery tests; otherwise PARTIAL or BLOCKED naming the
+including every alias's inbound test (and outbound test when sending was
+requested); otherwise PARTIAL or BLOCKED naming the
 earliest incomplete gate. Include Evidence, Uncertainty, Decision (approval needed,
 or “No approval needed.”) and the next action. List what you ran; never claim an
 unrun command ran. A short text report suffices; no dashboard.

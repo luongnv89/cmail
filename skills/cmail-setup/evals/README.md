@@ -221,3 +221,16 @@ site, pages and checklist tests pass unchanged. `quick_validate.py` valid.
 words. Skill-standard Gate 2 remains a BLOCKER on license only. No live setup,
 provider call or mail send was run; agent adherence and human understanding
 remain unmeasured.
+
+## Skill 2.1.0 — receive-only by default
+
+`cmail setup` now ends after the forwarding rules with a `Receiving is set up`
+summary and exit 0; it no longer runs the Gmail guide or waits for Enter. Sending
+moved to the optional `cmail send-as` command. The skill sets up receiving to any
+inbox the user owns and adds Gmail send-as, App Passwords and outbound tests to
+Gate 9 only when the user asks to send. Pass 2 pipes `printf 'y\n'` (the
+nameserver confirmation is the only remaining prompt). The `Send FROM` recovery
+step was removed from the CLI; the skill still classifies a `Send FROM` pause as
+success for older runtimes (such as the installer's pinned v0.1.0) that lack
+`send-as`. Eval ids 15, 17 and 18 were updated; id 17 now covers a
+receive-only request. These are scenario cases, not measured behavioral runs.

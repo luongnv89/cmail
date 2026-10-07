@@ -28,12 +28,14 @@ then rerun the original check (usually setup pass 1, which skips finished work).
 | `GoDaddy: point` (write failed or uncertain) | **auto:** filtered `gddy domain get`; compare with the desired set before any retry | Fresh nameserver comparison |
 | `Waiting for zone activation` | `zone still` after `nameservers set`: PENDING, wait and rerun pass 1 later. No `nameservers set` line: check DRY_RUN and registrar nameservers. `needs attention`: stop with the zone status | Zone `active` in `status` |
 | `Enable Cloudflare Email Routing` | Permission → hands-on token edit; DNS conflict → stop with a migration plan; never delete records | Routing ready and Cloudflare MX |
-| `Destination address:` | Hands-on: user clicks or resends the link in the correct Gmail; keep the pending entry | `status` shows `verified=<timestamp>` |
+| `Destination address:` | Hands-on: user clicks or resends the link in the correct destination mailbox; keep the pending entry | `status` shows `verified=<timestamp>` |
 | `Forwarding addresses` | Stop: show the conflicting rule; correct only the intended rule after approval | Every alias `[true]` to DEST_EMAIL |
-| `Send FROM` + `paused without input` | Not a failure: every API stage passed | Gates 3–8 checks, then Gate 9 |
-| Gmail App Password unavailable | Respect policy/Advanced Protection; no bypass | Gate 9 stays BLOCKED |
-| Confirmation or inbound missing | **auto:** recheck gates 5–8 with `status` and `dig`; resend is hands-on | Confirmed alias, inbound arrival |
-| Outbound rejected/not delivered | Hands-on: smtp.gmail.com, 587/TLS, full username, current App Password; recipient Spam | Recipient arrival with exact From |
+| Inbound missing | **auto:** recheck gates 5–8 with `status` and `dig`; the resend is hands-on | Inbound arrival |
+| `cmail send-as` (sending requested) ends with `paused without input` | Not a failure: the guide printed; relay its steps | Gate 9 sending checks |
+| `Send FROM` + `paused without input` (older runtime without `send-as`) | Not a failure: every receiving stage passed; Gmail steps apply only when sending was requested | Gates 3–8 checks, then Gate 9 |
+| Gmail App Password unavailable (sending requested) | Respect policy/Advanced Protection; no bypass; receiving is unaffected | Gate 9 sending stays BLOCKED |
+| Gmail confirmation missing (sending requested) | **auto:** recheck gates 5–8 with `status` and `dig`; resend is hands-on | Confirmed alias |
+| Outbound rejected/not delivered (sending requested) | Hands-on: smtp.gmail.com, 587/TLS, full username, current App Password; recipient Spam | Recipient arrival with exact From |
 
 HTTP 401/403 is not propagation. HTTP 429 requires waiting before rechecking; 5xx
 or transport errors are unknown service outcomes, not invalid credentials. For
@@ -48,4 +50,5 @@ After three targeted unsuccessful repairs, report BLOCKED with the evidence,
 what remains unknown, the exact next check and any administrator/support action.
 For delayed DNS report PENDING without dependent routing/DNS writes. Resume at the
 failed gate after revalidating changed prerequisites. Never say “setup complete”
-while Gmail confirmation or either delivery direction is unverified.
+while inbound delivery is unverified, or, when sending was requested, while Gmail
+confirmation or outbound delivery is unverified.

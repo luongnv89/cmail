@@ -262,9 +262,11 @@ cf_dest_ensure() { # $1 = zone_id — waits for user to click verification email
   fi
   verified=$(jq -r '.verified // empty' <<<"$destination")
   if [ -z "$verified" ]; then
-    note "Sign into $DEST_EMAIL in Gmail and check Inbox and Spam for Cloudflare's verification link."
+    note "Sign into the $DEST_EMAIL mailbox and check Inbox and Spam for Cloudflare's verification link."
     note "Missing or expired link? Open Cloudflare > ${DOMAIN:-your domain} > Email > Email Routing > Destination addresses and resend verification."
-    open_url "https://mail.google.com/"
+    case "$DEST_EMAIL" in
+      *@gmail.com|*@googlemail.com) open_url "https://mail.google.com/" ;;
+    esac
     for _ in $(seq 1 40); do
       sleep 15
       destinations=$(cf_addresses_list "$account") || return 1
@@ -272,7 +274,7 @@ cf_dest_ensure() { # $1 = zone_id — waits for user to click verification email
       [ -n "$verified" ] && break
       printf '  still unverified — waiting (click the email link)…\n'
     done
-    [ -n "$verified" ] || die "$DEST_EMAIL not verified after about 10 minutes — check Inbox/Spam in the correct Gmail account, resend an expired/missing link from Cloudflare Email Routing > Destination addresses, then rerun ./cmail setup after clicking it. The pending destination is kept"
+    [ -n "$verified" ] || die "$DEST_EMAIL not verified after about 10 minutes — check Inbox/Spam in the correct mailbox, resend an expired/missing link from Cloudflare Email Routing > Destination addresses, then rerun ./cmail setup after clicking it. The pending destination is kept"
   fi
   ok "$DEST_EMAIL verified"
 }
