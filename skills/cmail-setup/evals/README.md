@@ -56,6 +56,20 @@ tests against the original checker were red, and against the repaired checker
 green. License selection and behavioral/human-output certification remain
 outstanding; no independent agent adherence benchmark is claimed.
 
+## Maintainer evaluation procedure
+
+Use `evals/evals.json` for offline scenario evaluations. Never use real credentials,
+provider writes or mail sends for evaluation. Run the config/contract tests with
+`python3 tests/skill_setup_test.py` from the source repository; they do not prove
+live setup or agent adherence. Keep behavioral evals and human-understanding review
+separate from these tests. Grade actual outputs for main result findability,
+fact/assumption separation, claim-to-evidence traceability and clear next decision.
+Ask human reviewers the same four questions; absent feedback means understanding
+is unconfirmed, not passed. Provider steps need user interaction and cannot be
+safely delegated away from that consent/evidence boundary. All references and
+scripts travel with this directory;
+no other skill or future documentation issue is required.
+
 ## Instruction and predictability audit
 
 Frontmatter name/directory, quoted values, semver/author, negative triggers and
@@ -116,3 +130,25 @@ user setup; no publication is performed.
 
 No user installation, provider access, domain purchase, DNS write, browser alias
 confirmation, SMTP authentication or actual send/receive delivery was executed.
+
+## Skill 1.1.0 — context discovery (issue #11)
+
+The skill now opens with read-only discovery (`references/discovery.md`) instead of
+asking about setup mode, OS/terminal/browser access or installation status. Mode
+is inferred from request cues; an unnamed failed gate is found by rerunning
+read-only checks in gate order. Undetectable facts, including browser access, stay
+`unknown` and are asked only at the gate that needs them. Discovery never executes
+a found cmail, reads `.env`, calls providers or changes state.
+
+Three prompts were added (ids 12–14: bare setup request, vague breakage, advice-only
+without a shell tool); they are scenario cases, not measured behavioral runs. Two
+offline contract methods were added: discovery precedes mode/gates and the removed
+opening questions stay absent, and the `.agents/skills/cmail-setup` discovery copy
+stays byte-identical to `skills/cmail-setup`. Both were red before the change.
+
+To keep `SKILL.md` under the context-efficiency budget, the probe table and context
+block live in `references/discovery.md`, the maintainer procedure moved into this
+file, and two edge-case bullets duplicated by the safety contract and advice-only
+mode were folded in. `asm eval --json` measured 87 before and after (license 0,
+all other categories at least 8; body 1,499 words). Skill-standard Gate 2 remains a
+BLOCKER on license only; human understanding of the new opening remains unconfirmed.

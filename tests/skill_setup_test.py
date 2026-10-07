@@ -251,6 +251,36 @@ class SkillContractTests(unittest.TestCase):
                      "API success", "Dashboard login/visibility", "BLOCKED", "Read access does not prove write"):
             self.assertIn(text, gate)
 
+    def test_context_discovery_replaces_opening_questions(self):
+        body = (SKILL / "SKILL.md").read_text()
+        discovery = body.index("## Discover context first")
+        self.assertLess(discovery, body.index("## Select the mode"))
+        self.assertLess(discovery, body.index("## Gate 1"))
+        section = body[discovery:body.index("## Safety and gate contract")].replace("**", "")
+        for rule in ("references/discovery.md", "never executes a found `cmail`",
+                     "never reads or sources `.env`", "`unknown`", "browser access",
+                     "do not ask for it", "current gate", "earliest unverified gate"):
+            self.assertIn(rule, section.replace("\n", " "))
+        probes = (SKILL / "references/discovery.md").read_text()
+        for text in ("uname -s", "git rev-parse --show-toplevel", "command -v cmail",
+                     "type -t cmail", "~/.config/cmail/.env", "command -v bash curl jq gddy",
+                     "Browser access: unknown", "contents not read", "Forbidden during discovery"):
+            self.assertIn(text, probes)
+        for prompt in ("Ask OS", "ask which gate failed", "To start, please tell me"):
+            self.assertNotIn(prompt, body)
+        recovery = (SKILL / "references/troubleshooting.md").read_text()
+        self.assertIn("do not open by asking which step failed", recovery)
+
+    def test_agent_discovery_copy_matches_source(self):
+        mirror = ROOT / ".agents/skills/cmail-setup"
+        source_files = sorted(p.relative_to(SKILL) for p in SKILL.rglob("*")
+                              if p.is_file() and "__pycache__" not in p.parts)
+        mirror_files = sorted(p.relative_to(mirror) for p in mirror.rglob("*")
+                              if p.is_file() and "__pycache__" not in p.parts)
+        self.assertEqual(source_files, mirror_files)
+        for rel in source_files:
+            self.assertEqual((SKILL / rel).read_bytes(), (mirror / rel).read_bytes(), str(rel))
+
     def test_eval_floor_and_process_assertions(self):
         suite = json.loads((SKILL / "evals/evals.json").read_text())
         self.assertEqual(suite["skill_name"], "cmail-setup")

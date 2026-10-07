@@ -13,7 +13,8 @@ Author: Luong NGUYEN <luongnv89@gmail.com>
 
 ## Highlights
 
-- Detect installed/source cmail and guide the reviewed one-command installer.
+- Auto-detect OS, installed/source cmail, config presence and tools before asking
+  anything; undetectable facts stay unknown. Guide the reviewed one-command installer.
 - Separate file readiness, provider access and delivered email evidence.
 - Keep credentials in your local browser/editor, never in chat.
 - Stop at failed gates, repair one cause, and repeat the original check.
@@ -30,7 +31,7 @@ Author: Luong NGUYEN <luongnv89@gmail.com>
 
 ```mermaid
 graph TD
-    A[Discover CLI and tools] --> B[Private config and local credentials]
+    A[Auto-discover context, CLI and tools] --> B[Private config and local credentials]
     B --> C[Verify domain and provider access]
     C --> D[Consent and verify DNS / routing]
     D --> E[Confirm Gmail and test both directions]
@@ -67,11 +68,12 @@ config checker; local manual checks are documented as a fallback.
 
 | Path | Description |
 |---|---|
+| `references/discovery.md` | Read-only context probes and the context block printed before any question. |
 | `references/verification.md` | Nine gates with prerequisites, action, evidence, failure and recheck. |
 | `references/configuration.md` | Non-secret inputs, browser-local credential acquisition and private config. |
 | `references/troubleshooting.md` | Targeted recovery without blind retries. |
 | `scripts/check_config.py` | Offline literal-assignment/privacy checker; never sources config. |
-| `evals/evals.json` | Eleven realistic/adversarial prompts including a negative trigger. |
+| `evals/evals.json` | Fourteen realistic/adversarial prompts including a negative trigger. |
 
 ## Output
 

@@ -1,7 +1,9 @@
 # Recover without guessing
 
-Start with the earliest failed gate and ask for the sanitized step name, exit/HTTP
-status and observation time. Do not request full terminal logs, `.env`, auth status
+Start with the earliest failed gate. Use the gate the user named, or find it by
+rerunning read-only checks in gate order; do not open by asking which step failed.
+For a user-local check, ask only for its sanitized step name, exit/HTTP status and
+observation time. Do not request full terminal logs, `.env`, auth status
 payloads, headers, confirmation codes, screenshots or password/token values.
 
 | Observation | Targeted repair | Original check to repeat |
