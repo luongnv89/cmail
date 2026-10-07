@@ -99,8 +99,11 @@ chmod 700 "$candidate"
 "$BASH" -n "$candidate"
 "$BASH" "$candidate" help >/dev/null || fail 'launcher verification failed'
 check_launcher
-mv -f "$candidate" "$launcher"
+# Retain the validated runtime before publication: a signal just after rename
+# must not make EXIT cleanup delete the runtime the active launcher uses.
+# A failed rename may leave one unused validated runtime, which is harmless.
 activated=1
+mv -f "$candidate" "$launcher" || fail 'launcher activation failed (previous installation unchanged)'
 candidate=''
 printf 'Installed cmail runtime %s\nLauncher: %s\nConfig: %s/.env\n' "$ref" "$launcher" "$config_dir"
 # Print a command for the user's shell without expanding this process's PATH.

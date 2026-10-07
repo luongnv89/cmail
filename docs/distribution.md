@@ -18,8 +18,9 @@ from the upstream repository at an immutable commit, stages them privately,
 checks Bash syntax and offline help, then replaces a generated launcher by a
 same-directory rename. It does not extract archives. Previous installed
 runtimes remain available on disk; a failed download/validation never changes
-the active launcher. A local lock rejects concurrent installs into the same
-runtime store. Different runtime stores must not share a launcher destination.
+the active launcher. A late activation failure may retain an unused validated
+runtime; retaining it also prevents signal cleanup from deleting a newly active
+runtime. A local lock rejects concurrent installs into the same runtime store. Different runtime stores must not share a launcher destination.
 
 The default runtime commit is `eb45f9558ecc5874e6a21d6f1b93fe1379f46841`
 (the existing v0.1.0 source tree). Installation requires Bash 3.2+, curl and

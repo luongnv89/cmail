@@ -6,7 +6,9 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home" CMAIL_BIN_DIR="$TMP/bin space '\$;" \
   CMAIL_DATA_DIR="$TMP/data space '\$;" CMAIL_CONFIG_DIR="$TMP/config space '\$;"
-export FIXTURE="$TMP/fixture" CURL_LOG="$TMP/curl.log" FAIL_FILE='' MODE=''
+export FIXTURE="$TMP/fixture" CURL_LOG="$TMP/curl.log" FAIL_FILE='' MODE='' FAIL_SWITCH=0
+REAL_MV="$(command -v mv)"
+export REAL_MV
 mkdir -p "$TMP/mock" "$FIXTURE/lib" "$HOME"
 cp "$ROOT/cmail" "$ROOT/VERSION" "$ROOT/.env.example" "$FIXTURE/"
 cp "$ROOT"/lib/*.sh "$FIXTURE/lib/"
@@ -30,7 +32,15 @@ if [ "${MODE:-}" = empty ] && [ "$file" = VERSION ]; then : > "$output"; fi
 if [ "${MODE:-}" = syntax ] && [ "$file" = lib/env.sh ]; then printf '\nif\n' >> "$output"; fi
 if [ "${MODE:-}" = smoke ] && [ "$file" = cmail ]; then printf '\nexit 42\n' > "$output"; fi
 MOCK
-chmod +x "$TMP/mock/curl"
+cat > "$TMP/mock/mv" <<'MOCK'
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "${FAIL_SWITCH:-0}" = 1 ]; then exit 1; fi
+"$REAL_MV" "$@"
+# Simulate interruption immediately after publication but before success output.
+if [ "${FAIL_SWITCH:-0}" = signal ]; then kill -TERM "$PPID"; fi
+MOCK
+chmod +x "$TMP/mock/curl" "$TMP/mock/mv"
 export PATH="$TMP/mock:$PATH"
 passed=0
 pass() { passed=$((passed + 1)); printf 'ok %s - %s\n' "$passed" "$1"; }
@@ -79,7 +89,23 @@ for mode in empty syntax smoke; do
   cmp "$CMAIL_BIN_DIR/cmail" "$TMP/old-launcher" || fail 'validation failure broke installation'
 done
 export MODE=''
-printf 'touch %q\n' "$TMP/config-loaded" > "$TMP/override-config"
+export FAIL_SWITCH=1
+expect_failure 'late launcher rename failure' 'launcher activation failed'
+cmp "$CMAIL_BIN_DIR/cmail" "$TMP/old-launcher" || fail 'late failure replaced launcher'
+"$CMAIL_BIN_DIR/cmail" help >/dev/null
+cmp "$CMAIL_CONFIG_DIR/.env" "$TMP/saved-config" || fail 'late failure changed config'
+[ ! -e "$CMAIL_DATA_DIR/.install-lock" ] || fail 'late failure leaked lock'
+pass 'late activation failure preserves runnable installation and config'
+export FAIL_SWITCH=signal
+if install; then fail 'simulated signal should stop installer'; fi
+"$CMAIL_BIN_DIR/cmail" help >/dev/null || fail 'signal deleted active runtime'
+[ ! -e "$CMAIL_DATA_DIR/.install-lock" ] || fail 'signal leaked lock'
+pass 'interruption after rename retains active runtime'
+export FAIL_SWITCH=0
+printf 'touch %q\nexit 42\n' "$TMP/config-loaded" > "$TMP/override-config"
+ENV_FILE="$TMP/override-config" install
+[ ! -e "$TMP/config-loaded" ] || fail 'installer evaluated inherited config'
+pass 'installer validation never evaluates inherited ENV_FILE'
 ENV_FILE="$TMP/override-config" "$CMAIL_BIN_DIR/cmail" help >/dev/null
 [ ! -e "$TMP/config-loaded" ] || fail 'help sourced config'
 pass 'help never evaluates user config'
