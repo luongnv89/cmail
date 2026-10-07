@@ -16,6 +16,14 @@ PUBLIC = ("DOMAIN", "DEST_EMAIL", "ADDRESSES", "GDDY_ENV", "CF_ACCOUNT_ID", "CF_
 ALLOWED = set(REQUIRED) | set(SECRETS) | set(PUBLIC)
 DOMAIN = re.compile(r"(?=.{1,253}\Z)(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}\Z")
 LOCAL = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,63}\Z")
+# Keys whose format check alone admits an arbitrary opaque string, so --summary
+# must also screen the value for a token shape before echoing it. Addresses are
+# any comma-separated local parts, so a misplaced credential can pass is_addresses.
+PERMISSIVE = ("ADDRESSES",)
+# An unbroken run of token-alphabet characters this long is treated as a possible
+# credential (e.g. a 40-character Cloudflare token) rather than an alias. Real
+# cmail local parts are short, so --summary shows <invalid> instead of echoing it.
+TOKEN_LIKE = re.compile(r"[A-Za-z0-9_+-]{32,}")
 
 
 class ConfigError(ValueError):
@@ -150,6 +158,8 @@ def summary(path):
             lines.append(f"{key} absent")
         elif values[key] and not FIELDS[key][0](values[key]):
             lines.append(f"{key}=<invalid>")  # never echo a misplaced secret
+        elif key in PERMISSIVE and TOKEN_LIKE.search(values[key]):
+            lines.append(f"{key}=<invalid>")  # format admits opaque tokens; never echo one
         else:
             lines.append(f"{key}={values[key]}")
     for key in SECRETS:

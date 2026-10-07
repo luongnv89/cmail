@@ -225,6 +225,21 @@ class HelperTests(unittest.TestCase):
             self.assertIn("CF_ACCOUNT_ID=<invalid>", result.stdout)
             self.assertNotIn("SYNTHETIC_tok_123", result.stdout + result.stderr)
 
+    def test_summary_hides_token_like_addresses(self):
+        # A misplaced credential can satisfy the permissive ADDRESSES format, so
+        # --summary must show <invalid> rather than echo the token-shaped value.
+        token = "testtoken" * 4  # low-entropy placeholder, 36 chars, token shape
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.private(tmp, FIXTURE.replace("ADDRESSES=hello,contact", f"ADDRESSES={token}"))
+            result = self.run_script(SCRIPT, "--summary", path)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("ADDRESSES=<invalid>", result.stdout)
+            self.assertIn("READY:", result.stdout)
+            self.assertNotIn(token, result.stdout + result.stderr)
+            # Ordinary short aliases are still echoed.
+            normal = self.private(tmp, FIXTURE, "normal.env")
+            self.assertIn("ADDRESSES=hello,contact", self.run_script(SCRIPT, "--summary", normal).stdout)
+
     def test_smart_quotes_and_non_ascii_rejected(self):
         for raw in ("\u2019abc\u2019", "caf\u00e9"):
             with tempfile.TemporaryDirectory() as tmp:
