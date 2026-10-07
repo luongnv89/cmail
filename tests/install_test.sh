@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# Offline installer regressions: every download is served from local fixtures.
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+export HOME="$TMP/home" CMAIL_BIN_DIR="$TMP/bin space '\$;" \
+  CMAIL_DATA_DIR="$TMP/data space '\$;" CMAIL_CONFIG_DIR="$TMP/config space '\$;"
+export FIXTURE="$TMP/fixture" CURL_LOG="$TMP/curl.log" FAIL_FILE='' MODE=''
+mkdir -p "$TMP/mock" "$FIXTURE/lib" "$HOME"
+cp "$ROOT/cmail" "$ROOT/VERSION" "$ROOT/.env.example" "$FIXTURE/"
+cp "$ROOT"/lib/*.sh "$FIXTURE/lib/"
+cat > "$TMP/mock/curl" <<'MOCK'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$CURL_LOG"
+url='' output=''
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -o) output="$2"; shift 2 ;;
+    https://*) url="$1"; shift ;;
+    *) shift ;;
+  esac
+done
+file="${url#https://raw.githubusercontent.com/luongnv89/cmail/}"
+file="${file#*/}"
+[ "$file" != "${FAIL_FILE:-}" ] || exit 22
+cp "$FIXTURE/$file" "$output"
+if [ "${MODE:-}" = empty ] && [ "$file" = VERSION ]; then : > "$output"; fi
+if [ "${MODE:-}" = syntax ] && [ "$file" = lib/env.sh ]; then printf '\nif\n' >> "$output"; fi
+if [ "${MODE:-}" = smoke ] && [ "$file" = cmail ]; then printf '\nexit 42\n' > "$output"; fi
+MOCK
+chmod +x "$TMP/mock/curl"
+export PATH="$TMP/mock:$PATH"
+passed=0
+pass() { passed=$((passed + 1)); printf 'ok %s - %s\n' "$passed" "$1"; }
+fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
+install() { "$BASH" "$ROOT/install.sh" > "$TMP/output" 2> "$TMP/error"; }
+expect_failure() {
+  if install; then fail "$1 unexpectedly succeeded"; fi
+  grep -q "$2" "$TMP/error" || fail "$1 wrong diagnostic"
+  pass "$1"
+}
+install || { printf 'fresh install failed: %s\n' "$(< "$TMP/error")" >&2; exit 1; }
+[ -x "$CMAIL_BIN_DIR/cmail" ] || fail 'no executable launcher'
+"$CMAIL_BIN_DIR/cmail" help > "$TMP/help"
+grep -q 'custom-domain email' "$TMP/help" || fail 'installed help'
+[ ! -e "$CMAIL_CONFIG_DIR/.env" ] || fail 'install created config'
+pass 'fresh install is runnable with shell-metacharacter paths and no setup'
+[ "$(wc -l < "$CURL_LOG" | tr -d ' ')" = 9 ] || fail 'incomplete runtime download'
+grep -q -- '--proto =https --proto-redir =https' "$CURL_LOG" || fail 'unsafe transport'
+grep -q 'eb45f9558ecc5874e6a21d6f1b93fe1379f46841' "$CURL_LOG" || fail 'unpinned source'
+pass 'complete nine-file runtime from pinned HTTPS source'
+[ "$(stat -f %Lp "$CMAIL_CONFIG_DIR" 2>/dev/null || stat -c %a "$CMAIL_CONFIG_DIR")" = 700 ] || fail 'config directory not private'
+pass 'new config directory is private'
+printf 'DOMAIN=example.com\n' > "$CMAIL_CONFIG_DIR/.env"
+cp "$CMAIL_CONFIG_DIR/.env" "$TMP/saved-config"
+install
+cmp "$CMAIL_CONFIG_DIR/.env" "$TMP/saved-config" || fail 'reinstall replaced config'
+pass 'reinstall preserves external configuration'
+cp "$CMAIL_BIN_DIR/cmail" "$TMP/old-launcher"
+export CMAIL_REF=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+install
+cmp -s "$CMAIL_BIN_DIR/cmail" "$TMP/old-launcher" && fail 'upgrade did not switch runtime'
+cmp "$CMAIL_CONFIG_DIR/.env" "$TMP/saved-config" || fail 'upgrade changed config'
+pass 'explicit pinned upgrade switches runtime and preserves config'
+cp "$CMAIL_BIN_DIR/cmail" "$TMP/old-launcher"
+for failure in cmail lib/ui.sh lib/env.sh lib/deps.sh lib/godaddy.sh lib/cloudflare.sh lib/gmail.sh VERSION .env.example; do
+  export FAIL_FILE="$failure"
+  expect_failure "failed download $failure" 'download failed'
+  cmp "$CMAIL_BIN_DIR/cmail" "$TMP/old-launcher" || fail 'download failure broke active launcher'
+  "$CMAIL_BIN_DIR/cmail" help >/dev/null
+  [ ! -e "$CMAIL_DATA_DIR/.install-lock" ] || fail 'lock leaked'
+done
+export FAIL_FILE=''
+for mode in empty syntax smoke; do
+  export MODE="$mode"
+  expect_failure "$mode validation failure" 'empty download\|invalid script\|runtime help verification failed'
+  cmp "$CMAIL_BIN_DIR/cmail" "$TMP/old-launcher" || fail 'validation failure broke installation'
+done
+export MODE=''
+printf 'touch %q\n' "$TMP/config-loaded" > "$TMP/override-config"
+ENV_FILE="$TMP/override-config" "$CMAIL_BIN_DIR/cmail" help >/dev/null
+[ ! -e "$TMP/config-loaded" ] || fail 'help sourced config'
+pass 'help never evaluates user config'
+printf 'DOMAIN=override.example\n' > "$TMP/override-config"
+if ENV_FILE="$TMP/override-config" "$CMAIL_BIN_DIR/cmail" status > "$TMP/status" 2>&1; then fail 'status should lack token'; fi
+[ "$(stat -f %Lp "$TMP/override-config" 2>/dev/null || stat -c %a "$TMP/override-config")" = 600 ] || fail 'override not used by env_init'
+cmp "$CMAIL_CONFIG_DIR/.env" "$TMP/saved-config" || fail 'explicit override ignored'
+pass 'launcher respects explicit ENV_FILE override'
+export CMAIL_REF=main
+expect_failure 'reject moving ref' 'full lowercase commit SHA'
+export CMAIL_REF=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+mkdir "$CMAIL_DATA_DIR/.install-lock"
+expect_failure 'concurrent install rejected' 'already locked'
+rmdir "$CMAIL_DATA_DIR/.install-lock"
+mv "$CMAIL_BIN_DIR/cmail" "$TMP/managed-launcher"
+printf '%s\n' 'unrelated executable' > "$CMAIL_BIN_DIR/cmail"
+expect_failure 'unmanaged launcher preserved' 'unmanaged launcher'
+grep -q unrelated "$CMAIL_BIN_DIR/cmail" || fail 'clobbered conflict'
+rm "$CMAIL_BIN_DIR/cmail"
+ln -s "$TMP/managed-launcher" "$CMAIL_BIN_DIR/cmail"
+expect_failure 'symlink launcher rejected' 'symlink launcher'
+rm "$CMAIL_BIN_DIR/cmail"
+mv "$TMP/managed-launcher" "$CMAIL_BIN_DIR/cmail"
+original_data="$CMAIL_DATA_DIR"
+export CMAIL_DATA_DIR="$TMP/unmanaged"
+mkdir "$CMAIL_DATA_DIR"
+expect_failure 'unmanaged runtime rejected' 'unmanaged runtime'
+printf '%s\n' wrong > "$CMAIL_DATA_DIR/.cmail-install"
+expect_failure 'malformed runtime marker rejected' 'invalid runtime marker'
+export CMAIL_DATA_DIR="$TMP/data-link"
+ln -s "$original_data" "$CMAIL_DATA_DIR"
+expect_failure 'symlink runtime rejected' 'symlink directory'
+export CMAIL_DATA_DIR="$original_data" CMAIL_BIN_DIR=relative
+expect_failure 'relative directory rejected' 'absolute paths'
+printf '%s\n' "$passed installer cases passed (offline)"
