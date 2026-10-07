@@ -36,7 +36,13 @@ check_launcher() {
       || fail "unmanaged launcher: $launcher"
   fi
 }
+check_config() {
+  [ ! -L "$config_dir/.env" ] || fail 'refusing symlink configuration'
+  [ ! -e "$config_dir/.env" ] || [ -f "$config_dir/.env" ] \
+    || fail "configuration is not a regular file: $config_dir/.env"
+}
 check_launcher
+check_config
 for tool in curl mktemp; do
   command -v "$tool" >/dev/null || fail "required tool missing: $tool"
 done
@@ -83,7 +89,7 @@ ENV_FILE="$stage/unused-config" "$BASH" "$stage/cmail" help > "$stage/help.txt" 
 grep -q 'cmail.*custom-domain email' "$stage/help.txt" || fail 'unexpected runtime help'
 printf '%s\n' "$ref" > "$stage/COMMIT"
 mkdir -p "$bin_dir" "$config_dir"
-[ ! -L "$config_dir/.env" ] || fail 'refusing symlink configuration'
+check_config
 # No credentials or template are copied into existing configuration.
 # env_init will create the file on the first explicit setup/status/doctor call.
 candidate=$(mktemp "$bin_dir/.cmail-launcher.XXXXXXXX")

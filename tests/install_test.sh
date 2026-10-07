@@ -114,6 +114,35 @@ if ENV_FILE="$TMP/override-config" "$CMAIL_BIN_DIR/cmail" status > "$TMP/status"
 [ "$(stat -f %Lp "$TMP/override-config" 2>/dev/null || stat -c %a "$TMP/override-config")" = 600 ] || fail 'override not used by env_init'
 cmp "$CMAIL_CONFIG_DIR/.env" "$TMP/saved-config" || fail 'explicit override ignored'
 pass 'launcher respects explicit ENV_FILE override'
+cp "$CMAIL_BIN_DIR/cmail" "$TMP/old-launcher"
+cp "$CURL_LOG" "$TMP/saved-curl-log"
+mv "$CMAIL_CONFIG_DIR/.env" "$TMP/regular-config"
+mkdir "$CMAIL_CONFIG_DIR/.env"
+printf '%s\n' preserved > "$CMAIL_CONFIG_DIR/.env/sentinel"
+chmod 755 "$CMAIL_CONFIG_DIR/.env"
+expect_failure 'directory configuration rejected before installation' 'configuration is not a regular file'
+[ "$(stat -f %Lp "$CMAIL_CONFIG_DIR/.env" 2>/dev/null || stat -c %a "$CMAIL_CONFIG_DIR/.env")" = 755 ] || fail 'changed config directory mode'
+[ ! -e "$CMAIL_CONFIG_DIR/.env/.env.example" ] || fail 'copied template into config directory'
+grep -q '^preserved$' "$CMAIL_CONFIG_DIR/.env/sentinel" || fail 'changed directory configuration'
+rm "$CMAIL_CONFIG_DIR/.env/sentinel"
+rmdir "$CMAIL_CONFIG_DIR/.env"
+mkfifo "$CMAIL_CONFIG_DIR/.env"
+chmod 640 "$CMAIL_CONFIG_DIR/.env"
+expect_failure 'FIFO configuration rejected without opening it' 'configuration is not a regular file'
+[ -p "$CMAIL_CONFIG_DIR/.env" ] || fail 'replaced config FIFO'
+[ "$(stat -f %Lp "$CMAIL_CONFIG_DIR/.env" 2>/dev/null || stat -c %a "$CMAIL_CONFIG_DIR/.env")" = 640 ] || fail 'changed config FIFO mode'
+rm "$CMAIL_CONFIG_DIR/.env"
+ln -s "$TMP/regular-config" "$CMAIL_CONFIG_DIR/.env"
+expect_failure 'symlink configuration rejected before installation' 'symlink configuration'
+[ -L "$CMAIL_CONFIG_DIR/.env" ] || fail 'replaced config symlink'
+cmp "$TMP/regular-config" "$TMP/saved-config" || fail 'changed config symlink target'
+rm "$CMAIL_CONFIG_DIR/.env"
+mv "$TMP/regular-config" "$CMAIL_CONFIG_DIR/.env"
+cmp "$CURL_LOG" "$TMP/saved-curl-log" || fail 'config preflight performed downloads'
+cmp "$CMAIL_BIN_DIR/cmail" "$TMP/old-launcher" || fail 'config conflict replaced launcher'
+"$CMAIL_BIN_DIR/cmail" help >/dev/null
+[ ! -e "$CMAIL_DATA_DIR/.install-lock" ] || fail 'config conflict leaked lock'
+pass 'configuration conflicts preserve installation and perform no downloads'
 export CMAIL_REF=main
 expect_failure 'reject moving ref' 'full lowercase commit SHA'
 export CMAIL_REF=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
