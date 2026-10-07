@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add a portable cmail-setup agent skill with fail-closed verification gates,
+  local-only credential guidance, consented staged provider setup and targeted
+  failure/recheck instructions. Include a non-executing private config checker,
+  offline tests and realistic evaluation cases; no live setup or skill publication.
+
 - Add a user-local one-command installer for the complete pinned runtime with a
   generated launcher, private external config, staged validation and offline
   installer regressions. Installation does not run setup/doctor or provider calls.

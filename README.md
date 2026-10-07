@@ -104,6 +104,26 @@ The script walks you through each step. Authentication is browser-based
 Re-runnable and idempotent — state lives in `.env`, existing resources
 are detected and skipped.
 
+## Agent-assisted verified setup
+
+The portable [cmail-setup skill](skills/cmail-setup/SKILL.md) guides installation,
+dependency checks, private configuration, provider access and troubleshooting.
+Copy the whole directory into your agent's skill location; see its
+[installation and usage guide](skills/cmail-setup/docs/README.md). The runtime
+installer does not install agent skills, and no tagged skill release is claimed.
+
+Ask “Use cmail-setup to help me set up custom email” or `/cmail-setup` in an
+agent supporting slash skills. It verifies each gate before advancing, explains
+failed checks and rechecks after repair. Credentials stay in your local browser/
+editor, never chat. DNS changes and purchases require specific consent. Gmail
+confirmation and independent inbound/outbound delivery are separate manual gates.
+The monolithic `cmail setup` command cannot enforce all these external gates;
+the skill guides staged dashboard actions instead of blindly running it.
+
+An optional Python 3 checker validates private literal config without sourcing or
+printing it. Offline tests/evaluation cases do not prove a real user's setup,
+provider access or delivery. Redistribution licensing remains a maintainer decision.
+
 ## Commands
 
 | Command | Description |
@@ -234,6 +254,7 @@ bash tests/cloudflare_rules_test.sh
 bash tests/cloudflare_setup_test.sh
 bash tests/workflow_guidance_test.sh
 bash tests/install_test.sh
+python3 tests/skill_setup_test.py   # optional skill/config suite; needs Python 3
 ```
 
 GoDaddy, Cloudflare and installer downloads are mocked; the tests do not change
