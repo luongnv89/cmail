@@ -12,7 +12,7 @@ installer, the installation entry point is one command:
 bash install.sh
 ```
 
-See [README installation](../README.md#installation) for verification, paths,
+See [README installation](https://github.com/luongnv89/cmail/blob/main/README.md#installation) for verification, paths,
 configuration and upgrades. The installer downloads exactly nine runtime files
 from the upstream repository at an immutable commit, stages them privately,
 checks Bash syntax and offline help, then replaces a generated launcher by a

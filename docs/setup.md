@@ -1,6 +1,6 @@
 # cmail: first-time setup
 
-[Introduction](index.html) · [Interactive checklist](setup.html) · [Runtime README](../README.md) · [Agent skill](../skills/cmail-setup/SKILL.md)
+[Introduction](index.html) · [Interactive checklist](setup.html) · [Runtime README](https://github.com/luongnv89/cmail/blob/main/README.md) · [Agent skill](https://github.com/luongnv89/cmail/blob/main/skills/cmail-setup/SKILL.md)
 
 This sequence is Cloudflare incoming forwarding plus manual Gmail send-as, not
 mailbox hosting or Google Workspace provisioning. The HTML guide has enabled,
@@ -187,7 +187,7 @@ never prints/sources values and checks user ownership, regular/non-symlink mode
 600 file, known fields and conservative LF-only literal grammar. With no Python,
 review these properties locally, do not claim checker PASS. In source checkout,
 `git check-ignore .env` must pass and `git ls-files --error-unmatch .env` must fail.
-Never commit config; rotate leaks. [Exact contract](../skills/cmail-setup/references/configuration.md).
+Never commit config; rotate leaks. [Exact contract](https://github.com/luongnv89/cmail/blob/main/skills/cmail-setup/references/configuration.md).
 
 ### 8. Actual-token resource access
 
@@ -198,7 +198,7 @@ GET `/user/tokens/verify`, `/zones/<zone-id>` and
 `/accounts/<owning-account-id>/email/routing/addresses` under
 `https://api.cloudflare.com/client/v4`. Protected local token input only, no shell
 history, captured tools or shared headers/full responses. Follow
-[the skill’s gate 4](../skills/cmail-setup/references/verification.md#gate-4--cloudflare-token-account-and-zone).
+[the skill’s gate 4](https://github.com/luongnv89/cmail/blob/main/skills/cmail-setup/references/verification.md#gate-4--cloudflare-token-account-and-zone).
 
 Require HTTP 2xx + API success for all reads, active token, exact domain/zone/owning
 account match, assigned nameservers and readable destinations. Reads do not prove
@@ -299,7 +299,7 @@ zone/routing DNS/destination/rule. Outbound failure: current policy, SMTP/TLS,
 username/password/confirmation. Repair then repeat both tests. Record only sanitized
 alias/direction/time/result privately, never bodies/secrets/codes. If only inbound
 works, outbound is blocked, not completed. No universal delivery/compliance claim.
-[Targeted troubleshooting](../skills/cmail-setup/references/troubleshooting.md).
+[Targeted troubleshooting](https://github.com/luongnv89/cmail/blob/main/skills/cmail-setup/references/troubleshooting.md).
 
 ## Local preview and maintenance
 
@@ -308,7 +308,16 @@ No frontend build or framework is required. From repository root run
 `http://127.0.0.1:8000/docs/` and `http://127.0.0.1:8000/docs/setup.html`.
 Stop the server when done. Direct file opening works for reading/checking, but
 browser file-origin persistence varies; use local HTTP to test reload progress.
-No publication, Pages settings change or deployment is performed by these docs.
+Once Pages is enabled with **Source: GitHub Actions** on an eligible GitHub plan,
+GitHub Actions validates and deploys the site when site files or the deployment
+workflow change on `main`; manual runs on `main` are also supported
+([workflow](https://github.com/luongnv89/cmail/blob/main/.github/workflows/pages.yml)).
+Pull requests run validation without deploying. Only the explicitly listed site
+files are uploaded, never private config, runtime or skill scripts
+([staging script](https://github.com/luongnv89/cmail/blob/main/scripts/build-pages.sh)).
+The Pages URL is shown in the deployment's `github-pages` environment.
+GitHub source/skill links require repository access while the repository is private;
+public website access does not grant access to the source or installer.
 
 Browser progress uses only `cmail:setup-progress:v1`; reset removes that key alone.
 Blocked storage/corruption shows a notice and leaves session checkboxes usable.
@@ -319,7 +328,7 @@ misleading progress/reset controls. All details remain expanded when checked.
 The optional skill is separate, not installed by the runtime installer; offline
 evaluation cases are not a certified/measured live behavioral benchmark. No
 repository license grants redistribution rights. Read the
-[skill installation guide](../skills/cmail-setup/docs/README.md) before copying it.
+[skill installation guide](https://github.com/luongnv89/cmail/blob/main/skills/cmail-setup/docs/README.md) before copying it.
 
 Further official references: [GoDaddy PAT creation](https://developer.godaddy.com/en/docs/api-users/auth/how-to),
 [production quickstart](https://developer.godaddy.com/en/docs/api-users/quickstart).
