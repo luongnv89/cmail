@@ -6,12 +6,18 @@ Interactive setup for a **free custom-domain email address** using
 Inspired by this [Tokifyi thread](https://x.com/tokifyi/status/2025741929997361371):
 $0/month for email — you only pay for the domain itself.
 
+Release: [v0.1.0](https://github.com/luongnv89/cmail/releases/tag/v0.1.0) · [Changelog](CHANGELOG.md).
+
 ## Quickstart
 
+Clone the v0.1.0 release:
+
 ```bash
-git clone https://github.com/luongnv89/cmail && cd cmail
+git clone --branch v0.1.0 --depth 1 https://github.com/luongnv89/cmail && cd cmail
 ./cmail setup
 ```
+
+For the development version, omit `--branch v0.1.0 --depth 1` to clone the default branch instead.
 
 The script walks you through each step. Authentication is browser-based
 (OAuth) wherever possible:
@@ -48,7 +54,9 @@ are detected and skipped.
 |---|---|
 | `./cmail setup` | Full guided setup |
 | `./cmail status` | Show zone, routing, destination, and rule state |
-| `./cmail doctor` | Check tools + auth without changing anything |
+| `./cmail doctor` | Check tools + auth; may install missing dependencies |
+
+`status` and `doctor` can create `.env` from the template or secure its permissions. They do not change live DNS or email-routing settings.
 
 ## Configuration
 
