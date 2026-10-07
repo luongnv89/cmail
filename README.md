@@ -8,9 +8,65 @@ $0/month for email — you only pay for the domain itself.
 
 Release: [v0.1.0](https://github.com/luongnv89/cmail/releases/tag/v0.1.0) · [Changelog](CHANGELOG.md).
 
-## Quickstart
+## Installation
 
-Clone the v0.1.0 release:
+From a source checkout **containing `install.sh`**, install with one command:
+
+```bash
+bash install.sh
+```
+
+This installer is new and is **not in the v0.1.0 release**. A released remote
+bootstrap command is pending review/merge and separately authorized publication;
+see the [distribution decision and recorded status](docs/distribution.md).
+Do not assume the existing release contains the installer.
+
+The installer downloads the complete v0.1.0 runtime at a pinned commit over
+HTTPS. It requires Bash 3.2+, curl and standard macOS/Linux utilities, but not
+git, jq, sudo, a package manager, authentication or provider access. It checks
+syntax and offline help before activating a launcher. It never runs setup or
+doctor, modifies shell startup files, or changes DNS/email settings.
+
+Default destinations (use user-owned directories, including their parents):
+
+| Item | Destination | Override |
+|---|---|---|
+| Launcher | `~/.local/bin/cmail` | `CMAIL_BIN_DIR` |
+| Complete runtimes | `~/.local/share/cmail/runtime.*` | `CMAIL_DATA_DIR` |
+| Private config | `~/.config/cmail/.env` | `CMAIL_CONFIG_DIR` at install; `ENV_FILE` at runtime |
+
+Overrides must be absolute directories. Unmanaged runtime stores/executables
+and direct symlink destinations are refused rather than overwritten. Existing
+config is never replaced by installation or upgrades; the new config directory
+is private and the file is created only on an explicit setup/status/doctor call.
+The launcher honors an explicit `ENV_FILE` override. Source-checkout execution
+still defaults to the adjacent `.env`.
+
+Verify the installed CLI without authentication or network calls:
+
+```bash
+"$HOME/.local/bin/cmail" help
+export PATH="$HOME/.local/bin:$PATH"   # only if this directory is not on PATH
+cmail help
+```
+
+Only when ready for the guided, potentially live-changing workflow, run
+`cmail setup`. Installation success proves CLI availability, not functioning
+DNS, provider permissions or end-to-end email delivery.
+
+Re-run `bash install.sh` to reinstall the pinned runtime. To upgrade after
+reviewing an upstream revision, provide its full 40-character lowercase SHA:
+`CMAIL_REF=<reviewed-commit-sha> bash install.sh`. Moving branches/tags are not
+accepted. Each successful run activates a fresh runtime and retains old ones;
+failed downloads/validation leave the old launcher working. Use the same paths
+for subsequent installs, and never share a launcher across runtime stores.
+To uninstall, remove the installed launcher and the managed cmail runtime
+store; retain `~/.config/cmail` unless you explicitly want to delete your
+configuration/credentials. No shell profile changes need undoing.
+
+## Quickstart (source release)
+
+Clone the existing v0.1.0 release (no installer in this tag):
 
 ```bash
 git clone --branch v0.1.0 --depth 1 https://github.com/luongnv89/cmail && cd cmail
@@ -167,7 +223,8 @@ that the token is active, not that it has every required permission.
 
 ## Tests
 
-Run the offline regression tests (requires Bash and `jq`):
+Run the offline regression tests (requires Bash and `jq`; the installer suite
+itself only needs Bash and standard utilities):
 
 ```bash
 bash tests/godaddy_test.sh
@@ -176,14 +233,18 @@ bash tests/cloudflare_dest_test.sh
 bash tests/cloudflare_rules_test.sh
 bash tests/cloudflare_setup_test.sh
 bash tests/workflow_guidance_test.sh
+bash tests/install_test.sh
 ```
 
-GoDaddy and Cloudflare calls are mocked; the tests do not change any live
-DNS settings.
+GoDaddy, Cloudflare and installer downloads are mocked; the tests do not change
+any live DNS settings. The installer suite verifies runnable help, complete
+runtime downloads, private config/upgrade preservation and failure/conflict
+handling, including paths with spaces and shell metacharacters.
 
 ## Requirements
 
-Linux or macOS. Tested on Arch Linux. Installs missing deps itself
+Linux or macOS. Runtime tested on Arch Linux; the offline installer suite also
+runs on macOS Bash 3.2. Setup/doctor install missing dependencies themselves
 (`pacman`/`apt`/`brew` for `jq`/`curl`; official installer for `gddy`).
 
 ## Limitations

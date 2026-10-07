@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Add a user-local one-command installer for the complete pinned runtime with a
+  generated launcher, private external config, staged validation and offline
+  installer regressions. Installation does not run setup/doctor or provider calls.
+- Document installation/verification/upgrades and the chosen upstream GitHub
+  route, Homebrew prerequisites and actual distribution status. Installer release
+  publication and Homebrew submission remain pending; no license is selected.
+
 ## v0.1.0 — 2026-10-07
 
 First release of **cmail**, a Bash CLI for custom-domain email using Cloudflare Email Routing to receive mail in Gmail and guided Gmail “Send mail as” configuration for outbound mail.
