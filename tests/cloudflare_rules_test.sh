@@ -20,6 +20,7 @@ curl() {
   local method=GET url='' data=''
   while [ "$#" -gt 0 ]; do
     case "$1" in
+      --connect-timeout|--max-time) shift 2 ;;
       -sS) shift ;;
       -X) method="$2"; shift 2 ;;
       -H|-w) shift 2 ;;
@@ -29,10 +30,11 @@ curl() {
     esac
   done
   printf '%s %s\n' "$method" "$url" >>"$TMP/calls"
-  [ "$url" = "$CF_API/zones/test-zone/email/routing/rules" ] || return 99
   if [ "$method" = GET ]; then
+    [ "$url" = "$CF_API/zones/test-zone/email/routing/rules?per_page=50&page=1" ] || return 99
     printf '%s\n%s' "$GET_BODY" "$GET_HTTP"; return 0
   fi
+  [ "$url" = "$CF_API/zones/test-zone/email/routing/rules" ] || return 99
   # Validate the exact payload shape, including the destination array.
   jq -e --arg dest "$DEST_EMAIL" '
     .enabled == true and (.priority | type == "number") and

@@ -14,6 +14,7 @@ curl() {
   local method=GET url='' data='' header
   while [ "$#" -gt 0 ]; do
     case "$1" in
+      --connect-timeout|--max-time) shift 2 ;;
       -sS) shift ;;
       -X) method="$2"; shift 2 ;;
       -H)

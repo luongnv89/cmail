@@ -17,6 +17,7 @@ curl() {
   local method=GET url='' data='' formatted=0 body http=200 round
   while [ "$#" -gt 0 ]; do
     case "$1" in
+      --connect-timeout|--max-time) shift 2 ;;
       -sS|-fsS) shift ;;
       -X) method="$2"; shift 2 ;;
       -H) shift 2 ;;

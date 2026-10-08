@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- Make GoDaddy automation optional (#20). **Behavior change:** setup now defaults
+  to `REGISTRAR=manual` and no longer requires `gddy` or GoDaddy authentication.
+  It accepts an existing domain at any registrar. An already-active Cloudflare
+  zone skips nameserver steps; a pending zone gets the exact assigned nameservers,
+  DNS-record/DNSSEC migration warnings, and bounded activation polling. cmail
+  never changes delegation in this mode. GoDaddy automation (domain picker,
+  nameserver replacement, and the only path to a domain purchase) now requires
+  `REGISTRAR=godaddy` or `cmail setup --registrar godaddy`. `doctor` checks gddy
+  and GoDaddy authentication only in that mode, and `setup --dry-run` reports
+  `registrar` and skips GoDaddy reads and blockers in manual mode. New
+  `REGISTRAR` config key, `--registrar` option, completions, recovery guidance,
+  and offline regressions.
+- Add the `0.2.0-dev` CLI: strict arguments, command-level help/version, text/JSON
+  reports, read-only doctor/status, full setup previews, literal configuration
+  with environment precedence, private atomic config commands, secret stdin
+  input, bash/zsh/fish completions, and complete local-checkout installation.
+- Show actual elapsed setup time on success/failure and in preview JSON; include
+  user input and provider verification waits. Bound provider requests/polling,
+  require terminal stdin for guided commands, preserve provider confirmations,
+  paginate rule inspection/reuse, and use GoDaddy's quote-token purchase flow
+  with displayed prices, fees, and agreement titles/links before confirmation.
+  Any charge requires the domain typed at an interactive terminal; piped input,
+  flags, and environment variables can never approve a purchase.
+- Add subprocess, configuration, terminal, timing, and installation regressions,
+  `make test`/`make lint`, and macOS/Linux CLI CI. Document the current CLI and
+  distinguish it from historical snapshot/legacy automation recipes. No release
+  publication or live DNS/email verification is included.
+
 - Fix the runtime mismatch in receive-only/optional-send quickstarts (#17).
   README, landing page and both setup guides now select the immutable reviewed
   development source snapshot `cda65f0554a870ed8079e93741a331918118acec`, check

@@ -1,5 +1,42 @@
 # Running `cmail setup` autonomously
 
+## Current CLI capability gate (0.2.0-dev)
+
+After Gate 1 provenance, check trusted help/version. If help advertises the full
+`setup --dry-run` plan and `config` commands, use this section for the new runtime;
+the closed/piped-stdin passes below apply only to the previous reviewed snapshot
+and legacy v0.1.0. Never infer runtime behavior from the installer's location.
+
+Install a reviewed new checkout with `bash install.sh --local`, then use the
+same selected configuration for every command (`--config` or `ENV_FILE`). Run
+`doctor --offline`, `config check`, and `setup --dry-run --format json` before
+writes. Preview blockers need attention; a preview exit 0 alone is not readiness.
+The preview's `data.registrar` is `manual` by default: no gddy, no GoDaddy
+blocker, and its `nameservers` action is `ready` (zone active) or `manual` (set
+the listed nameservers at the registrar). With `REGISTRAR=godaddy`, the GoDaddy
+delegation read needs an existing PAT to prevent automatic OAuth; without one,
+inspect delegation independently under the existing gate rules.
+The full preview performs no provider/config writes, purchases, or authentication.
+
+Actual setup requires terminal stdin. Use the tool's pseudo-terminal option,
+run in the background, and relay prompts while monitoring output. Send a
+nameserver/purchase confirmation only after the applicable evidence and user
+approval are recorded. In manual mode, `Registrar nameservers` prints the
+assigned set and DNS/DNSSEC warnings without prompting; relay them as the
+nameserver stop. The user changes them at their registrar while setup polls;
+if the wait ends, rerun setup after the change. Do not pipe blanket `y` or apply the historical closed-
+stdin recipe to this runtime. Browser approval and destination verification
+remain hands-on. Missing tools produce installation instructions; install them
+under the existing skill authorization before rerunning. In GoDaddy mode,
+`--no-browser` setup requires a PAT; guided setup supports OAuth.
+
+The summary includes elapsed wall time and configured receiving addresses.
+This includes user/provider waits, and does not replace Gate 9's delivery test.
+Recovery still names the failed step; use its next action and rerun through a
+terminal after repair. Use this capability gate for current-runtime recovery.
+
+## Previous snapshot / legacy runtime recipes
+
 Reviewed current-source `./cmail setup` runs these stages in order, saving
 progress in config, and skips work already done: dependencies → configuration prompts (DEST_EMAIL, ADDRESSES)
 → GoDaddy auth → domain choice → Cloudflare token → zone create/reuse →
@@ -56,6 +93,8 @@ the same file.
    list fails or shows the domain → auth/account trouble (Gate 3); list succeeds
    without it → wrong account or unowned. Unowned is a stop: run `gddy domain available` and
    `gddy domain quote`, then ask with the exact price; buy only on explicit approval.
+   The purchase prompt requires the exact domain typed at the terminal; type it only
+   after the user approves that domain and price in this conversation.
 5. Public DNS inventory:
 
    ```bash

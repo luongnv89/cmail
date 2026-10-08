@@ -5,6 +5,58 @@ simple steps**, delivered to **the inbox you already use** (Gmail, Outlook,
 iCloud, Proton, a work address, …). Built on **Cloudflare Email Routing**; no
 new mailbox and no Google account needed.
 
+## Current CLI: install this reviewed checkout
+
+```bash
+bash install.sh --local
+export PATH="$HOME/.local/bin:$PATH"
+cmail --version
+cmail config init
+cmail setup
+```
+
+The current development CLI (`0.2.0-dev`) has command-specific help, private
+literal configuration, read-only diagnostics, full setup previews, JSON reports,
+shell completions, and an elapsed-time setup summary. `--local` installs the
+checkout you reviewed; unflagged `bash install.sh` retains the legacy v0.1.0 pin.
+The new CLI is not yet published as a release.
+
+```bash
+cmail doctor --offline
+cmail setup --dry-run --format json
+cmail status --format json
+cmail config show
+```
+
+See the [current CLI guide](docs/cli.md) for configuration, flags, timing,
+completion installation, automation, and exit codes. Setup runs in a terminal and
+checks dependencies without installing them. Status and doctor never write config or
+install tools.
+
+**Any registrar, no GoDaddy required.** By default (`REGISTRAR=manual`) the
+current CLI works with a domain you already own at any registrar and never needs
+`gddy` or a GoDaddy login. If the domain is already active on Cloudflare, setup
+skips nameservers entirely. Otherwise it prints the exact Cloudflare-assigned
+nameservers and migration warnings (copy existing DNS records into Cloudflare
+and turn off DNSSEC first). You then replace the nameservers at your registrar
+while setup polls Cloudflare until the zone is active. GoDaddy automation is
+opt-in: `cmail setup --registrar godaddy` (or `cmail config set REGISTRAR godaddy`)
+uses `gddy` to pick a domain and apply the nameserver change after confirmation.
+Domain purchase is offered only in that mode and needs the domain typed at a
+terminal. Setup previews never change providers or launch authentication.
+The final summary measures actual setup time, including prompts and provider
+waits; receiving still needs an independent mailbox delivery test.
+
+Developer checks: `make test` and `make lint`; Bash 3.2 compatibility:
+`CMAIL_TEST_BASH=/bin/bash make test`. Provider operations are mocked in tests.
+
+## Previous reviewed snapshot and release instructions
+
+The instructions below describe the pinned development snapshot and legacy
+release. Their dependency installation, configuration, dry-run, and automation
+behavior differs from `0.2.0-dev`; use the [current CLI guide](docs/cli.md) with
+this checkout or a `--local` installation.
+
 The receive-only workflow below uses a **reviewed development source snapshot**,
 not v0.1.0, until a compatible release/installer ships. Fetch the pin explicitly;
 it need not be advertised on the default branch:

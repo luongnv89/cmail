@@ -2,6 +2,16 @@
 
 [Introduction](index.html) · [Interactive checklist](setup.html) · [Runtime README](https://github.com/luongnv89/cmail/blob/main/README.md) · [Agent skill](https://github.com/luongnv89/cmail/blob/main/skills/cmail-setup/SKILL.md)
 
+This checklist documents the previous pinned snapshot. For the newer
+`0.2.0-dev` reviewed-checkout CLI, including full read-only previews, terminal
+requirements and elapsed-time summaries, use the [current CLI guide](https://github.com/luongnv89/cmail/blob/main/docs/cli.md).
+The pinned snapshot automates GoDaddy (steps 3–4 and 8 here). The current CLI
+works with an existing domain at **any registrar** by default and needs no
+`gddy` or GoDaddy login. An already-active Cloudflare zone skips nameserver
+changes. Otherwise it prints the assigned nameservers for you to set at your
+registrar and waits for activation. GoDaddy automation and domain purchase are
+opt-in with `--registrar godaddy`.
+
 This sequence is Cloudflare incoming forwarding to any inbox you own (Gmail,
 Outlook, iCloud, Proton, …) plus an **optional** manual Gmail send-as step for
 sending, not mailbox hosting or Google Workspace provisioning. If you only need

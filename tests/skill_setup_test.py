@@ -345,6 +345,24 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("unrecorded local editor", instructions)
         self.assertIn("not `.env`", instructions)
 
+    def test_registrar_independent_default_and_godaddy_opt_in(self):
+        body = " ".join((SKILL / "SKILL.md").read_text().split())
+        description = body.split("description:", 1)[1].split("compatibility:", 1)[0]
+        self.assertIn("any registrar", description)
+        self.assertNotIn("other registrars", description)
+        for text in ("REGISTRAR=manual", "--registrar godaddy", "only that mode can offer a purchase"):
+            self.assertIn(text, body)
+        run = " ".join((SKILL / "references/autonomous-run.md").read_text().split())
+        self.assertIn("Registrar nameservers", run)
+        self.assertIn("`Registrar nameservers`", (SKILL / "references/troubleshooting.md").read_text())
+        self.assertIn("'Registrar nameservers'", (ROOT / "lib/ui.sh").read_text())
+        self.assertIn("REGISTRAR", (SKILL / "references/configuration.md").read_text())
+        for value in ("manual", "godaddy"):
+            config.validate(config.parse(FIXTURE + "REGISTRAR=" + value + "\n"))
+        for value in ("namecheap", "GoDaddy"):
+            with self.assertRaises(config.ConfigError):
+                config.validate(config.parse(FIXTURE + "REGISTRAR=" + value + "\n"))
+
     def test_fail_closed_and_recheck_contract(self):
         body = (SKILL / "SKILL.md").read_text()
         self.assertIn("Only VERIFIED unlocks", body)

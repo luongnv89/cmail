@@ -5,12 +5,17 @@ umask 077
 
 fail() { printf 'cmail install: %s\n' "$*" >&2; exit 1; }
 if [ "${1:-}" = --help ]; then
-  printf '%s\n' 'Usage: bash install.sh' \
+  printf '%s\n' 'Usage: bash install.sh [--local]' \
+    '--local: install this reviewed checkout without downloads or credentials' \
     'Overrides: CMAIL_REF (40-character commit), CMAIL_BIN_DIR, CMAIL_DATA_DIR, CMAIL_CONFIG_DIR' \
     'Defaults: pinned v0.1.0 runtime, ~/.local/bin, ~/.local/share/cmail, ~/.config/cmail'
   exit 0
 fi
-[ "$#" = 0 ] || fail 'unknown argument (see --help)'
+local_mode=0
+if [ "$#" = 1 ] && [ "$1" = --local ]; then local_mode=1
+elif [ "$#" != 0 ]; then fail 'unknown argument (see --help)'; fi
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ "$local_mode" = 1 ] && [ -n "${CMAIL_REF:-}" ]; then fail 'CMAIL_REF applies to remote installation; unset it for --local'; fi
 [ -n "${HOME:-}" ] || fail 'HOME must be set'
 ref="${CMAIL_REF:-eb45f9558ecc5874e6a21d6f1b93fe1379f46841}"
 [ "${#ref}" = 40 ] || fail 'CMAIL_REF must be a full lowercase commit SHA'
@@ -32,8 +37,9 @@ check_launcher() {
     local first second
     { IFS= read -r first; IFS= read -r second; } < "$launcher" \
       || fail "unmanaged launcher: $launcher"
-    [ "$first" = '#!/usr/bin/env bash' ] && [ "$second" = "$launcher_marker" ] \
-      || fail "unmanaged launcher: $launcher"
+    if [ "$first" != '#!/usr/bin/env bash' ] || [ "$second" != "$launcher_marker" ]; then
+      fail "unmanaged launcher: $launcher"
+    fi
   fi
 }
 check_config() {
@@ -43,7 +49,9 @@ check_config() {
 }
 check_launcher
 check_config
-for tool in curl mktemp; do
+required_tools=(mktemp)
+[ "$local_mode" = 1 ] || required_tools+=(curl)
+for tool in "${required_tools[@]}"; do
   command -v "$tool" >/dev/null || fail "required tool missing: $tool"
 done
 # Never claim an existing directory, even an empty one, without our marker.
@@ -52,8 +60,9 @@ if [ ! -e "$data_dir" ]; then
   mkdir "$data_dir" || fail 'could not create runtime directory'
   printf '%s\n' 'cmail runtime store v1' > "$data_dir/.cmail-install"
 fi
-[ -f "$data_dir/.cmail-install" ] && [ ! -L "$data_dir/.cmail-install" ] \
-  || fail "unmanaged runtime directory: $data_dir"
+if [ ! -f "$data_dir/.cmail-install" ] || [ -L "$data_dir/.cmail-install" ]; then
+  fail "unmanaged runtime directory: $data_dir"
+fi
 [ "$(< "$data_dir/.cmail-install")" = 'cmail runtime store v1' ] \
   || fail "invalid runtime marker: $data_dir"
 lock="$data_dir/.install-lock"
@@ -71,13 +80,29 @@ stage=$(mktemp -d "$data_dir/runtime.XXXXXXXX")
 mkdir "$stage/lib"
 # Explicit destinations avoid archive traversal, links and extraction tools.
 files=(cmail VERSION .env.example lib/ui.sh lib/env.sh lib/deps.sh lib/godaddy.sh lib/cloudflare.sh lib/gmail.sh)
-for file in "${files[@]}"; do
-  curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
-    --connect-timeout 15 --max-time 120 \
-    "https://raw.githubusercontent.com/luongnv89/cmail/$ref/$file" -o "$stage/$file" \
-    || fail "download failed: $file (previous installation unchanged)"
+fetch_file() {
+  local file="$1"
+  if [ "$local_mode" = 1 ]; then
+    cp "$SOURCE_DIR/$file" "$stage/$file" || fail "copy failed: $file (previous installation unchanged)"
+  else
+    curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+      --connect-timeout 15 --max-time 120 \
+      "https://raw.githubusercontent.com/luongnv89/cmail/$ref/$file" -o "$stage/$file" \
+      || fail "download failed: $file (previous installation unchanged)"
+  fi
   [ -s "$stage/$file" ] || fail "empty download: $file"
+}
+for file in "${files[@]}"; do fetch_file "$file"; done
+# Legacy pinned runtimes retain their original file set. New runtimes declare
+# additional known modules through explicit source paths.
+for module in cli output plan; do
+  if grep -qF "lib/$module.sh" "$stage/cmail"; then fetch_file "lib/$module.sh"; fi
 done
+if grep -qF 'completions/cmail.' "$stage/cmail"; then
+  mkdir "$stage/completions"
+  for shell in bash zsh fish; do fetch_file "completions/cmail.$shell"; done
+  "$BASH" -n "$stage/completions/cmail.bash" || fail 'invalid bash completion script'
+fi
 "$BASH" -n "$stage/cmail" || fail 'invalid cmail script'
 for file in "$stage"/lib/*.sh "$stage/.env.example"; do
   "$BASH" -n "$file" || fail "invalid script: ${file##*/}"
@@ -87,7 +112,7 @@ chmod 700 "$stage/cmail"
 ENV_FILE="$stage/unused-config" "$BASH" "$stage/cmail" help > "$stage/help.txt" \
   || fail 'runtime help verification failed'
 grep -q 'cmail.*custom-domain email' "$stage/help.txt" || fail 'unexpected runtime help'
-printf '%s\n' "$ref" > "$stage/COMMIT"
+if [ "$local_mode" = 1 ]; then printf 'local checkout snapshot\n' > "$stage/COMMIT"; else printf '%s\n' "$ref" > "$stage/COMMIT"; fi
 mkdir -p "$bin_dir" "$config_dir"
 check_config
 # No credentials or template are copied into existing configuration.
@@ -111,6 +136,7 @@ check_launcher
 activated=1
 mv -f "$candidate" "$launcher" || fail 'launcher activation failed (previous installation unchanged)'
 candidate=''
+[ "$local_mode" = 0 ] || ref='local checkout snapshot'
 printf 'Installed cmail runtime %s\nLauncher: %s\nConfig: %s/.env\n' "$ref" "$launcher" "$config_dir"
 # Print a command for the user's shell without expanding this process's PATH.
 # shellcheck disable=SC2016

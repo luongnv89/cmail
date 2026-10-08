@@ -45,62 +45,75 @@ run_expect() {
 }
 
 missing_tool() {
-  _pkg_install() { return 1; }
+  _pkg_install() { die 'unexpected package installation'; }
   ensure_tool cmail_nonexistent_test_tool test-package
 }
-run_expect 'package install recovery' 1 missing_tool 'permissions' 'network' 'manually' 'PATH' './cmail setup'
-
-failed_gddy_install() {
-  command() { if [ "$*" = '-v gddy' ]; then return 1; else builtin command "$@"; fi; }
-  curl() { return 1; }
+run_expect 'missing dependency gives instructions without installation' 1 missing_tool 'manually' 'PATH' './cmail setup'
+missing_gddy() {
+  # The gddy() wrapper from lib/godaddy.sh is defined here; only a real binary counts.
+  declare -F gddy >/dev/null
+  PATH="$TMP/no-such-bin"
+  curl() { die 'unexpected download'; }
   ensure_gddy
 }
-run_expect 'gddy download recovery' 1 failed_gddy_install 'GitHub' 'permission' 'Install manually' 'PATH' './cmail setup'
-missing_gddy_after_install() {
-  command() { if [ "$*" = '-v gddy' ]; then return 1; else builtin command "$@"; fi; }
-  curl() { printf ':\n'; }
-  ensure_gddy
-}
-run_expect 'gddy PATH recovery' 1 missing_gddy_after_install 'unavailable after installer' 'export PATH=' 'command -v gddy'
+run_expect 'missing gddy never downloads or installs' 1 missing_gddy 'Install manually' 'GitHub' 'PATH'
 
 failed_create() { cp() { return 1; }; env_init; }
 run_expect 'config creation recovery' 1 failed_create 'could not create config' 'parent directory' './cmail setup'
-printf 'TEST_VALUE=private-test-sentinel\n' >"$ENV_FILE"
+printf 'GDDY_PAT=private-test-sentinel\n' >"$ENV_FILE"
 failed_secure() { chmod() { return 1; }; env_init; }
 run_expect 'config permissions recovery' 1 failed_secure 'could not secure config' 'chmod 600'
-valid_config() { env_init; [ "$TEST_VALUE" = 'private-test-sentinel' ]; }
+valid_config() { env_init; [ "$GDDY_PAT" = 'private-test-sentinel' ]; }
 run_expect 'valid private config loads silently' 0 valid_config
-printf 'TEST_VALUE="private-test-sentinel\n' >"$ENV_FILE"
-run_expect 'config syntax recovery without value disclosure' 1 env_init 'could not read or parse config' 'shell assignment syntax' './cmail setup'
+printf 'GDDY_PAT="private-test-sentinel\n' >"$ENV_FILE"
+run_expect 'config syntax recovery without value disclosure' 3 env_init 'could not load config' 'shell assignment syntax' './cmail setup'
 printf 'printf "private-test-sentinel\\n"; false\n' >"$ENV_FILE"
-run_expect 'config load recovery without value disclosure' 1 env_init 'could not load config' 'without sharing secrets'
-printf 'GDDY_ENV = ote\nTEST_VALUE=private-test-sentinel\n' >"$ENV_FILE"
-run_expect 'intermediate invalid assignment cannot retain production defaults silently' 1 env_init 'NAME=value' 'no spaces around' 'without sharing secrets'
-printf 'false\nTEST_VALUE=private-test-sentinel\n' >"$ENV_FILE"
-run_expect 'intermediate config failure is not masked by a final assignment' 1 env_init 'could not load config'
-empty_input() { unset TEST_INPUT; env_require_prompt TEST_INPUT 'Test input' <<<''; }
-run_expect 'empty input recovery' 1 empty_input 'TEST_INPUT is required' 'private config' './cmail setup'
-eof_input() { unset TEST_INPUT; env_require_prompt TEST_INPUT 'Test input' --secret </dev/null; }
+run_expect 'config load recovery without value disclosure' 3 env_init 'could not load config' 'without sharing secrets'
+printf 'GDDY_ENV = ote\nGDDY_PAT=private-test-sentinel\n' >"$ENV_FILE"
+run_expect 'intermediate invalid assignment cannot retain production defaults silently' 3 env_init 'NAME=value' 'no spaces around' 'without sharing secrets'
+printf 'false\nGDDY_PAT=private-test-sentinel\n' >"$ENV_FILE"
+run_expect 'intermediate config failure is not masked by a final assignment' 3 env_init 'could not load config'
+empty_input() { unset GDDY_PAT; env_require_prompt GDDY_PAT 'Test input' <<<''; }
+run_expect 'empty input recovery' 1 empty_input 'GDDY_PAT is required' 'private config' './cmail setup'
+eof_input() { unset GDDY_PAT; env_require_prompt GDDY_PAT 'Test input' --secret </dev/null; }
 run_expect 'missing terminal input recovery' 1 eof_input 'input unavailable' 'interactive terminal'
-existing_input() { TEST_INPUT=private-test-sentinel; env_require_prompt TEST_INPUT 'Test input' </dev/null; }
+existing_input() { GDDY_PAT=private-test-sentinel; env_require_prompt GDDY_PAT 'Test input' </dev/null; }
 run_expect 'existing input does not prompt' 0 existing_input
+printf 'GDDY_ENV=ote\n' >"$ENV_FILE"
+invalid_domain_input() { unset DOMAIN; env_require_prompt DOMAIN 'domain' <<<'https://example.com/'; }
+run_expect 'prompted domain is validated before saving' 3 invalid_domain_input 'DOMAIN must be a domain name'
+if grep -qF 'DOMAIN=' "$ENV_FILE"; then printf 'FAIL: invalid domain saved\n' >&2; exit 1; fi
+valid_domain_input() { unset DOMAIN; env_require_prompt DOMAIN 'domain' <<<'example.org'; grep -qxF "DOMAIN='example.org'" "$ENV_FILE"; }
+run_expect 'prompted domain at any registrar is saved' 0 valid_domain_input
+DOMAIN=example.com
+missing_gddy_manual() {
+  PATH="$TMP/no-such-bin:$(dirname "$(command -v curl)"):$(dirname "$(command -v jq)")"
+  REGISTRAR=manual ensure_deps
+  unset REGISTRAR; ensure_deps
+}
+run_expect 'manual registrar mode never requires gddy' 0 missing_gddy_manual 'curl present' 'jq present'
+if grep -qF 'gddy' "$TMP/output"; then printf 'FAIL: manual mode checked gddy\n' >&2; exit 1; fi
+missing_gddy_opt_in() { PATH="$TMP/no-such-bin:$(dirname "$(command -v curl)"):$(dirname "$(command -v jq)")"; REGISTRAR=godaddy ensure_deps; }
+if [ -z "$(PATH="$(dirname "$(command -v curl)"):$(dirname "$(command -v jq)")" type -P gddy)" ]; then
+  run_expect 'GoDaddy opt-in requires gddy' 1 missing_gddy_opt_in 'gddy missing'
+fi
 
 # Config writes use a synthetic fixture, never a repository/user config.
-printf 'TEST_INPUT=old\nOTHER=value\n' >"$ENV_FILE"
-save_input() { env_set TEST_INPUT private-test-sentinel; [ "$TEST_INPUT" = private-test-sentinel ]; }
+printf 'GDDY_PAT=old\nGDDY_ENV=ote\n' >"$ENV_FILE"
+save_input() { env_set GDDY_PAT private-test-sentinel; [ "$GDDY_PAT" = private-test-sentinel ]; }
 run_expect 'config upsert' 0 save_input
-grep -qxF 'OTHER=value' "$ENV_FILE"
-grep -qxF 'TEST_INPUT=private-test-sentinel' "$ENV_FILE"
+grep -qxF 'GDDY_ENV=ote' "$ENV_FILE"
+grep -qxF "GDDY_PAT='private-test-sentinel'" "$ENV_FILE"
 save_quoted_input() {
-  env_set TEST_INPUT 'hello, contact; $(do-not-run)'
+  env_set GDDY_PAT 'hello, contact; $(do-not-run)'
   bash -n "$ENV_FILE"
-  unset TEST_INPUT
+  unset GDDY_PAT
   env_init
-  [ "$TEST_INPUT" = 'hello, contact; $(do-not-run)' ]
+  [ "$GDDY_PAT" = 'hello, contact; $(do-not-run)' ]
 }
 run_expect 'config values with spaces/metacharacters remain assignments' 0 save_quoted_input
-failed_save() { ENV_FILE="$TMP"; env_set TEST_INPUT private-test-sentinel; }
-run_expect 'config write recovery' 1 failed_save 'could not save TEST_INPUT' 'permissions' './cmail setup'
+failed_save() { ENV_FILE="$TMP"; env_set GDDY_PAT private-test-sentinel; }
+run_expect 'config write recovery' 3 failed_save 'could not save GDDY_PAT' 'permissions' 'cmail config'
 
 gddy() {
   printf '%s\n' "$*" >>"$TMP/calls"
@@ -110,7 +123,7 @@ gddy() {
     'domain list') printf '%s\n' "$LIST_RESPONSE"; return "$LIST_STATUS";;
     'domain get') return 1;;
     'domain available') return 0;;
-    'domain quote') return "$QUOTE_STATUS";;
+    'domain quote') printf '%s\n' '{"data":{"domain":"example.com","available":true,"price":"12.00","currency":"EUR","quoteToken":"synthetic-quote","requiredAgreements":[{"title":"Registration Agreement","url":"https://example.net/terms"}]}}'; return "$QUOTE_STATUS";;
     'domain purchase') return 1;;
     *) return 1;;
   esac
@@ -137,8 +150,19 @@ register_domain() { gddy_maybe_register example.com; }
 run_expect 'quote failure recovery' 1 register_domain 'quote failed' 'GoDaddy orders' 'before retrying any purchase'
 if grep -qF 'domain purchase' "$TMP/calls"; then exit 1; fi
 QUOTE_STATUS=0
+piped_approval() { gddy_maybe_register example.com <<<'example.com'; }
+run_expect 'piped input never approves a charge' 1 piped_approval 'interactive terminal' 'nothing was charged' 'purchase declined'
+if grep -qF 'domain purchase' "$TMP/calls"; then exit 1; fi
+for answer in y yes EXAMPLE.COM ''; do
+  printf '%s\n' "$answer" | python3 "$ROOT/tests/run_tty_input.py" bash -c '. "$1/lib/ui.sh"; confirm_payment "buy?" example.com' _ "$ROOT" 2>/dev/null \
+    && { printf 'FAIL: payment approved by %s\n' "${answer:-empty input}" >&2; exit 1; }
+done
+printf 'example.com\n' | python3 "$ROOT/tests/run_tty_input.py" bash -c '. "$1/lib/ui.sh"; confirm_payment "buy?" example.com' _ "$ROOT" 2>/dev/null \
+  || { printf 'FAIL: typed domain did not approve payment\n' >&2; exit 1; }
+printf 'PASS: payment requires the domain typed at a terminal\n'
+confirm_payment() { printf 'confirm_payment %s\n' "$*" >>"$TMP/calls"; return 0; }
 run_expect 'purchase ambiguity recovery' 1 register_domain 'outcome may be uncertain' 'BEFORE retrying purchase' 'duplicate charges' 'set DOMAIN' './cmail setup'
-grep -qxF 'domain purchase example.com --env ote' "$TMP/calls"
+grep -qxF 'domain purchase --quote-token synthetic-quote --agree --confirm --env ote' "$TMP/calls"
 
 # Verify migration guidance precedes confirmation and survives write failure.
 nameserver_write_failure() {

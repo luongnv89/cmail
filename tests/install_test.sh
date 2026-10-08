@@ -4,14 +4,22 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-export HOME="$TMP/home" CMAIL_BIN_DIR="$TMP/bin space '\$;" \
+export CMAIL_BIN_DIR="$TMP/bin space '\$;" \
   CMAIL_DATA_DIR="$TMP/data space '\$;" CMAIL_CONFIG_DIR="$TMP/config space '\$;"
 export FIXTURE="$TMP/fixture" CURL_LOG="$TMP/curl.log" FAIL_FILE='' MODE='' FAIL_SWITCH=0
 REAL_MV="$(command -v mv)"
 export REAL_MV
-mkdir -p "$TMP/mock" "$FIXTURE/lib" "$HOME"
+file_mode() {
+  python3 - "$1" <<'PY'
+from pathlib import Path
+import sys
+print(format(Path(sys.argv[1]).stat().st_mode & 0o777, 'o'))
+PY
+}
+mkdir -p "$TMP/mock" "$FIXTURE/lib" "$FIXTURE/completions"
 cp "$ROOT/cmail" "$ROOT/VERSION" "$ROOT/.env.example" "$FIXTURE/"
 cp "$ROOT"/lib/*.sh "$FIXTURE/lib/"
+cp "$ROOT"/completions/* "$FIXTURE/completions/"
 cat > "$TMP/mock/curl" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -57,11 +65,11 @@ install || { printf 'fresh install failed: %s\n' "$(< "$TMP/error")" >&2; exit 1
 grep -q 'custom-domain email' "$TMP/help" || fail 'installed help'
 [ ! -e "$CMAIL_CONFIG_DIR/.env" ] || fail 'install created config'
 pass 'fresh install is runnable with shell-metacharacter paths and no setup'
-[ "$(wc -l < "$CURL_LOG" | tr -d ' ')" = 9 ] || fail 'incomplete runtime download'
+[ "$(wc -l < "$CURL_LOG" | tr -d ' ')" = 15 ] || fail 'incomplete runtime download'
 grep -q -- '--proto =https --proto-redir =https' "$CURL_LOG" || fail 'unsafe transport'
 grep -q 'eb45f9558ecc5874e6a21d6f1b93fe1379f46841' "$CURL_LOG" || fail 'unpinned source'
-pass 'complete nine-file runtime from pinned HTTPS source'
-[ "$(stat -f %Lp "$CMAIL_CONFIG_DIR" 2>/dev/null || stat -c %a "$CMAIL_CONFIG_DIR")" = 700 ] || fail 'config directory not private'
+pass 'complete runtime including CLI parser from pinned HTTPS source'
+[ "$(file_mode "$CMAIL_CONFIG_DIR")" = 700 ] || fail 'config directory not private'
 pass 'new config directory is private'
 printf 'DOMAIN=example.com\n' > "$CMAIL_CONFIG_DIR/.env"
 cp "$CMAIL_CONFIG_DIR/.env" "$TMP/saved-config"
@@ -75,7 +83,7 @@ cmp -s "$CMAIL_BIN_DIR/cmail" "$TMP/old-launcher" && fail 'upgrade did not switc
 cmp "$CMAIL_CONFIG_DIR/.env" "$TMP/saved-config" || fail 'upgrade changed config'
 pass 'explicit pinned upgrade switches runtime and preserves config'
 cp "$CMAIL_BIN_DIR/cmail" "$TMP/old-launcher"
-for failure in cmail lib/ui.sh lib/env.sh lib/deps.sh lib/godaddy.sh lib/cloudflare.sh lib/gmail.sh VERSION .env.example; do
+for failure in lib/cli.sh lib/output.sh lib/plan.sh completions/cmail.bash completions/cmail.zsh completions/cmail.fish cmail lib/ui.sh lib/env.sh lib/deps.sh lib/godaddy.sh lib/cloudflare.sh lib/gmail.sh VERSION .env.example; do
   export FAIL_FILE="$failure"
   expect_failure "failed download $failure" 'download failed'
   cmp "$CMAIL_BIN_DIR/cmail" "$TMP/old-launcher" || fail 'download failure broke active launcher'
@@ -110,8 +118,9 @@ ENV_FILE="$TMP/override-config" "$CMAIL_BIN_DIR/cmail" help >/dev/null
 [ ! -e "$TMP/config-loaded" ] || fail 'help sourced config'
 pass 'help never evaluates user config'
 printf 'DOMAIN=override.example\n' > "$TMP/override-config"
+chmod 600 "$TMP/override-config"
 if ENV_FILE="$TMP/override-config" "$CMAIL_BIN_DIR/cmail" status > "$TMP/status" 2>&1; then fail 'status should lack token'; fi
-[ "$(stat -f %Lp "$TMP/override-config" 2>/dev/null || stat -c %a "$TMP/override-config")" = 600 ] || fail 'override not used by env_init'
+[ "$(file_mode "$TMP/override-config")" = 600 ] || fail 'override not used by env_init'
 cmp "$CMAIL_CONFIG_DIR/.env" "$TMP/saved-config" || fail 'explicit override ignored'
 pass 'launcher respects explicit ENV_FILE override'
 cp "$CMAIL_BIN_DIR/cmail" "$TMP/old-launcher"
@@ -121,7 +130,7 @@ mkdir "$CMAIL_CONFIG_DIR/.env"
 printf '%s\n' preserved > "$CMAIL_CONFIG_DIR/.env/sentinel"
 chmod 755 "$CMAIL_CONFIG_DIR/.env"
 expect_failure 'directory configuration rejected before installation' 'configuration is not a regular file'
-[ "$(stat -f %Lp "$CMAIL_CONFIG_DIR/.env" 2>/dev/null || stat -c %a "$CMAIL_CONFIG_DIR/.env")" = 755 ] || fail 'changed config directory mode'
+[ "$(file_mode "$CMAIL_CONFIG_DIR/.env")" = 755 ] || fail 'changed config directory mode'
 [ ! -e "$CMAIL_CONFIG_DIR/.env/.env.example" ] || fail 'copied template into config directory'
 grep -q '^preserved$' "$CMAIL_CONFIG_DIR/.env/sentinel" || fail 'changed directory configuration'
 rm "$CMAIL_CONFIG_DIR/.env/sentinel"
@@ -130,7 +139,7 @@ mkfifo "$CMAIL_CONFIG_DIR/.env"
 chmod 640 "$CMAIL_CONFIG_DIR/.env"
 expect_failure 'FIFO configuration rejected without opening it' 'configuration is not a regular file'
 [ -p "$CMAIL_CONFIG_DIR/.env" ] || fail 'replaced config FIFO'
-[ "$(stat -f %Lp "$CMAIL_CONFIG_DIR/.env" 2>/dev/null || stat -c %a "$CMAIL_CONFIG_DIR/.env")" = 640 ] || fail 'changed config FIFO mode'
+[ "$(file_mode "$CMAIL_CONFIG_DIR/.env")" = 640 ] || fail 'changed config FIFO mode'
 rm "$CMAIL_CONFIG_DIR/.env"
 ln -s "$TMP/regular-config" "$CMAIL_CONFIG_DIR/.env"
 expect_failure 'symlink configuration rejected before installation' 'symlink configuration'
@@ -169,4 +178,19 @@ ln -s "$original_data" "$CMAIL_DATA_DIR"
 expect_failure 'symlink runtime rejected' 'symlink directory'
 export CMAIL_DATA_DIR="$original_data" CMAIL_BIN_DIR=relative
 expect_failure 'relative directory rejected' 'absolute paths'
-printf '%s\n' "$passed installer cases passed (offline)"
+# Install the reviewed local checkout with network access forbidden by the mock.
+unset CMAIL_REF
+export CMAIL_BIN_DIR="$TMP/bin space '\$;"
+export FAIL_FILE=cmail
+before_downloads=$(wc -l < "$CURL_LOG")
+"$BASH" "$ROOT/install.sh" --local > "$TMP/local-output" 2> "$TMP/error"
+[ "$(wc -l < "$CURL_LOG")" = "$before_downloads" ] || fail 'local mode downloaded files'
+"$CMAIL_BIN_DIR/cmail" --version > "$TMP/version"
+grep -q "$(cat "$ROOT/VERSION")" "$TMP/version" || fail 'local version mismatch'
+for shell in bash zsh fish; do
+  "$CMAIL_BIN_DIR/cmail" completion "$shell" > "$TMP/completion"
+  cmp "$TMP/completion" "$ROOT/completions/cmail.$shell" || fail 'installed completion mismatch'
+done
+cmp "$CMAIL_CONFIG_DIR/.env" "$TMP/saved-config" || fail 'local install replaced config'
+pass 'local installation has no downloads, preserves config, includes completions and version'
+printf '%s installer cases passed (offline)\n' "$passed"
