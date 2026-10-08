@@ -132,6 +132,17 @@ register_domain() { gddy_maybe_register example.com; }
 run_expect 'quote failure recovery' 1 register_domain 'quote failed' 'GoDaddy orders' 'before retrying any purchase'
 if grep -qF 'domain purchase' "$TMP/calls"; then exit 1; fi
 QUOTE_STATUS=0
+piped_approval() { gddy_maybe_register example.com <<<'example.com'; }
+run_expect 'piped input never approves a charge' 1 piped_approval 'interactive terminal' 'nothing was charged' 'purchase declined'
+if grep -qF 'domain purchase' "$TMP/calls"; then exit 1; fi
+for answer in y yes EXAMPLE.COM ''; do
+  printf '%s\n' "$answer" | python3 "$ROOT/tests/run_tty_input.py" bash -c '. "$1/lib/ui.sh"; confirm_payment "buy?" example.com' _ "$ROOT" 2>/dev/null \
+    && { printf 'FAIL: payment approved by %s\n' "${answer:-empty input}" >&2; exit 1; }
+done
+printf 'example.com\n' | python3 "$ROOT/tests/run_tty_input.py" bash -c '. "$1/lib/ui.sh"; confirm_payment "buy?" example.com' _ "$ROOT" 2>/dev/null \
+  || { printf 'FAIL: typed domain did not approve payment\n' >&2; exit 1; }
+printf 'PASS: payment requires the domain typed at a terminal\n'
+confirm_payment() { printf 'confirm_payment %s\n' "$*" >>"$TMP/calls"; return 0; }
 run_expect 'purchase ambiguity recovery' 1 register_domain 'outcome may be uncertain' 'BEFORE retrying purchase' 'duplicate charges' 'set DOMAIN' './cmail setup'
 grep -qxF 'domain purchase --quote-token synthetic-quote --agree --confirm --env ote' "$TMP/calls"
 

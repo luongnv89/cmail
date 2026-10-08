@@ -87,6 +87,8 @@ the same file.
    list fails or shows the domain → auth/account trouble (Gate 3); list succeeds
    without it → wrong account or unowned. Unowned is a stop: run `gddy domain available` and
    `gddy domain quote`, then ask with the exact price; buy only on explicit approval.
+   The purchase prompt requires the exact domain typed at the terminal; type it only
+   after the user approves that domain and price in this conversation.
 5. Public DNS inventory:
 
    ```bash

@@ -76,7 +76,7 @@ cmail --config ~/.config/cmail/work.env config check
 
 Both `setup --dry-run` and legacy `DRY_RUN=1` preview the entire workflow in this version: no provider changes, purchases, configuration writes, browser launches, installations, or authentication flows. The preview needs valid existing Cloudflare credentials. It uses a supplied `GDDY_PAT` for the GoDaddy delegation read; without a PAT it reports that check as a blocker, since gddy can automatically start OAuth during a read. Guided setup supports browser OAuth. Read access does not establish every write permission.
 
-A successfully generated preview exits 0 even when its `data.blockers` array is nonempty. Inspect blockers before setup. Actual setup and send-as require terminal stdin; running them with closed or piped stdin fails before writes. Agent runners must use a pseudo-terminal and relay prompts. Nameserver replacement and purchases retain explicit confirmation. Existing DNS/service records require migration review before delegation changes.
+A successfully generated preview exits 0 even when its `data.blockers` array is nonempty. Inspect blockers before setup. Actual setup and send-as require terminal stdin; running them with closed or piped stdin fails before writes. Agent runners must use a pseudo-terminal and relay prompts. Nameserver replacement retains explicit confirmation. Any charge, such as a domain purchase, always requires the exact domain name typed at an interactive terminal; no flag, environment variable, or piped input can approve it. Existing DNS/service records require migration review before delegation changes.
 
 ## Output and timing
 

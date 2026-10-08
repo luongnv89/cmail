@@ -22,6 +22,17 @@ confirm() { # confirm <question> — returns 0 on yes
   case "$ans" in [yY]|[yY][eE][sS]) return 0 ;; *) return 1 ;; esac
 }
 
+confirm_payment() { # confirm_payment <question> <phrase> — typed terminal approval for any charge; no flag or env var skips it
+  local ans
+  if [ ! -t 0 ]; then
+    warn 'payment approval must be typed at an interactive terminal — nothing was charged'
+    return 1
+  fi
+  printf '%s ?%s %s\n    Type %s to approve this charge (anything else cancels): ' "$C_YELLOW" "$C_OFF" "$1" "$2" >&2
+  read -r ans || return 1
+  [ "$ans" = "$2" ]
+}
+
 open_url() { # open_url <url> — best-effort browser open, always prints
   local url="$1"
   printf 'Open: %s\n' "$url" >&2

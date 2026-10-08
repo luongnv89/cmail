@@ -11,6 +11,8 @@
   require terminal stdin for guided commands, preserve provider confirmations,
   paginate rule inspection/reuse, and use GoDaddy's quote-token purchase flow
   with displayed prices, fees, and agreement titles/links before confirmation.
+  Any charge requires the domain typed at an interactive terminal; piped input,
+  flags, and environment variables can never approve a purchase.
 - Add subprocess, configuration, terminal, timing, and installation regressions,
   `make test`/`make lint`, and macOS/Linux CLI CI. Document the current CLI and
   distinguish it from historical snapshot/legacy automation recipes. No release

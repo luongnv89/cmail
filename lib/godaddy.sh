@@ -58,7 +58,7 @@ gddy_maybe_register() { # offer to register the domain if not owned
   token=$(jq -er --arg domain "$d" '.data | select(.domain==$domain and .available==true and (.price|type=="string" and length>0) and (.currency|type=="string" and length>0) and (.requiredAgreements|type=="array" and all(.[]; (.title|type=="string" and length>0) and (.url|type=="string" and startswith("https://"))))) | .quoteToken | select(type=="string" and length>0)' <<< "$quote" 2>/dev/null) \
     || die 'quote missing price, token, or agreement title/link; inspect gddy domain quote before purchasing'
   jq '.data | {domain,price,currency,period,renewalPrice,fees,requiredAgreements}' <<< "$quote" >&2
-  confirm "confirm purchase of $d at the quoted price, including fees, and accept the displayed agreements" \
+  confirm_payment "purchase $d at the quoted price, including fees, and accept the displayed agreements?" "$d" \
     || die "purchase declined — no purchase requested; check GoDaddy orders/domain ownership, then re-run ./cmail setup when ready"
   gddy domain purchase --quote-token "$token" --agree --confirm --env "$GDDY_ENV" >/dev/null 2>&1 \
     || die "purchase failed — the outcome may be uncertain; check GoDaddy orders, billing and domain ownership BEFORE retrying purchase to avoid duplicate charges. Check network/authentication for $GDDY_ENV; if purchased, set DOMAIN and re-run ./cmail setup; otherwise resolve the order or contact GoDaddy support first"
