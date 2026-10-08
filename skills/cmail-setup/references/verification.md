@@ -43,6 +43,9 @@ is BLOCKED. Do not call internal Bash helpers as a public API.
 
 ## Gate 3 — Registrar authentication and domain ownership
 
+- Current CLI manual mode (`REGISTRAR=manual`, default): no gddy or GoDaddy
+  auth. Verify with the user's ownership statement for the exact domain
+  (user-reported) and gate 4's zone read; never offer a purchase.
 - Prerequisite: gates 1–2.
 - Action: preflight auth status; background `gddy auth login --env <env>` when
   needed (hands-on browser approval); filtered `gddy domain get`.
@@ -84,7 +87,9 @@ is BLOCKED. Do not call internal Bash helpers as a public API.
   `DRY_RUN=1` is a nameserver preview only; it cannot satisfy this gate.
 - Verify: fresh filtered `gddy domain get` shows exactly the assigned set
   (case/order/trailing-dot normalized); `status` shows zone status `active`;
-  `dig +short NS` corroborates. A submitted change is not active-zone evidence.
+  `dig +short NS` corroborates. In manual mode, the user changes nameservers at
+  their registrar (hands-on), or the zone is already active. `status` `active`
+  plus `dig +short NS` showing the assigned set verifies it. A submitted change is not active-zone evidence.
 - Failure: failed read, uncertain write, mismatch, pending activation or broken DNSSEC.
 - Repair/recheck: read registrar state before any retry; propagation can take
   24–48 hours — report PENDING and rerun pass 1 later, not the write. Never auto-roll back.

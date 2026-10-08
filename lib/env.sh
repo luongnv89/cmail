@@ -3,11 +3,11 @@
 # shellcheck disable=SC2034
 ENV_FILE="${CLI_CONFIG:-${CMAIL_CONFIG:-${ENV_FILE:-$CMAIL_DIR/.env}}}"
 case "$ENV_FILE" in /*) ;; *) ENV_FILE="$PWD/$ENV_FILE" ;; esac
-CMAIL_CONFIG_KEYS=(DOMAIN DEST_EMAIL ADDRESSES CLOUDFLARE_API_TOKEN GDDY_ENV GDDY_PAT CF_ZONE_ID CF_ACCOUNT_ID DRY_RUN)
+CMAIL_CONFIG_KEYS=(DOMAIN DEST_EMAIL ADDRESSES CLOUDFLARE_API_TOKEN REGISTRAR GDDY_ENV GDDY_PAT CF_ZONE_ID CF_ACCOUNT_ID DRY_RUN)
 CONFIG_KEYS=() CONFIG_VALUES=()
 
 config_key_valid() {
-  case "$1" in DOMAIN|DEST_EMAIL|ADDRESSES|CLOUDFLARE_API_TOKEN|GDDY_ENV|GDDY_PAT|CF_ZONE_ID|CF_ACCOUNT_ID|DRY_RUN) return 0 ;; *) return 1 ;; esac
+  case "$1" in DOMAIN|DEST_EMAIL|ADDRESSES|CLOUDFLARE_API_TOKEN|REGISTRAR|GDDY_ENV|GDDY_PAT|CF_ZONE_ID|CF_ACCOUNT_ID|DRY_RUN) return 0 ;; *) return 1 ;; esac
 }
 config_secret() { case "$1" in CLOUDFLARE_API_TOKEN|GDDY_PAT) return 0 ;; *) return 1 ;; esac; }
 config_error() { printf 'cmail: %s; correct the private config locally (cmail config --help).\n' "$*" >&2; return 3; }
@@ -102,6 +102,7 @@ config_field_valid() {
         case "$seen" in *"|$item|"*) return 1 ;; esac
         seen="$seen$item|"
       done ;;
+    REGISTRAR) [ "$value" = manual ] || [ "$value" = godaddy ] ;;
     GDDY_ENV) [ "$value" = prod ] || [ "$value" = ote ] ;;
     CF_ACCOUNT_ID|CF_ZONE_ID) [[ "$value" =~ ^[[:xdigit:]]{32}$ ]] ;;
     DRY_RUN) [ "$value" = 0 ] || [ "$value" = 1 ] ;;
@@ -136,6 +137,9 @@ config_load() { # preserve environment over file, even explicit empty overrides
     done
   fi
   GDDY_ENV="${GDDY_ENV-prod}" ADDRESSES="${ADDRESSES-hello}" DRY_RUN="${DRY_RUN-0}"
+  # Registrar automation is opt-in; an empty value also means manual delegation.
+  REGISTRAR="${REGISTRAR:-manual}"
+  [ -z "${CLI_REGISTRAR:-}" ] || REGISTRAR="$CLI_REGISTRAR"
   [ -z "${CLI_DOMAIN:-}" ] || DOMAIN="$CLI_DOMAIN"
   [ -z "${CLI_DESTINATION:-}" ] || DEST_EMAIL="$CLI_DESTINATION"
   [ -z "${CLI_ADDRESSES:-}" ] || ADDRESSES="$CLI_ADDRESSES"
@@ -198,6 +202,11 @@ env_require_prompt() {
     read -r val || die "$key input unavailable — run ./cmail setup in an interactive terminal, or set $key in your private config first"
   fi
   [ -n "$val" ] || die "$key is required — enter a non-empty value when re-running ./cmail setup, or set $key in your private config first; do not share secret values"
+  if ! config_field_valid "$key" "$val"; then
+    if [ "$key" = DOMAIN ]; then config_error 'DOMAIN must be a domain name without a scheme or path'
+    else config_error "$key has an invalid value"; fi
+    return 3
+  fi
   env_set "$key" "$val"
 }
 

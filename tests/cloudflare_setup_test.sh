@@ -63,6 +63,7 @@ run_case() {
       zone) cf_zone_ensure ;;
       token) cf_ensure_token ;;
       active) cf_zone_wait_active test-zone ;;
+      manual) cf_manual_delegation test-zone ;;
     esac
     printf 'continued\n'
   ) >"$TMP/output" 2>&1
@@ -128,7 +129,8 @@ run_case 'invalid explicit account explains required ID' 1 '32-character account
 assert_absent -q '^POST ' "$TMP/calls"
 reset
 ZONES='{"success":true,"result":[{"id":"test-zone"}]}' ZONE='{"success":true,"result":{"name_servers":[]}}'
-run_case 'missing nameservers give dashboard recovery' 1 'no GoDaddy nameserver change applied'
+run_case 'missing nameservers give dashboard recovery' 1 'no nameserver change applied'
+assert_absent -qF 'GoDaddy' "$TMP/output"
 reset
 run_case 'token validation explains permission boundary' 0 'permissions are checked' token
 TOKEN_HTTP=401 TOKEN='{"success":false,"errors":[{"message":"Invalid token"}]}'
@@ -141,12 +143,34 @@ run_case 'active zone proceeds' 0 'zone active' active
 ZONE='{"success":true,"result":{"status":"pending"}}'
 run_case 'pending activation explains propagation and delegation' 1 '24–48 hours' active
 grep -qF 'no rollback' "$TMP/output"
+grep -qF 'your domain registrar' "$TMP/output"
+assert_absent -qF 'GoDaddy' "$TMP/output"
 DETAIL_HTTP=403 ZONE='{"success":false,"errors":[{"message":"Denied during poll"}]}'
 run_case 'activation API denial fails immediately' 1 'Denied during poll' active
 [ "$(grep -c '^GET ' "$TMP/calls")" = 1 ]
 
+# Manual registrar mode: instructions only, never a registrar write.
+reset
+run_case 'manual delegation skips an active zone' 0 'no registrar changes needed' manual
+assert_absent -qF 'replace ALL nameservers' "$TMP/output"
+[ "$(cat "$TMP/calls")" = "GET $CF_API/zones/test-zone" ]
+ZONE='{"success":true,"result":{"status":"pending","name_servers":["alice.ns.cloudflare.com","bob.ns.cloudflare.com"]}}'
+run_case 'manual delegation prints exact nameservers for a pending zone' 0 'replace ALL nameservers' manual
+for text in '  alice.ns.cloudflare.com' '  bob.ns.cloudflare.com' 'domain registrar' 'DNSSEC' 'DS records' 'MX' 'Copy every DNS record' 'continued'; do
+  grep -qF -- "$text" "$TMP/output"
+done
+assert_absent -qF 'GoDaddy' "$TMP/output"
+assert_absent -q '^POST ' "$TMP/calls"
+(CMAIL_QUIET=1; cf_manual_delegation test-zone) >"$TMP/output" 2>&1
+grep -qF 'alice.ns.cloudflare.com' "$TMP/output"
+printf 'PASS: manual delegation instructions survive --quiet\n'
+ZONE='{"success":true,"result":{"status":"pending","name_servers":[]}}'
+run_case 'manual delegation refuses missing nameservers' 1 'no nameserver change applied' manual
+ZONE='{"success":true,"result":{}}'
+run_case 'manual delegation requires zone status' 1 'no zone status' manual
+
 # All steps have next actions; guidance does not disclose credentials.
-for CMAIL_STEP in 'Dependencies' 'Configuration' 'GoDaddy authentication (prod)' 'Choose domain' 'Cloudflare API token' 'Cloudflare zone: example.com' 'GoDaddy: point example.com nameservers at Cloudflare' 'Waiting for zone activation' 'Enable Cloudflare Email Routing' 'Destination address: user@example.net' 'Forwarding addresses'; do
+for CMAIL_STEP in 'Dependencies' 'Configuration' 'GoDaddy authentication (prod)' 'Choose domain' 'Cloudflare API token' 'Cloudflare zone: example.com' 'Registrar nameservers: example.com' 'GoDaddy: point example.com nameservers at Cloudflare' 'Waiting for zone activation' 'Enable Cloudflare Email Routing' 'Destination address: user@example.net' 'Forwarding addresses'; do
   CMAIL_DNS_CHECKPOINT=0 setup_recovery >"$TMP/output" 2>&1
   grep -qF 'Next:' "$TMP/output"
   grep -qF './cmail setup' "$TMP/output"
@@ -155,6 +179,13 @@ for CMAIL_STEP in 'Dependencies' 'Configuration' 'GoDaddy authentication (prod)'
 done
 CMAIL_DNS_CHECKPOINT=1 setup_recovery >"$TMP/output" 2>&1
 grep -qF 'delegation may already have changed' "$TMP/output"
+CMAIL_STEP='Registrar nameservers: example.com' CMAIL_DNS_CHECKPOINT=2 setup_recovery >"$TMP/output" 2>&1
+grep -qF 'cmail never changes nameservers in manual registrar mode' "$TMP/output"
+grep -qF 'replace ALL nameservers' "$TMP/output"
+assert_absent -qF 'delegation may already have changed' "$TMP/output"
+assert_absent -qF 'GoDaddy' "$TMP/output"
+CMAIL_STEP='Waiting for zone activation' CMAIL_DNS_CHECKPOINT=2 setup_recovery >"$TMP/output" 2>&1
+assert_absent -qF 'GoDaddy' "$TMP/output"
 printf 'PASS: recovery guidance covers all setup steps and DNS checkpoint\n'
 
 # Exercise the actual orchestrator and EXIT trap with isolated fixture helpers.
@@ -169,21 +200,34 @@ cp "$ROOT/lib/ui.sh" "$TMP/cli/lib/ui.sh"
 for module in env deps godaddy cloudflare gmail; do : >"$TMP/cli/lib/$module.sh"; done
 printf '%s\n' 'ensure_deps() { step "Dependencies"; }' >"$TMP/cli/lib/deps.sh"
 printf '%s\n' 'config_error() { printf "%s\n" "$*" >&2; return 3; }' 'config_load() { :; }' 'env_init() { :; }' 'env_require_prompt() { :; }' 'env_set() { :; }' >"$TMP/cli/lib/env.sh"
-printf '%s\n' 'gddy_ensure_auth() { step "GoDaddy authentication (prod)"; }' 'gddy_pick_domain() { DOMAIN=example.com; }' 'gddy_set_nameservers() { step "GoDaddy: point example.com nameservers at Cloudflare"; }' >"$TMP/cli/lib/godaddy.sh"
-printf '%s\n' 'cf_ensure_token() { step "Cloudflare API token"; }' 'cf_zone_ensure() { step "Cloudflare zone: example.com"; if [ "$FAIL_AT" = zone ]; then die "no account"; fi; CF_ZONE_ID=test-zone; CF_NS=(alice bob); }' 'cf_zone_wait_active() { step "Waiting for zone activation"; return 7; }' >"$TMP/cli/lib/cloudflare.sh"
-for FAIL_AT in zone activation; do
-  set +e
-  FAIL_AT="$FAIL_AT" python3 "$ROOT/tests/run_tty.py" "$BASH" "$TMP/cli/cmail" setup >"$TMP/output" 2>&1
-  rc=$?
-  set -e
-  [ "$rc" != 0 ]
-  [ "$(grep -c 'Setup stopped at:' "$TMP/output")" = 1 ]
-  grep -qF 'Next:' "$TMP/output"
-  if [ "$FAIL_AT" = zone ]; then
-    [ "$rc" = 1 ]; grep -qF 'has not attempted a nameserver update' "$TMP/output"
-  else
-    [ "$rc" = 1 ]; grep -qF 'delegation may already have changed' "$TMP/output"
-  fi
+printf '%s\n' 'gddy_ensure_auth() { step "GoDaddy authentication (prod)"; echo GDDY-STUB-RAN >&2; }' 'gddy_pick_domain() { DOMAIN=example.com; }' 'gddy_set_nameservers() { step "GoDaddy: point example.com nameservers at Cloudflare"; echo GDDY-STUB-RAN >&2; }' >"$TMP/cli/lib/godaddy.sh"
+printf '%s\n' 'cf_ensure_token() { step "Cloudflare API token"; }' 'cf_zone_ensure() { step "Cloudflare zone: example.com"; if [ "$FAIL_AT" = zone ]; then die "no account"; fi; CF_ZONE_ID=test-zone; CF_NS=(alice bob); }' 'cf_manual_delegation() { step "Registrar nameservers: example.com"; echo MANUAL-DELEGATION-RAN >&2; }' 'cf_zone_wait_active() { step "Waiting for zone activation"; return 7; }' >"$TMP/cli/lib/cloudflare.sh"
+for registrar in godaddy manual; do
+  for FAIL_AT in zone activation; do
+    set +e
+    REGISTRAR="$registrar" FAIL_AT="$FAIL_AT" python3 "$ROOT/tests/run_tty.py" "$BASH" "$TMP/cli/cmail" setup >"$TMP/output" 2>&1
+    rc=$?
+    set -e
+    [ "$rc" != 0 ]
+    [ "$(grep -c 'Setup stopped at:' "$TMP/output")" = 1 ]
+    grep -qF 'Next:' "$TMP/output"
+    if [ "$FAIL_AT" = zone ]; then
+      [ "$rc" = 1 ]; grep -qF 'has not attempted a nameserver update' "$TMP/output"
+    elif [ "$registrar" = godaddy ]; then
+      [ "$rc" = 1 ]; grep -qF 'delegation may already have changed' "$TMP/output"
+      assert_absent -qF 'MANUAL-DELEGATION-RAN' "$TMP/output"
+    else
+      [ "$rc" = 1 ]; grep -qF 'cmail never changes nameservers in manual registrar mode' "$TMP/output"
+      grep -qF 'MANUAL-DELEGATION-RAN' "$TMP/output"
+      assert_absent -qF 'delegation may already have changed' "$TMP/output"
+    fi
+    if [ "$registrar" = manual ]; then
+      assert_absent -qF 'GDDY-STUB-RAN' "$TMP/output"
+      assert_absent -qF 'GoDaddy' "$TMP/output"
+    else
+      grep -qF 'GDDY-STUB-RAN' "$TMP/output"
+    fi
+  done
 done
 printf 'PASS: real setup trap preserves failure status and reports recovery once\n'
 cp "$ROOT/lib/env.sh" "$TMP/cli/lib/env.sh"
@@ -202,7 +246,7 @@ printf 'PASS: malformed configuration blocks all provider steps\n'
 
 # Setup is receive-only by default; Gmail send-as runs only via its own command.
 printf '%s\n' 'config_error() { printf "%s\n" "$*" >&2; return 3; }' 'config_load() { :; }' 'env_init() { :; }' 'env_require_prompt() { :; }' 'env_set() { :; }' >"$TMP/cli/lib/env.sh"
-printf '%s\n' 'cf_ensure_token() { :; }' 'cf_zone_ensure() { CF_ZONE_ID=test-zone; CF_NS=(alice bob); }' 'cf_zone_wait_active() { :; }' 'cf_email_enable() { :; }' 'cf_dest_ensure() { :; }' 'cf_rules_ensure() { :; }' >"$TMP/cli/lib/cloudflare.sh"
+printf '%s\n' 'cf_ensure_token() { :; }' 'cf_zone_ensure() { CF_ZONE_ID=test-zone; CF_NS=(alice bob); }' 'cf_manual_delegation() { :; }' 'cf_zone_wait_active() { :; }' 'cf_email_enable() { :; }' 'cf_dest_ensure() { :; }' 'cf_rules_ensure() { :; }' >"$TMP/cli/lib/cloudflare.sh"
 printf '%s\n' 'gmail_sendas_guide() { echo GMAIL-GUIDE-RAN; }' >"$TMP/cli/lib/gmail.sh"
 DOMAIN=example.com DEST_EMAIL=user@example.net ADDRESSES='hello, contact' python3 "$ROOT/tests/run_tty.py" "$BASH" "$TMP/cli/cmail" setup </dev/null >"$TMP/output" 2>&1
 grep -qF 'Receiving is set up' "$TMP/output"

@@ -34,6 +34,7 @@ class Timing(unittest.TestCase):
         (self.directory/'lib/godaddy.sh').write_text('gddy_ensure_auth() { :; }\ngddy_pick_domain() { :; }\ngddy_set_nameservers() { :; }\n')
         (self.directory/'lib/cloudflare.sh').write_text('''cf_ensure_token() { :; }
 cf_zone_ensure() { CF_ZONE_ID=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; CF_NS=(alice bob); }
+cf_manual_delegation() { :; }
 cf_zone_wait_active() { step "Waiting for zone activation"; sleep "${TEST_SLEEP:-1}"; [ "${TEST_FAIL:-0}" = 0 ] || return 7; }
 cf_email_enable() { :; }
 cf_dest_ensure() { :; }

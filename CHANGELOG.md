@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Make GoDaddy automation optional (#20). **Behavior change:** setup now defaults
+  to `REGISTRAR=manual` and no longer requires `gddy` or GoDaddy authentication.
+  It accepts an existing domain at any registrar. An already-active Cloudflare
+  zone skips nameserver steps; a pending zone gets the exact assigned nameservers,
+  DNS-record/DNSSEC migration warnings, and bounded activation polling. cmail
+  never changes delegation in this mode. GoDaddy automation (domain picker,
+  nameserver replacement, and the only path to a domain purchase) now requires
+  `REGISTRAR=godaddy` or `cmail setup --registrar godaddy`. `doctor` checks gddy
+  and GoDaddy authentication only in that mode, and `setup --dry-run` reports
+  `registrar` and skips GoDaddy reads and blockers in manual mode. New
+  `REGISTRAR` config key, `--registrar` option, completions, recovery guidance,
+  and offline regressions.
 - Add the `0.2.0-dev` CLI: strict arguments, command-level help/version, text/JSON
   reports, read-only doctor/status, full setup previews, literal configuration
   with environment precedence, private atomic config commands, secret stdin

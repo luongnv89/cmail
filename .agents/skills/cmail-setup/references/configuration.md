@@ -27,7 +27,7 @@ symlink/shared/unowned paths.
 
 Read the current state with
 `python3 <skill-directory>/scripts/check_config.py --summary <file>`. It prints
-DOMAIN, DEST_EMAIL, ADDRESSES, GDDY_ENV, CF_ACCOUNT_ID, CF_ZONE_ID and DRY_RUN,
+DOMAIN, DEST_EMAIL, ADDRESSES, REGISTRAR, GDDY_ENV, CF_ACCOUNT_ID, CF_ZONE_ID and DRY_RUN,
 reports CLOUDFLARE_API_TOKEN and GDDY_PAT only as set/empty/absent, and ends
 with READY or NOT READY.
 
@@ -35,9 +35,11 @@ Take empty values from the user's message: DOMAIN (owned, registrable domain onl
 no scheme/path), DEST_EMAIL (any receiving mailbox the user owns; it must be a
 Gmail/Google account only if they also want sending), ADDRESSES (comma-separated
 local parts, no `@domain`), GDDY_ENV (`prod` for real resources; `ote` cannot
-prove production setup). With DOMAIN unknown, list candidates with
+prove production setup), REGISTRAR (`manual`, the current CLI's default for any
+registrar; `godaddy` only when the user wants GoDaddy automation). With DOMAIN
+unknown in GoDaddy mode, list candidates with
 `gddy domain list --env <env> --json | jq -r '.data[] | .domain // .name'` and
-offer them. Ask one batched question for whatever is still missing, then write
+offer them; in manual mode ask for the owned domain. Ask one batched question for whatever is still missing, then write
 only the keys that need a value:
 
 ```text
@@ -57,7 +59,7 @@ Never request CLOUDFLARE_API_TOKEN, GDDY_PAT or a Google App Password in chat.
 cmail passes the token to curl in process arguments, visible to local `ps`
 whoever launches it; this skill cannot change that runtime transport.
 
-1. **GoDaddy:** browser OAuth via `gddy auth login --env prod`, which you start in
+1. **GoDaddy (GoDaddy mode only):** browser OAuth via `gddy auth login --env prod`, which you start in
    the background. A headless user may instead create a PAT at
    https://developer.godaddy.com/personal-access-token and save GDDY_PAT locally.
 2. **Cloudflare (hands-on):** open https://dash.cloudflare.com/profile/api-tokens

@@ -16,7 +16,7 @@ cmail setup
 
 The unflagged installer retains the pinned v0.1.0 runtime. That older runtime has different commands and behavior. This development CLI is not a published release. Reinstall the reviewed checkout with `--local` to update it; existing configuration is preserved.
 
-Runtime requirements: Bash 3.2+, curl, jq, and gddy on macOS/Linux. Setup checks tools and prints installation instructions. The optional Google sending guide requires browser/account eligibility and separate delivery checks.
+Runtime requirements: Bash 3.2+, curl, and jq on macOS/Linux. gddy is needed only for opt-in GoDaddy automation (`REGISTRAR=godaddy`). Setup checks tools and prints installation instructions. The optional Google sending guide requires browser/account eligibility and separate delivery checks.
 
 ## Commands
 
@@ -49,9 +49,28 @@ cmail config check
 cmail setup --domain example.com --destination owner@example.net --addresses hello,contact
 ```
 
+## Registrar: manual (default) or GoDaddy (opt-in)
+
+`REGISTRAR` (or `setup --registrar manual|godaddy`) selects how DNS delegation reaches Cloudflare. An explicit `--registrar` is saved like `--domain`.
+
+- `manual` (default): bring a domain you already own at any registrar. Setup never runs gddy, never asks for GoDaddy authentication, and never buys a domain. It asks for DOMAIN if unset, verifies the Cloudflare token, and reuses or creates the zone. Then it runs the `Registrar nameservers` step:
+  - Zone already **active** on Cloudflare: no registrar or nameserver change is needed, and setup continues.
+  - Zone **pending**: setup prints the exact Cloudflare-assigned nameservers and the migration warnings: copy web, MX, TXT, and other records into Cloudflare, and turn off DNSSEC/DS records at the registrar before switching. It then polls activation (bounded by `--wait-timeout`) while you replace **all** nameservers at your registrar. If the wait ends first, rerun `cmail setup`; completed steps are skipped. cmail itself never changes delegation in this mode.
+- `godaddy`: opt-in automation through the [GoDaddy CLI](https://developer.godaddy.com/en/docs/api-users/cli/set-up) (`gddy`). Setup requires gddy, authenticates (browser OAuth or `GDDY_PAT`), picks a GoDaddy domain, and compares the current nameservers. It replaces them only after confirmation. This is the only mode that can offer a domain registration, and any charge still requires the exact domain typed at a terminal.
+
+`cmail doctor` checks gddy and GoDaddy authentication only when `REGISTRAR=godaddy`. Without it, a missing gddy never fails doctor.
+
+```bash
+cmail setup --domain example.com                 # any registrar, manual nameservers
+cmail setup --registrar godaddy                  # opt in to GoDaddy automation
+cmail config set REGISTRAR godaddy               # make the opt-in persistent
+```
+
+## Configuration files
+
 Configuration contains documented literal `KEY=value` assignments. Single/double quotes and literal backslash escapes are supported; shell commands and expansions are rejected. Files must be user-owned regular files with mode 600. Read-only commands do not repair permissions or create missing files. Use `config init` to create one; fix an existing file's permissions locally when instructed.
 
-Precedence: explicit command options → environment values → configuration file → defaults. An explicit empty environment value overrides a saved value. Operational environment names are `DOMAIN`, `DEST_EMAIL`, `ADDRESSES`, `GDDY_ENV`, `GDDY_PAT`, `CLOUDFLARE_API_TOKEN`, `CF_ACCOUNT_ID`, `CF_ZONE_ID`, and `DRY_RUN`.
+Precedence: explicit command options → environment values → configuration file → defaults. An explicit empty environment value overrides a saved value. Operational environment names are `DOMAIN`, `DEST_EMAIL`, `ADDRESSES`, `REGISTRAR`, `GDDY_ENV`, `GDDY_PAT`, `CLOUDFLARE_API_TOKEN`, `CF_ACCOUNT_ID`, `CF_ZONE_ID`, and `DRY_RUN`.
 
 Select a config with `--config PATH`; otherwise `CMAIL_CONFIG`, legacy `ENV_FILE`, and the checkout/installed default are tried in order. Global environment settings are `CMAIL_FORMAT`, `CMAIL_TIMEOUT`, `CMAIL_VERBOSE`, and `CMAIL_QUIET` (boolean settings use 0 or 1). Explicit global flags override those settings.
 
@@ -74,13 +93,13 @@ cmail doctor --offline --format json
 cmail --config ~/.config/cmail/work.env config check
 ```
 
-Both `setup --dry-run` and legacy `DRY_RUN=1` preview the entire workflow in this version: no provider changes, purchases, configuration writes, browser launches, installations, or authentication flows. The preview needs valid existing Cloudflare credentials. It uses a supplied `GDDY_PAT` for the GoDaddy delegation read; without a PAT it reports that check as a blocker, since gddy can automatically start OAuth during a read. Guided setup supports browser OAuth. Read access does not establish every write permission.
+Both `setup --dry-run` and legacy `DRY_RUN=1` preview the entire workflow in this version: no provider changes, purchases, configuration writes, browser launches, installations, or authentication flows. The preview needs valid existing Cloudflare credentials and reports the selected `registrar` in its JSON data. In manual mode it never runs gddy and has no GoDaddy blocker. Its `nameservers` action is `ready` when the zone is already active. It is `manual` and lists the assigned nameservers when the zone is pending, and `manual` with a note that setup prints them when no zone exists yet. With `REGISTRAR=godaddy` it uses a supplied `GDDY_PAT` for the GoDaddy delegation read. Without a PAT it reports that check as a blocker, since gddy can automatically start OAuth during a read. Guided setup supports browser OAuth. Read access does not establish every write permission.
 
-A successfully generated preview exits 0 even when its `data.blockers` array is nonempty. Inspect blockers before setup. Actual setup and send-as require terminal stdin; running them with closed or piped stdin fails before writes. Agent runners must use a pseudo-terminal and relay prompts. Nameserver replacement retains explicit confirmation. Any charge, such as a domain purchase, always requires the exact domain name typed at an interactive terminal; no flag, environment variable, or piped input can approve it. Existing DNS/service records require migration review before delegation changes.
+A successfully generated preview exits 0 even when its `data.blockers` array is nonempty. Inspect blockers before setup. Actual setup and send-as require terminal stdin; running them with closed or piped stdin fails before writes. Agent runners must use a pseudo-terminal and relay prompts. GoDaddy nameserver replacement retains explicit confirmation. Any charge, such as a domain purchase (offered only with `REGISTRAR=godaddy`), always requires the exact domain name typed at an interactive terminal; no flag, environment variable, or piped input can approve it. Existing DNS/service records require migration review before delegation changes.
 
 ## Output and timing
 
-Results go to stdout. Progress, prompts, warnings, and errors go to stderr. `--quiet` retains results and errors; `--verbose` adds redacted request context. They are mutually exclusive. Colors are used only on terminal diagnostics, and `NO_COLOR` (including an empty value) or `--no-color` disables them. `--no-browser` prints manual links; setup also requires an existing PAT in this mode to prevent automatic GoDaddy OAuth.
+Results go to stdout. Progress, prompts, warnings, and errors go to stderr. `--quiet` retains results and errors; `--verbose` adds redacted request context. They are mutually exclusive. Colors are used only on terminal diagnostics, and `NO_COLOR` (including an empty value) or `--no-color` disables them. `--no-browser` prints manual links; with `REGISTRAR=godaddy`, setup also requires an existing PAT in this mode to prevent automatic GoDaddy OAuth.
 
 JSON is available for status, doctor, config show/check, and setup previews:
 

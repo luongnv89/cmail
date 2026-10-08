@@ -22,7 +22,20 @@ with open(os.environ['TEST_RESPONSES']) as stream:
 if path not in responses:
     print('unexpected endpoint', file=sys.stderr)
     sys.exit(99)
-response = dict(responses[path])
+response = responses[path]
+if '_sequence' in response:
+    # Successive calls walk the sequence; the last entry repeats.
+    state_file = os.environ['TEST_RESPONSES'] + '.count'
+    counts = {}
+    if os.path.exists(state_file):
+        with open(state_file) as stream:
+            counts = json.load(stream)
+    index = counts.get(path, 0)
+    counts[path] = index + 1
+    with open(state_file, 'w') as stream:
+        json.dump(counts, stream)
+    response = response['_sequence'][min(index, len(response['_sequence']) - 1)]
+response = dict(response)
 status = response.pop('_status', 200)
 body = response.pop('_body', None)
 if '-fsS' in args and status >= 400:

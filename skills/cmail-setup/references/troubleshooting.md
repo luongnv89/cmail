@@ -21,7 +21,7 @@ then rerun the original check (usually setup pass 1, which skips finished work).
 | Missing library / broken launcher | **auto:** rerun the reviewed installer with the same user-owned paths; config is preserved | Installed `help`, intended runtime |
 | Installer HTTPS/download failure | **auto:** retry once; then stop with connection/proxy evidence. Never disable TLS or use HTTP | Installer, then launcher help |
 | Unmanaged path/symlink refused | Stop: propose separate user-owned absolute dirs; never delete unrelated files | Installer plus launcher help |
-| `Dependencies` | **auto:** brew install curl/jq or the read official gddy installer; sudo is a stop | Each tool's version/help |
+| `Dependencies` | **auto:** brew install curl/jq, or the read official gddy installer (GoDaddy mode only; manual mode never needs gddy); sudo is a stop | Each tool's version/help |
 | `Configuration` | **auto:** `set_config.py` for empty non-secret keys and `DRY_RUN=0`; token or complex lines are hands-on | Summary READY, checker, private `bash -n` |
 | `GoDaddy authentication` | **auto:** background `gddy auth login --env <env>`; user approves; expired PAT is hands-on | Exact filtered domain read |
 | `Choose domain` | DOMAIN was empty: fill it (auto from known input, else ask). Never purchase without the purchase stop | Summary shows DOMAIN; domain read |
@@ -30,6 +30,7 @@ then rerun the original check (usually setup pass 1, which skips finished work).
 | `Cloudflare zone:` 401/403 | Hands-on: user fixes the token's Account/Zone Resources; never widen to all accounts | Pass 1 zone line, then `status` |
 | `Cloudflare zone:` multiple accounts | Stop: user picks the account from the listed names; **auto:** `set_config.py CF_ACCOUNT_ID=<id>` | Pass 1 zone line |
 | Stale CF_ZONE_ID in `status` | Setup replaces it on its next pass; for `status` alone, stop to compare domain and owner, then **auto:** set the confirmed ID | `status` for the exact zone |
+| `Registrar nameservers` (manual mode) | Stop: relay the printed nameservers and DNS/DNSSEC warnings; the user replaces ALL nameservers at their registrar. cmail never changes them in this mode | Zone `active` in `status`, `dig +short NS` |
 | `GoDaddy: point` with `aborted before nameserver change` | Not a failure: the nameserver approval stop in `autonomous-run.md` | Approved pass 2 |
 | `GoDaddy: point` (write failed or uncertain) | **auto:** filtered `gddy domain get`; compare with the desired set before any retry | Fresh nameserver comparison |
 | `Waiting for zone activation` | `zone still` after `nameservers set`: PENDING, wait and rerun pass 1 later. No `nameservers set` line: check DRY_RUN and registrar nameservers. `needs attention`: stop with the zone status | Zone `active` in `status` |

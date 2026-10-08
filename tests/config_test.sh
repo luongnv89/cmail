@@ -37,6 +37,23 @@ fixture 'DOMAIN=bad/domain'
 check 'domain validation' 3 config_load
 fixture 'ADDRESSES=hello,hello'
 check 'duplicate aliases rejected' 3 config_load
+registrar_default() { config_load; [ "$REGISTRAR" = manual ]; }
+check 'registrar defaults to manual' 0 registrar_default
+fixture 'REGISTRAR=godaddy'
+registrar_opt_in() { config_load; [ "$REGISTRAR" = godaddy ]; }
+check 'registrar godaddy opt-in loads' 0 registrar_opt_in
+registrar_cli() { CLI_REGISTRAR=manual; config_load; [ "$REGISTRAR" = manual ]; }
+check 'registrar option overrides config' 0 registrar_cli
+fixture 'REGISTRAR=namecheap'
+check 'registrar validation' 3 config_load
+fixture 'DOMAIN=example.com'
+registrar_env() { REGISTRAR=GoDaddy; config_load; }
+check 'registrar environment value validated' 3 registrar_env
+fixture 'DOMAIN=example.com'
+registrar_set() { env_set REGISTRAR godaddy; unset REGISTRAR; config_load; [ "$REGISTRAR" = godaddy ]; }
+check 'registrar persists through env_set' 0 registrar_set
+registrar_set_invalid() { env_set REGISTRAR namecheap; }
+check 'registrar env_set refuses invalid value' 3 registrar_set_invalid
 fixture 'GDDY_PAT="opaque\$literal\\backslash"'
 quoted() { config_load; [ "$GDDY_PAT" = 'opaque$literal\backslash' ]; }
 check 'quoted escaped dollar stays literal' 0 quoted

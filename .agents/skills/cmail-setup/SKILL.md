@@ -1,18 +1,18 @@
 ---
 name: "cmail-setup"
-description: "Set up, resume or troubleshoot cmail custom-domain email (GoDaddy → Cloudflare Email Routing → any inbox, optional Gmail send-as): runs cmail setup itself, asking only for missing input, secrets or risky approvals. Don't use for other registrars, mail migrations or campaigns."
-compatibility: "macOS/Linux, Bash 3.2+, curl, jq, gddy, dig; Python 3 for the bundled config helpers."
+description: "Set up, resume or troubleshoot cmail custom-domain email (domain at any registrar → Cloudflare Email Routing → any inbox; optional GoDaddy automation and Gmail send-as): runs cmail setup itself, asking only for missing input, secrets or risky approvals. Don't use for mail migrations or campaigns."
+compatibility: "macOS/Linux, Bash 3.2+, curl, jq, dig; gddy only for opt-in GoDaddy automation or legacy runtimes; Python 3 for the bundled config helpers."
 effort: "high"
 metadata:
-  version: "2.2.0"
+  version: "2.3.0"
   author: "Luong NGUYEN <luongnv89@gmail.com>"
 ---
 
 # Autonomous cmail setup
 
 Use this skill when the user asks to set up, resume or troubleshoot cmail
-(GoDaddy → Cloudflare Email Routing → any inbox the user owns); you run the
-commands. With reviewed current source, receiving takes a few simple steps and
+(a domain at any registrar → Cloudflare Email Routing → any inbox the user owns;
+GoDaddy automation is optional); you run the commands. With reviewed current source, receiving takes a few simple steps and
 needs no Google account: `./cmail setup` sets up receiving only. The default
 installer pins legacy v0.1.0, whose setup still includes the Gmail guide and lacks
 `send-as`; its post-receiving pause is accepted only by gate 8's exact checks.
@@ -26,7 +26,13 @@ consent for every **auto** action below. Ask only at a **stop**.
 For the new `0.2.0-dev` CLI, use `bash install.sh --local` on the reviewed
 checkout and follow the capability gate in `references/autonomous-run.md`.
 It requires terminal stdin for setup, uses a full read-only preview, and prints
-elapsed setup time. Historical closed/piped-stdin recipes below remain scoped
+elapsed setup time. Its default `REGISTRAR=manual` works at any registrar
+without gddy or GoDaddy login: an already-active Cloudflare zone needs no
+nameserver step; a pending zone prints the assigned nameservers, which the
+user replaces at their registrar (a nameserver stop) while setup polls for
+Active. Use `--registrar godaddy` / `REGISTRAR=godaddy` only when the domain is
+at GoDaddy and the user wants automation; only that mode can offer a purchase.
+The previous snapshot and legacy v0.1.0 always use GoDaddy. Historical closed/piped-stdin recipes below remain scoped
 to their older runtimes. Delivery must still be verified independently.
 
 ## Autonomy contract
@@ -34,7 +40,7 @@ to their older runtimes. Delivery must still be verified independently.
 **Auto — run without asking, then report the result:** read-only probes and
 checks; trusted `cmail help`/`status`; installing cmail and missing tools without
 sudo; creating the config and setting its non-secret keys; background
-`gddy auth login` (opens the user's browser); `cmail setup` passes the preflight
+`gddy auth login` in GoDaddy mode (opens the user's browser); `cmail setup` passes the preflight
 allows, including the zone, destination and rules setup creates; reruns after a
 repair; opening dashboards, the config editor or (when sending was requested)
 Gmail settings for the user.
@@ -46,9 +52,10 @@ Gmail settings for the user.
   delivery tests from another mailbox, Gmail send-as (only when sending was
   requested). Batch missing values into one
   question.
-- **Super important:** nameserver replacement; routing over existing
-  non-Cloudflare MX or DNSSEC/DS records; domain purchase (exact domain, price,
-  prod); anything needing sudo; deleting or overwriting DNS records, rules or a
+- **Super important:** nameserver replacement (by cmail in GoDaddy mode, or by
+  the user at their registrar in manual mode); routing over existing
+  non-Cloudflare MX or DNSSEC/DS records; domain purchase (GoDaddy mode only;
+  exact domain, price, prod); anything needing sudo; deleting or overwriting DNS records, rules or a
   user-set config value; widening token scope; choosing among Cloudflare accounts.
 - **Wrong:** an untrusted cmail binary, unexpected provider state, or a failure
   after three unsuccessful repairs.
@@ -174,8 +181,9 @@ lines). `status` exit 0 alone is not a verdict.
    config `~/.config/cmail/.env`. Installer overrides are absolute `CMAIL_BIN_DIR`,
    `CMAIL_DATA_DIR`, `CMAIL_CONFIG_DIR`; runtime override is `ENV_FILE`.
    Call the launcher by absolute path; report the PATH line for the user's profile instead of editing it.
-5. Check `command -v bash`, `curl --version`, `jq --version`, `gddy --version`,
-   `dig -v` and `gddy auth --help` / `gddy domain --help`. Install missing curl/jq
+5. Check `command -v bash`, `curl --version`, `jq --version` and `dig -v`.
+   Only for GoDaddy mode or a legacy/snapshot runtime, also check `gddy --version`
+   and `gddy auth --help` / `gddy domain --help`. Install missing curl/jq
    with brew or another no-sudo package manager (sudo is a stop). For gddy,
    download https://github.com/godaddy/cli/releases/latest/download/install.sh
    to a file, read it, run it.
@@ -234,7 +242,9 @@ the switch after copying the A record to Cloudflare; then pass 2 runs.
 
 ## Edge cases
 
-- Unsupported registrar or mail service: stop at the scope boundary.
+- Registrar other than GoDaddy: use the current CLI's default manual mode and
+  relay its printed nameservers; legacy runtimes need GoDaddy, so stop there.
+- Unsupported mail service: stop at the scope boundary.
 - Other MX, SPF or DS records: stop before pass 1, even if nameservers match.
 - `DRY_RUN=1` or an empty required value: fix config first; never pipe answers.
 

@@ -58,7 +58,7 @@ setup_recovery() {
     Dependencies*)
       note "Next: install the missing tool using your OS package manager; check network/sudo access and PATH." ;;
     Configuration*)
-      note "Next: edit DEST_EMAIL and ADDRESSES in .env (local parts only, e.g. hello,contact). Keep this file private." ;;
+      note "Next: edit DOMAIN, DEST_EMAIL and ADDRESSES in .env (a bare domain such as example.com; local parts only, e.g. hello,contact). Keep this file private." ;;
     'GoDaddy authentication'*)
       note "Next: run gddy auth login --env ${GDDY_ENV:-prod} and complete browser consent; replace an expired GDDY_PAT in .env if using a PAT." ;;
     'Choose domain'*)
@@ -67,10 +67,12 @@ setup_recovery() {
       note "Next: open https://dash.cloudflare.com/profile/api-tokens. Replace an invalid/expired CLOUDFLARE_API_TOKEN in .env; for network/service errors, fix connectivity before changing the token." ;;
     'Cloudflare zone:'*)
       note "Next: check token Account Resources and Zone Resources at https://dash.cloudflare.com/profile/api-tokens. For account discovery problems, set CF_ACCOUNT_ID from the dashboard in .env; this does not grant permissions." ;;
+    'Registrar nameservers'*)
+      note "Next: at your domain registrar, replace ALL nameservers with the Cloudflare-assigned ones (Cloudflare > domain > Overview). Copy needed DNS records into Cloudflare and turn off DNSSEC first." ;;
     'GoDaddy: point'*)
       note "Next: open GoDaddy > domain > DNS > Nameservers and compare with Cloudflare > domain > Overview. If an update failed, verify its outcome before retrying." ;;
     'Waiting for zone activation'*)
-      note "Next: compare GoDaddy delegation with the nameservers on Cloudflare Overview. Wait for propagation (up to 24–48 hours); an API/auth failure is not propagation." ;;
+      note "Next: compare the nameservers at your domain registrar with those on Cloudflare Overview. Wait for propagation (up to 24–48 hours); an API/auth failure is not propagation." ;;
     'Enable Cloudflare Email Routing'*)
       note "Next: open Cloudflare > domain > Email > Email Routing. Check token Zone Settings:Edit and DNS conflicts; do not remove existing mail-provider records blindly." ;;
     'Destination address:'*)
@@ -81,6 +83,8 @@ setup_recovery() {
   esac >&2
   if [ "${CMAIL_DNS_CHECKPOINT:-0}" = 1 ]; then
     note "Nameserver step was reached; delegation may already have changed. No rollback was attempted." >&2
+  elif [ "${CMAIL_DNS_CHECKPOINT:-0}" = 2 ]; then
+    note "cmail never changes nameservers in manual registrar mode; only changes you made at your registrar apply. No rollback was attempted." >&2
   else
     note "This run has not attempted a nameserver update. Earlier resources/configuration may have been saved." >&2
   fi

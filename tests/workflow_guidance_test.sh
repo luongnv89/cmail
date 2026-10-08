@@ -79,6 +79,24 @@ eof_input() { unset GDDY_PAT; env_require_prompt GDDY_PAT 'Test input' --secret 
 run_expect 'missing terminal input recovery' 1 eof_input 'input unavailable' 'interactive terminal'
 existing_input() { GDDY_PAT=private-test-sentinel; env_require_prompt GDDY_PAT 'Test input' </dev/null; }
 run_expect 'existing input does not prompt' 0 existing_input
+printf 'GDDY_ENV=ote\n' >"$ENV_FILE"
+invalid_domain_input() { unset DOMAIN; env_require_prompt DOMAIN 'domain' <<<'https://example.com/'; }
+run_expect 'prompted domain is validated before saving' 3 invalid_domain_input 'DOMAIN must be a domain name'
+if grep -qF 'DOMAIN=' "$ENV_FILE"; then printf 'FAIL: invalid domain saved\n' >&2; exit 1; fi
+valid_domain_input() { unset DOMAIN; env_require_prompt DOMAIN 'domain' <<<'example.org'; grep -qxF "DOMAIN='example.org'" "$ENV_FILE"; }
+run_expect 'prompted domain at any registrar is saved' 0 valid_domain_input
+DOMAIN=example.com
+missing_gddy_manual() {
+  PATH="$TMP/no-such-bin:$(dirname "$(command -v curl)"):$(dirname "$(command -v jq)")"
+  REGISTRAR=manual ensure_deps
+  unset REGISTRAR; ensure_deps
+}
+run_expect 'manual registrar mode never requires gddy' 0 missing_gddy_manual 'curl present' 'jq present'
+if grep -qF 'gddy' "$TMP/output"; then printf 'FAIL: manual mode checked gddy\n' >&2; exit 1; fi
+missing_gddy_opt_in() { PATH="$TMP/no-such-bin:$(dirname "$(command -v curl)"):$(dirname "$(command -v jq)")"; REGISTRAR=godaddy ensure_deps; }
+if [ -z "$(PATH="$(dirname "$(command -v curl)"):$(dirname "$(command -v jq)")" type -P gddy)" ]; then
+  run_expect 'GoDaddy opt-in requires gddy' 1 missing_gddy_opt_in 'gddy missing'
+fi
 
 # Config writes use a synthetic fixture, never a repository/user config.
 printf 'GDDY_PAT=old\nGDDY_ENV=ote\n' >"$ENV_FILE"

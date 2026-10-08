@@ -9,5 +9,8 @@ ensure_gddy() {
   if type -P gddy >/dev/null; then ok 'gddy present'; return 0; fi
   die 'gddy missing — Install manually: https://developer.godaddy.com/en/docs/api-users/cli/set-up; check GitHub/network access, add ~/.local/bin to PATH, then re-run ./cmail setup'
 }
-ensure_deps() { step 'Dependencies'; ensure_tool curl; ensure_tool jq; ensure_gddy; }
+ensure_deps() { # gddy is needed only for opt-in GoDaddy automation
+  step 'Dependencies'; ensure_tool curl; ensure_tool jq
+  if [ "${REGISTRAR:-manual}" = godaddy ]; then ensure_gddy; fi
+}
 ensure_read_tools() { ensure_tool curl; ensure_tool jq; }

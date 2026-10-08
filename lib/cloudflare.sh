@@ -98,7 +98,7 @@ cf_zone_ensure() { # sets globals CF_ZONE_ID and CF_NS
   resp=$(cf_routing_request GET "/zones/$CF_ZONE_ID") || return 1
   local nameservers
   nameservers=$(jq -er '.result.name_servers | select(type == "array" and length >= 2 and all(.[]; type == "string" and length > 0)) | .[]' <<<"$resp") \
-    || die "Cloudflare returned no valid nameservers — open the domain Overview in Cloudflare; no GoDaddy nameserver change applied"
+    || die "Cloudflare returned no valid nameservers — open the domain Overview in Cloudflare; no nameserver change applied"
   CF_NS=(); while IFS= read -r n; do CF_NS+=("$n"); done <<<"$nameservers"
   ok "zone $CF_ZONE_ID — nameservers: ${CF_NS[*]}"
 }
@@ -124,7 +124,39 @@ cf_zone_wait_active() { # $1 = zone_id
     note "status: $status — retrying in ${delay}s"
     sleep "$delay"
   done
-  die "zone still '$status' after ${limit}s — compare GoDaddy DNS > Nameservers with Cloudflare Overview nameservers (${CF_NS[*]:-see dashboard}). Propagation can take 24–48 hours; rerun ./cmail setup once Cloudflare shows Active. Nameservers may already have changed; no rollback was attempted"
+  die "zone still '$status' after ${limit}s — compare the nameservers at your domain registrar with Cloudflare Overview nameservers (${CF_NS[*]:-see dashboard}). Propagation can take 24–48 hours; rerun ./cmail setup once Cloudflare shows Active. Any nameserver change already made stays in place; no rollback was attempted"
+}
+
+cf_manual_delegation() { # $1 = zone_id — registrar-independent; never changes delegation
+  step "Registrar nameservers: $DOMAIN"
+  local resp status nameservers
+  resp=$(cf_routing_request GET "/zones/$1") || return 1
+  status=$(jq -er '.result.status | select(type == "string" and length > 0)' <<<"$resp") \
+    || die "Cloudflare returned no zone status — check the domain Overview in the dashboard"
+  if [ "$status" = active ]; then
+    ok "zone already active on Cloudflare — no registrar changes needed"
+    return 0
+  fi
+  nameservers=$(jq -er '.result.name_servers | select(type == "array" and length >= 2 and all(.[]; type == "string" and length > 0)) | map("  " + .) | join("\n")' <<<"$resp") \
+    || die "Cloudflare returned no valid nameservers — open the domain Overview in Cloudflare; no nameserver change applied"
+  warn "zone is '$status' — update the nameservers at your domain registrar yourself (cmail does not change them)"
+  # Printed even with --quiet: the user must act on these instructions.
+  cat >&2 <<EOF
+
+Cloudflare assigned these nameservers to $DOMAIN:
+$nameservers
+
+Before switching (services still using the old DNS host stop resolving otherwise):
+  1. Copy every DNS record you still need (website A/AAAA/CNAME, MX, TXT such as
+     SPF/DKIM/verification, and any others) into Cloudflare > $DOMAIN > DNS.
+  2. Turn off DNSSEC at your registrar (remove DS records) before switching;
+     re-enable it from Cloudflare after the zone is active.
+Then:
+  3. Log in to your domain registrar, open the nameserver settings for $DOMAIN,
+     and replace ALL nameservers with exactly the ones listed above.
+  4. Save. cmail now checks Cloudflare activation for up to ${CMAIL_WAIT_TIMEOUT:-1200}s.
+     Propagation can take 24–48 hours; if the wait ends first, rerun ./cmail setup.
+EOF
 }
 
 cf_account_recovery() {

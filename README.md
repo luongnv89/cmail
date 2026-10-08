@@ -29,10 +29,21 @@ cmail config show
 ```
 
 See the [current CLI guide](docs/cli.md) for configuration, flags, timing,
-completion installation, automation, and exit codes. Setup runs in a terminal,
-checks dependencies without installing them, and requires confirmation for
-nameserver replacement and purchases. Status and doctor never write config or
-install tools. Setup previews never change providers or launch authentication.
+completion installation, automation, and exit codes. Setup runs in a terminal and
+checks dependencies without installing them. Status and doctor never write config or
+install tools.
+
+**Any registrar, no GoDaddy required.** By default (`REGISTRAR=manual`) the
+current CLI works with a domain you already own at any registrar and never needs
+`gddy` or a GoDaddy login. If the domain is already active on Cloudflare, setup
+skips nameservers entirely. Otherwise it prints the exact Cloudflare-assigned
+nameservers and migration warnings (copy existing DNS records into Cloudflare
+and turn off DNSSEC first). You then replace the nameservers at your registrar
+while setup polls Cloudflare until the zone is active. GoDaddy automation is
+opt-in: `cmail setup --registrar godaddy` (or `cmail config set REGISTRAR godaddy`)
+uses `gddy` to pick a domain and apply the nameserver change after confirmation.
+Domain purchase is offered only in that mode and needs the domain typed at a
+terminal. Setup previews never change providers or launch authentication.
 The final summary measures actual setup time, including prompts and provider
 waits; receiving still needs an independent mailbox delivery test.
 

@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-KEYS = ('DOMAIN', 'DEST_EMAIL', 'ADDRESSES', 'CLOUDFLARE_API_TOKEN', 'GDDY_ENV', 'GDDY_PAT',
+KEYS = ('DOMAIN', 'DEST_EMAIL', 'ADDRESSES', 'CLOUDFLARE_API_TOKEN', 'REGISTRAR', 'GDDY_ENV', 'GDDY_PAT',
         'CF_ZONE_ID', 'CF_ACCOUNT_ID', 'DRY_RUN', 'ENV_FILE', 'NO_COLOR')
 FIXTURE = "DOMAIN=example.com\nDEST_EMAIL=owner@example.net\nADDRESSES=hello,contact\nCLOUDFLARE_API_TOKEN=synthetic-token\nGDDY_ENV=ote\n"
 
@@ -104,7 +104,9 @@ esac''')
                  ('--timeout','0','status'), ('--timeout','status'), ('doctor','--wait-timeout','1200'),
                  ('status','--offline'), ('status','--dry-run'), ('status','--stdin'),
                  ('-v','-q','status'), ('--quiet=yes','status'), ('completion','powershell'),
-                 ('config','wat'), ('config','set','DOMAIN')]
+                 ('config','wat'), ('config','set','DOMAIN'), ('setup','--registrar','namecheap'),
+                 ('setup','--registrar='), ('setup','--registrar'), ('status','--registrar','manual'),
+                 ('doctor','--registrar=godaddy')]
         for args in cases:
             with self.subTest(args=args):
                 result = self.invoke(*args)
@@ -256,21 +258,56 @@ esac''')
         self.assertEqual([r['id'] for r in rules],['rule-%d'%i for i in range(51)])
         self.assertIn('/email/routing/rules?per_page=50&page=1',self.calls.read_text())
 
-    def test_doctor_reports_missing_gddy_binary(self):
+    def without_gddy(self):
         (self.mock/'gddy').unlink()
-        path=os.pathsep.join(d for d in self.env['PATH'].split(os.pathsep)
-                             if d and not os.path.exists(os.path.join(d,'gddy')))
-        result=self.invoke('doctor','--offline','--format=json',env={'PATH':path})
+        return os.pathsep.join(d for d in self.env['PATH'].split(os.pathsep)
+                               if d and not os.path.exists(os.path.join(d,'gddy')))
+
+    def test_doctor_reports_missing_gddy_binary(self):
+        path=self.without_gddy()
+        result=self.invoke('doctor','--offline','--format=json',env={'PATH':path,'REGISTRAR':'godaddy'})
         checks={c['name']:c['state'] for c in json.loads(result.stdout)['data']['checks']}
         self.assertEqual(checks['gddy'],'fail',result.stdout)
+        self.assertEqual(result.returncode,1,result.stderr)
+
+    def test_doctor_godaddy_mode_from_config_requires_gddy(self):
+        path=self.without_gddy()
+        self.config.write_text(FIXTURE+'REGISTRAR=godaddy\n')
+        result=self.invoke('doctor','--offline',env={'PATH':path})
+        self.assertEqual(result.returncode,1,result.stdout)
+        self.assertIn('gddy missing',result.stdout)
+
+    def test_doctor_manual_mode_never_requires_gddy(self):
+        path=self.without_gddy()
+        for extra in ('','REGISTRAR=manual\n'):
+            with self.subTest(extra=extra):
+                self.config.write_text(FIXTURE+extra)
+                result=self.invoke('doctor','--offline','--format=json',env={'PATH':path})
+                self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+                checks={c['name']:c['state'] for c in json.loads(result.stdout)['data']['checks']}
+                self.assertNotIn('gddy',checks)
+                self.assertEqual(checks['registrar'],'pass')
+                self.assertTrue(all(state=='pass' for state in checks.values()),checks)
+        self.assertFalse(self.calls.exists())
 
     def test_online_doctor_and_timeouts(self):
         self.cloudflare()
-        result=self.invoke('doctor','--format=json','--timeout=7')
+        result=self.invoke('doctor','--format=json','--timeout=7',env={'REGISTRAR':'godaddy'})
         self.assertEqual(result.returncode,0,result.stderr)
         checks=json.loads(result.stdout)['data']['checks']
         self.assertEqual(checks[-1]['state'],'pass')
+        self.assertEqual(checks[-1]['name'],'godaddy')
         self.assertIn('max-time=7',self.calls.read_text())
+        self.assertIn('gddy auth status',self.calls.read_text())
+
+    def test_online_doctor_manual_mode_skips_godaddy(self):
+        self.cloudflare()
+        result=self.invoke('doctor','--format=json',env={'PATH':self.without_gddy()})
+        self.assertEqual(result.returncode,0,result.stderr)
+        checks={c['name']:c['state'] for c in json.loads(result.stdout)['data']['checks']}
+        self.assertEqual(checks['cloudflare'],'pass')
+        self.assertNotIn('godaddy',checks)
+        self.assertNotIn('gddy',self.calls.read_text())
 
     def test_verbose_status_diagnostics_stderr(self):
         self.cloudflare()
@@ -283,10 +320,12 @@ esac''')
     def test_full_dry_run_never_writes(self):
         self.cloudflare()
         before=self.config.read_bytes()
-        result=self.invoke('setup','--dry-run','--format=json', env={'GDDY_PAT':'synthetic-pat'})
+        result=self.invoke('setup','--dry-run','--format=json', env={'GDDY_PAT':'synthetic-pat','REGISTRAR':'godaddy'})
         self.assertEqual(result.returncode,0,result.stderr)
         data=json.loads(result.stdout)['data']
         self.assertTrue(data['dry_run'])
+        self.assertEqual(data['registrar'],'godaddy')
+        self.assertIn('gddy domain get',self.calls.read_text())
         self.assertEqual(data['blockers'],[])
         self.assertIsInstance(data['elapsed_seconds'],int)
         self.assertEqual(self.config.read_bytes(),before)
@@ -298,7 +337,7 @@ esac''')
 
     def test_legacy_dry_run_is_complete_preview(self):
         self.cloudflare()
-        result=self.invoke('setup','--format=json',env={'DRY_RUN':'1','GDDY_PAT':'synthetic-pat'})
+        result=self.invoke('setup','--format=json',env={'DRY_RUN':'1','GDDY_PAT':'synthetic-pat','REGISTRAR':'godaddy'})
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertTrue(json.loads(result.stdout)['data']['dry_run'])
         self.assertNotIn('POST',self.calls.read_text())
@@ -310,16 +349,153 @@ esac''')
         self.save_responses()
         result=self.invoke('setup','--dry-run','--format=json')
         self.assertEqual(result.returncode,0,result.stderr)
-        self.assertTrue(json.loads(result.stdout)['data']['blockers'])
+        data=json.loads(result.stdout)['data']
+        self.assertTrue(data['blockers'])
+        actions={a['name']:a for a in data['actions']}
+        self.assertEqual(actions['nameservers']['state'],'manual')
+        self.assertIn('prints the nameservers to set at your registrar',actions['nameservers']['message'])
         self.assertNotIn('POST',self.calls.read_text())
         self.assertNotIn('gddy',self.calls.read_text())
+
+    def manual_preview(self, *args, env=None):
+        result=self.invoke('setup','--dry-run','--format=json',*args,env=dict({'PATH':self.without_gddy()},**(env or {})))
+        self.assertEqual(result.returncode,0,result.stderr)
+        calls=self.calls.read_text()
+        self.assertNotIn('gddy',calls)
+        self.assertNotIn('POST',calls)
+        data=json.loads(result.stdout)['data']
+        return data,{a['name']:a for a in data['actions']}
+
+    def test_manual_preview_active_zone_needs_no_registrar(self):
+        self.cloudflare()
+        data,actions=self.manual_preview()
+        self.assertEqual(data['registrar'],'manual')
+        self.assertEqual(data['blockers'],[])
+        self.assertNotIn('godaddy',actions)
+        self.assertEqual(actions['registrar']['state'],'ready')
+        self.assertEqual(actions['nameservers']['state'],'ready')
+        self.assertIn('no registrar change needed',actions['nameservers']['message'])
+        self.assertNotIn('GoDaddy',json.dumps(data['blockers']))
+
+    def test_manual_preview_pending_zone_lists_nameservers(self):
+        self.cloudflare()
+        self.fixtures['/zones/'+self.zone]['result']['status']='pending'
+        self.save_responses()
+        data,actions=self.manual_preview('--registrar','manual',env={'REGISTRAR':'godaddy'})
+        self.assertEqual(data['registrar'],'manual')
+        self.assertEqual(data['blockers'],[])
+        self.assertEqual(actions['nameservers']['state'],'manual')
+        self.assertIn('alice.ns.cloudflare.com, bob.ns.cloudflare.com',actions['nameservers']['message'])
+        self.assertIn('Update nameservers at your registrar',actions['nameservers']['next'])
+        self.assertEqual(actions['activation']['state'],'wait')
+
+    def test_godaddy_preview_is_opt_in_via_option(self):
+        self.cloudflare()
+        result=self.invoke('setup','--dry-run','--format=json','--registrar=godaddy')
+        self.assertEqual(result.returncode,0,result.stderr)
+        data=json.loads(result.stdout)['data']
+        self.assertEqual(data['registrar'],'godaddy')
+        self.assertTrue(any('GoDaddy' in b for b in data['blockers']))
+
+    def tty_setup(self, *args, env=None):
+        settings=dict(self.env); settings.update(env or {})
+        return subprocess.run([__import__('sys').executable,str(ROOT/'tests'/'run_tty.py'),self.shell,
+                               str(ROOT/'cmail'),'setup',*args],text=True,capture_output=True,env=settings,timeout=15)
+
+    def ready_rules(self):
+        self.fixtures['/zones/'+self.zone+'/email/routing/rules?per_page=50&page=1']['result']=[
+            {'id':'r-'+a,'enabled':True,'matchers':[{'type':'literal','field':'to','value':a+'@example.com'}],
+             'actions':[{'type':'forward','value':['owner@example.net']}]} for a in ('hello','contact')]
+        self.save_responses()
+
+    def test_manual_setup_active_zone_without_gddy(self):
+        self.cloudflare()
+        self.ready_rules()
+        result=self.tty_setup(env={'PATH':self.without_gddy()})
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('Receiving is set up',result.stdout)
+        self.assertIn('no registrar changes needed',result.stderr)
+        self.assertNotIn('GoDaddy',result.stderr)
+        self.assertNotIn('replace ALL nameservers',result.stderr)
+        calls=self.calls.read_text()
+        self.assertNotIn('gddy',calls)
+        self.assertNotIn('POST',calls)
+        self.assertNotIn('synthetic-token',result.stdout+result.stderr)
+        self.assertIn("CF_ZONE_ID='"+self.zone+"'",self.config.read_text())
+        self.assertNotIn('REGISTRAR',self.config.read_text())
+
+    def test_manual_setup_pending_zone_prints_nameservers_and_polls(self):
+        self.cloudflare()
+        self.ready_rules()
+        zone=self.fixtures['/zones/'+self.zone]
+        pending=json.loads(json.dumps(zone)); pending['result']['status']='pending'
+        # zone lookup, delegation step, first activation poll: pending; then active.
+        self.fixtures['/zones/'+self.zone]={'_sequence':[pending,pending,pending,zone]}
+        self.save_responses()
+        self.tool('sleep','printf "sleep %s\\n" "$1" >> "$TEST_CALLS"')
+        result=self.tty_setup('--registrar','manual',env={'PATH':self.without_gddy(),'REGISTRAR':'godaddy'})
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('Receiving is set up',result.stdout)
+        for text in ('Registrar nameservers: example.com','alice.ns.cloudflare.com','bob.ns.cloudflare.com',
+                     'replace ALL nameservers','DNSSEC','Copy every DNS record','status: pending','zone active'):
+            self.assertIn(text,result.stderr)
+        self.assertLess(result.stderr.index('replace ALL nameservers'),result.stderr.index('zone active'))
+        calls=self.calls.read_text()
+        self.assertNotIn('gddy',calls)
+        self.assertIn('sleep 20',calls)
+        self.assertGreaterEqual(calls.count('GET /zones/'+self.zone+' '),4)
+        self.assertIn("REGISTRAR='manual'",self.config.read_text())
+
+    def test_manual_setup_pending_timeout_is_registrar_neutral(self):
+        self.cloudflare()
+        self.fixtures['/zones/'+self.zone]['result']['status']='pending'
+        self.save_responses()
+        self.tool('sleep','printf "sleep %s\\n" "$1" >> "$TEST_CALLS"')
+        result=self.tty_setup('--wait-timeout','1',env={'PATH':self.without_gddy()})
+        self.assertEqual(result.returncode,1,result.stderr)
+        self.assertIn('Setup stopped at: Waiting for zone activation',result.stderr)
+        self.assertIn('your domain registrar',result.stderr)
+        self.assertIn('cmail never changes nameservers in manual registrar mode',result.stderr)
+        self.assertNotIn('GoDaddy',result.stderr)
+        self.assertNotIn('delegation may already have changed',result.stderr)
+        self.assertNotIn('gddy',self.calls.read_text())
+
+    def test_godaddy_setup_option_requires_gddy(self):
+        result=self.tty_setup('--registrar','godaddy',env={'PATH':self.without_gddy()})
+        self.assertEqual(result.returncode,1,result.stderr)
+        self.assertIn('gddy missing',result.stderr)
+        self.assertIn('Setup stopped at: Dependencies',result.stderr)
+        self.assertFalse(self.calls.exists())
+        self.assertNotIn('REGISTRAR',self.config.read_text())
+
+    def test_godaddy_no_browser_guard_is_opt_in(self):
+        for registrar,code in (('godaddy',3),('manual',None)):
+            with self.subTest(registrar=registrar):
+                result=self.tty_setup('--no-browser','--registrar',registrar,'--wait-timeout','1',
+                                      env={'PATH':self.without_gddy() if registrar=='manual' else self.env['PATH']})
+                if code: self.assertEqual(result.returncode,code,result.stderr)
+                self.assertEqual('requires an existing GDDY_PAT' in result.stderr,registrar=='godaddy')
+
+    def test_godaddy_setup_flow_and_persistence(self):
+        self.cloudflare()
+        self.ready_rules()
+        result=self.tty_setup('--registrar','godaddy')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('Receiving is set up',result.stdout)
+        self.assertIn('GoDaddy authentication (ote)',result.stderr)
+        self.assertIn('nameservers already point at Cloudflare',result.stderr)
+        self.assertNotIn('Registrar nameservers',result.stderr)
+        calls=self.calls.read_text()
+        self.assertIn('gddy auth status',calls)
+        self.assertIn('gddy domain get',calls)
+        self.assertIn("REGISTRAR='godaddy'",self.config.read_text())
 
     def test_preview_conflicting_rule_is_blocker(self):
         self.cloudflare()
         self.fixtures['/zones/'+self.zone+'/email/routing/rules?per_page=50&page=1']['result']=[
             {'enabled':False,'matchers':[{'value':'hello@example.com'}],'actions':[]}]
         self.save_responses()
-        result=self.invoke('setup','--dry-run','--format=json',env={'GDDY_PAT':'synthetic-pat'})
+        result=self.invoke('setup','--dry-run','--format=json',env={'GDDY_PAT':'synthetic-pat','REGISTRAR':'godaddy'})
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertTrue(json.loads(result.stdout)['data']['blockers'])
         self.assertNotIn('POST',self.calls.read_text())
@@ -377,6 +553,25 @@ esac''')
         self.assertEqual(result.returncode,3)
         self.assertEqual(json.loads(result.stdout)['data']['checks'][0]['state'],'fail')
 
+    def test_config_set_registrar_validation(self):
+        for value in ('godaddy','manual'):
+            result=self.invoke('config','set','REGISTRAR',value)
+            self.assertEqual(result.returncode,0,result.stderr)
+            data=json.loads(self.invoke('config','show','--format=json').stdout)['data']
+            self.assertEqual(data['settings']['REGISTRAR'],value)
+            self.assertNotIn('REGISTRAR',data['secrets'])
+        before=self.config.read_bytes()
+        for value in ('namecheap','GoDaddy','godaddy '):
+            with self.subTest(value=value):
+                result=self.invoke('config','set','REGISTRAR',value)
+                self.assertEqual(result.returncode,3,result.stderr)
+                self.assertEqual(self.config.read_bytes(),before)
+        self.assertEqual(self.invoke('config','check',env={'REGISTRAR':'namecheap'}).returncode,3)
+        self.config.write_text(FIXTURE)
+        data=json.loads(self.invoke('config','show','--format=json').stdout)['data']
+        self.assertEqual(data['settings']['REGISTRAR'],'manual')
+        self.assertIn('REGISTRAR',self.invoke('config','set','--help').stdout)
+
     def test_config_set_public_and_zone_invalidation(self):
         self.config.write_text(FIXTURE+'CF_ZONE_ID='+('a'*32)+'\n')
         result=self.invoke('config','set','DOMAIN','new.example')
@@ -433,6 +628,8 @@ esac''')
     def test_bash_completion_contexts(self):
         script='. "$1/completions/cmail.bash"; shift; COMP_WORDS=(cmail "$@"); COMP_CWORD=$((${#COMP_WORDS[@]}-1)); _cmail_complete; printf "%s\\n" "${COMPREPLY[@]}"'
         for words,expected in [(('',),'setup'),(('config',''),'set'),(('config','set',''),'DOMAIN'),
+                               (('config','set',''),'REGISTRAR'),(('setup','--'),'--registrar'),
+                               (('setup','--registrar',''),'godaddy'),(('setup','--registrar','','--'),'--dry-run'),
                                (('--config','somepath','doctor','--'),'--offline'),
                                (('status','--format',''),'json')]:
             result=subprocess.run([self.shell,'-c',script,'probe',str(ROOT),*words],
@@ -449,6 +646,8 @@ esac''')
 _files() { print files; }
 file=$1; shift; words=(cmail "$@"); CURRENT=${#words}; _probe() { source "$file"; }; _probe'''
         for words,expected in [(('',),'setup'),(('config',''),'set'),(('config','set',''),'DOMAIN'),
+                               (('config','set',''),'REGISTRAR'),(('setup','--'),'--registrar'),
+                               (('setup','--registrar',''),'godaddy'),(('setup','--registrar','','--'),'--dry-run'),
                                (('--config','somepath','doctor','--'),'--offline'),
                                (('status','--format',''),'json')]:
             result=subprocess.run(['zsh','-f','-c',script,'probe',str(file),*words],
@@ -462,7 +661,9 @@ file=$1; shift; words=(cmail "$@"); CURRENT=${#words}; _probe() { source "$file"
         syntax = subprocess.run(['fish','--no-config','-n',str(file)],text=True,capture_output=True)
         self.assertEqual(syntax.returncode,0,syntax.stderr)
         for command,expected in [('cmail ','setup'),('cmail config ','set'),
-                                 ('cmail config set ','DOMAIN'),('cmail doctor --','--offline'),
+                                 ('cmail config set ','DOMAIN'),('cmail config set ','REGISTRAR'),
+                                 ('cmail setup --','--registrar'),('cmail setup --registrar ','godaddy'),
+                                 ('cmail doctor --','--offline'),
                                  ('cmail status --format ','json')]:
             result=subprocess.run(['fish','--no-config','-c','source $argv[1]; complete -C $argv[2]',str(file),command],
                                    env=self.env,text=True,capture_output=True)

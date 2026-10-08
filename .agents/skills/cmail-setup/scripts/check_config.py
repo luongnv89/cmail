@@ -12,7 +12,7 @@ import sys
 
 REQUIRED = ("DOMAIN", "DEST_EMAIL", "ADDRESSES", "CLOUDFLARE_API_TOKEN", "GDDY_ENV")
 SECRETS = ("CLOUDFLARE_API_TOKEN", "GDDY_PAT")
-PUBLIC = ("DOMAIN", "DEST_EMAIL", "ADDRESSES", "GDDY_ENV", "CF_ACCOUNT_ID", "CF_ZONE_ID", "DRY_RUN")
+PUBLIC = ("DOMAIN", "DEST_EMAIL", "ADDRESSES", "REGISTRAR", "GDDY_ENV", "CF_ACCOUNT_ID", "CF_ZONE_ID", "DRY_RUN")
 ALLOWED = set(REQUIRED) | set(SECRETS) | set(PUBLIC)
 DOMAIN = re.compile(r"(?=.{1,253}\Z)(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}\Z")
 LOCAL = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,63}\Z")
@@ -107,10 +107,11 @@ FIELDS = {
     "DOMAIN": (lambda v: bool(DOMAIN.fullmatch(v)), "use a domain name without scheme/path"),
     "DEST_EMAIL": (is_email, "use a full receiving email address"),
     "ADDRESSES": (is_addresses, "use unique comma-separated local parts only"),
+    "REGISTRAR": (lambda v: v in ("manual", "godaddy"), "set manual (default, any registrar) or godaddy (opt-in automation)"),
     "GDDY_ENV": (lambda v: v in ("prod", "ote"), "set prod or ote"),
     "CF_ACCOUNT_ID": (lambda v: bool(re.fullmatch(r"[0-9a-fA-F]{32}", v)), "use the intended 32-character hex ID"),
     "CF_ZONE_ID": (lambda v: bool(re.fullmatch(r"[0-9a-fA-F]{32}", v)), "use the intended 32-character hex ID"),
-    "DRY_RUN": (lambda v: v in ("0", "1"), "set 0 or 1; this controls nameserver preview only"),
+    "DRY_RUN": (lambda v: v in ("0", "1"), "set 0 or 1; 1 makes setup a read-only preview"),
 }
 
 

@@ -8,6 +8,7 @@ _cmail_complete() {
   case "$prev" in
     -c|--config) while IFS= read -r candidate; do COMPREPLY+=("$candidate"); done < <(compgen -f -- "$cur"); return 0 ;;
     -f|--format) choices='text json' ;;
+    --registrar) choices='manual godaddy' ;;
     --domain|--destination|--addresses|--timeout|--wait-timeout) return 0 ;;
   esac
   if [ -z "$choices" ]; then
@@ -17,7 +18,7 @@ _cmail_complete() {
       if [ "$ended" = 0 ]; then
         case "$word" in
           --) ended=1; continue ;;
-          -c|--config|-f|--format|--timeout|--domain|--destination|--addresses|--wait-timeout) skip=1; continue ;;
+          -c|--config|-f|--format|--timeout|--domain|--destination|--addresses|--registrar|--wait-timeout) skip=1; continue ;;
           -*) continue ;;
         esac
       fi
@@ -25,14 +26,14 @@ _cmail_complete() {
       elif [ "$command" = config ] && [ -z "$sub" ]; then sub="$word"
       else args=$((args + 1)); fi
     done
-    case "$command" in setup) flags="$flags --domain --destination --addresses --dry-run --wait-timeout" ;; doctor) flags="$flags --offline" ;; esac
+    case "$command" in setup) flags="$flags --domain --destination --addresses --registrar --dry-run --wait-timeout" ;; doctor) flags="$flags --offline" ;; esac
     [ "$command $sub" != 'config set' ] || flags="$flags --stdin"
     if [[ "$cur" = -* ]] && [ "$ended" = 0 ]; then choices="$flags"
     else
       case "$command $sub" in
         ' '|'help ') choices='setup status doctor send-as config completion help' ;;
         'config ') choices='init show check set path' ;;
-        'config set') [ "$args" != 0 ] || choices='DOMAIN DEST_EMAIL ADDRESSES GDDY_ENV CF_ZONE_ID CF_ACCOUNT_ID DRY_RUN CLOUDFLARE_API_TOKEN GDDY_PAT' ;;
+        'config set') [ "$args" != 0 ] || choices='DOMAIN DEST_EMAIL ADDRESSES REGISTRAR GDDY_ENV CF_ZONE_ID CF_ACCOUNT_ID DRY_RUN CLOUDFLARE_API_TOKEN GDDY_PAT' ;;
         'completion ') [ "$args" != 0 ] || choices='bash zsh fish' ;;
       esac
     fi

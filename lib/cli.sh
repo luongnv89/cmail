@@ -30,8 +30,14 @@ EOF
     setup)
       cat <<'EOF'
 Usage: cmail setup [options]
-Configure receiving. Run in a terminal; purchases and nameserver changes require confirmation.
+Configure receiving for a domain at any registrar. Run in a terminal.
+By default you update nameservers at your registrar yourself; cmail prints them.
   --domain DOMAIN          Domain name (default: DOMAIN setting)
+  --registrar manual|godaddy
+                           Registrar handling (default: REGISTRAR setting, else manual).
+                           godaddy opts in to gddy automation: nameserver changes need
+                           confirmation; domain purchase is offered only in this mode
+                           and needs the domain typed at a terminal.
   --destination EMAIL      Receiving inbox (default: DEST_EMAIL setting)
   --addresses LIST         Unique comma-separated local parts (default: ADDRESSES setting)
   --dry-run                Read-only plan; requires existing credentials, never writes
@@ -47,7 +53,7 @@ EOF
     'config show') printf '%s\n' 'Usage: cmail config show [options]' 'Show effective public settings and secret presence, never secret values.' ;;
     'config check') printf '%s\n' 'Usage: cmail config check [options]' 'Check required settings and readiness; incomplete/invalid input exits 3.' ;;
     'config path') printf '%s\n' 'Usage: cmail config path [options]' 'Print the selected configuration path without creating it.' ;;
-    'config set') printf '%s\n' 'Usage: cmail config set KEY [VALUE] [--stdin] [options]' 'Update one documented setting atomically. Secret keys require --stdin.' '  KEY        DOMAIN, DEST_EMAIL, ADDRESSES, GDDY_ENV, CF_ACCOUNT_ID, CF_ZONE_ID,' '             DRY_RUN, CLOUDFLARE_API_TOKEN, or GDDY_PAT' '  VALUE      Literal value; mutually exclusive with --stdin' '  --stdin    Read one value from standard input without echoing it' ;;
+    'config set') printf '%s\n' 'Usage: cmail config set KEY [VALUE] [--stdin] [options]' 'Update one documented setting atomically. Secret keys require --stdin.' '  KEY        DOMAIN, DEST_EMAIL, ADDRESSES, REGISTRAR, GDDY_ENV, CF_ACCOUNT_ID,' '             CF_ZONE_ID, DRY_RUN, CLOUDFLARE_API_TOKEN, or GDDY_PAT' '  VALUE      Literal value; mutually exclusive with --stdin' '  --stdin    Read one value from standard input without echoing it' ;;
     completion) printf '%s\n' 'Usage: cmail completion SHELL' 'SHELL is required: bash, zsh, or fish. Prints a completion script.' ;;
     help) printf '%s\n' 'Usage: cmail help [COMMAND...]' 'Show help, e.g. cmail help config set.' ;;
     *) cli_error "unknown help topic '$topic'" ;;
@@ -74,14 +80,14 @@ cli_parse() {
   CMAIL_TIMEOUT="${CMAIL_TIMEOUT:-30}"
   CMAIL_VERBOSE="${CMAIL_VERBOSE:-0}" CMAIL_QUIET="${CMAIL_QUIET:-0}"
   CMAIL_NO_COLOR=0 CMAIL_NO_BROWSER=0 CMAIL_OFFLINE=0 CMAIL_DRY_RUN=0
-  CMAIL_WAIT_TIMEOUT=1200 CLI_CONFIG='' CLI_DOMAIN='' CLI_DESTINATION='' CLI_ADDRESSES=''
+  CMAIL_WAIT_TIMEOUT=1200 CLI_CONFIG='' CLI_DOMAIN='' CLI_DESTINATION='' CLI_ADDRESSES='' CLI_REGISTRAR=''
   CLI_STDIN=0 CLI_HELP=0 CLI_VERSION=0 CLI_SETUP_OPTIONS=0
   local arg option value end=0 positionals=()
   while [ "$#" -gt 0 ]; do
     arg="$1"; shift
     if [ "$end" = 1 ]; then positionals+=("$arg"); continue; fi
     option="${arg%%=*}"
-    case "$option" in --domain|--destination|--addresses|--wait-timeout) CLI_SETUP_OPTIONS=1 ;; esac
+    case "$option" in --domain|--destination|--addresses|--registrar|--wait-timeout) CLI_SETUP_OPTIONS=1 ;; esac
     case "$option" in
       --) [ "$arg" = -- ] || cli_error "unknown option '$arg'"; end=1 ;;
       -h|--help|-V|--version|-v|--verbose|-q|--quiet|--no-color|--no-browser|--offline|--dry-run|--stdin)
@@ -92,7 +98,7 @@ cli_parse() {
           --no-color) CMAIL_NO_COLOR=1 ;; --no-browser) CMAIL_NO_BROWSER=1 ;;
           --offline) CMAIL_OFFLINE=1 ;; --dry-run) CMAIL_DRY_RUN=1 ;; --stdin) CLI_STDIN=1 ;;
         esac ;;
-      -c|--config|-f|--format|--timeout|--wait-timeout|--domain|--destination|--addresses)
+      -c|--config|-f|--format|--timeout|--wait-timeout|--domain|--destination|--addresses|--registrar)
         if [ "$arg" != "$option" ]; then value="${arg#*=}"
         else [ "$#" -gt 0 ] || cli_error "$option needs a value"; value="$1"; shift; fi
         [ -n "$value" ] || cli_error "$option needs a non-empty value"
@@ -100,6 +106,7 @@ cli_parse() {
           -c|--config) CLI_CONFIG="$value" ;; -f|--format) CMAIL_FORMAT="$value" ;;
           --timeout) CMAIL_TIMEOUT="$value" ;; --wait-timeout) CMAIL_WAIT_TIMEOUT="$value" ;;
           --domain) CLI_DOMAIN="$value" ;; --destination) CLI_DESTINATION="$value" ;; --addresses) CLI_ADDRESSES="$value" ;;
+          --registrar) CLI_REGISTRAR="$value" ;;
         esac ;;
       -*) cli_error "unknown option '$arg'" ;;
       *) positionals+=("$arg") ;;
@@ -119,6 +126,7 @@ cli_parse() {
   fi
   case "$CMAIL_FORMAT" in text|json) ;; *) cli_error '--format must be text or json' ;; esac
   [[ "$CMAIL_TIMEOUT" =~ ^[1-9][0-9]{0,5}$ ]] || cli_error '--timeout must be a positive integer (at most 999999 seconds)'
+  case "$CLI_REGISTRAR" in ''|manual|godaddy) ;; *) cli_error '--registrar must be manual or godaddy' ;; esac
   [[ "$CMAIL_WAIT_TIMEOUT" =~ ^[1-9][0-9]{0,5}$ ]] || cli_error '--wait-timeout must be a positive integer (at most 999999 seconds)'
   case "$CMAIL_VERBOSE:$CMAIL_QUIET" in 0:0|0:1|1:0) ;; *) cli_error '--verbose and --quiet are mutually exclusive boolean settings' ;; esac
   [ "$CLI_VERSION" = 0 ] || { printf 'cmail %s\n' "$(cat "$CMAIL_DIR/VERSION")"; exit 0; }

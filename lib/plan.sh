@@ -20,16 +20,19 @@ cmd_setup_plan() {
   config_ready || return 3
   PLAN_ACTIONS='[]' PLAN_ACCOUNT=''
   local resp zone zone_id='' zone_state='' desired='[]' current='[]' destinations='[]' rules='[]' enabled=false
-  local addr alias_list=() matches verified data token_state
+  local addr alias_list=() matches verified data token_state registrar="${REGISTRAR:-manual}"
   plan_action config planned 'Setup will save explicit settings and discovered resource IDs in private configuration.'
   resp=$(cf_routing_request GET /user/tokens/verify) || return 1
   token_state=$(jq -er '.result.status | select(type=="string")' <<< "$resp") || die 'Cloudflare token status missing'
   [ "$token_state" = active ] || die 'Cloudflare token is not active; replace it locally before setup'
   plan_action cloudflare ready 'Cloudflare token active; read access is checked below.'
+  # GoDaddy is consulted only for opt-in automation (REGISTRAR=godaddy).
   # gddy can automatically start OAuth even during reads when scopes are missing.
   # A supplied PAT prevents that flow. Otherwise report the delegation check as
   # blocked rather than invoking a command that could launch a browser or save tokens.
-  if [ -n "${GDDY_PAT:-}" ]; then
+  if [ "$registrar" != godaddy ]; then
+    plan_action registrar ready 'Manual registrar mode: no GoDaddy access or gddy needed; you update nameservers at your registrar.'
+  elif [ -n "${GDDY_PAT:-}" ]; then
     type -P gddy >/dev/null || die 'gddy missing; install it before checking GoDaddy domain access'
     if resp=$(gddy domain get "$DOMAIN" --env "$GDDY_ENV" --json 2>/dev/null); then
       current=$(jq -ce '.data.nameServers | select(type=="array" and length>0 and all(.[]; type=="string" and length>0)) | map(ascii_downcase | sub("\\.$";"")) | unique | sort' <<< "$resp") \
@@ -61,7 +64,17 @@ cmd_setup_plan() {
     plan_account || return 1
     plan_action zone planned 'Create a Cloudflare zone and fetch its assigned nameservers.'
   fi
-  if [ "$desired" != '[]' ] && [ "$current" = "$desired" ]; then
+  if [ "$registrar" != godaddy ]; then
+    if [ "$zone_state" = active ]; then
+      plan_action nameservers ready 'Zone active on Cloudflare; no registrar change needed.'
+    elif [ -n "$zone_id" ]; then
+      plan_action nameservers manual "Set these Cloudflare nameservers at your registrar: $(jq -r 'join(", ")' <<< "$desired")." \
+        'Update nameservers at your registrar after copying web, MX, TXT, and other records into Cloudflare and turning off DNSSEC.'
+    else
+      plan_action nameservers manual 'Setup creates the zone and prints the nameservers to set at your registrar.' \
+        'Update nameservers at your registrar when setup prints them; copy existing DNS records and turn off DNSSEC first.'
+    fi
+  elif [ "$desired" != '[]' ] && [ "$current" = "$desired" ]; then
     plan_action nameservers ready 'Delegation already matches Cloudflare; skip the update.'
   else
     plan_action nameservers confirmation 'Review existing DNS records, then confirm the full nameserver replacement if needed.' 'Migrate web, MX, TXT, DNSSEC, and other service records before changing delegation.'
@@ -93,12 +106,12 @@ cmd_setup_plan() {
     fi
   done
   plan_action delivery manual 'Send from a different mailbox to verify receiving after setup.'
-  data=$(jq -nc --arg domain "$DOMAIN" --arg destination "$DEST_EMAIL" --argjson actions "$PLAN_ACTIONS" \
-    --argjson elapsed "$((SECONDS - CMAIL_SETUP_STARTED))" '{dry_run:true,domain:$domain,destination:$destination,actions:$actions,
+  data=$(jq -nc --arg domain "$DOMAIN" --arg destination "$DEST_EMAIL" --arg registrar "$registrar" --argjson actions "$PLAN_ACTIONS" \
+    --argjson elapsed "$((SECONDS - CMAIL_SETUP_STARTED))" '{dry_run:true,domain:$domain,destination:$destination,registrar:$registrar,actions:$actions,
     blockers:[$actions[] | select(.state=="blocked") | .message],elapsed_seconds:$elapsed}')
   if [ "$CMAIL_FORMAT" = json ]; then output_envelope setup "$data"
   else
-    printf 'Read-only setup plan for %s\n' "$DOMAIN"
+    printf 'Read-only setup plan for %s (registrar: %s)\n' "$DOMAIN" "$registrar"
     jq -r '.actions[] | "  [\(.state)] \(.name): \(.message)" + (if .next=="" then "" else "\n    Next: "+.next end)' <<< "$data"
     printf '\nElapsed time: '; output_elapsed "$((SECONDS - CMAIL_SETUP_STARTED))"; printf '\n'
   fi
