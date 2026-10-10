@@ -25,6 +25,7 @@ Runtime requirements: Bash 3.2+, curl, and jq on macOS/Linux. gddy is needed onl
 | `cmail setup` | Guided receiving setup in a terminal |
 | `cmail setup --dry-run` | Read-only provider inspection and plan with blockers |
 | `cmail status` | Zone, routing, destinations, and rules report |
+| `cmail list [--domain DOMAIN]` | Every address on a domain, where it forwards, and the catch-all rule |
 | `cmail doctor` | Read-only dependency/config/authentication checks |
 | `cmail doctor --offline` | Local checks without provider requests |
 | `cmail send-as` | Optional manual Gmail sending guide |
@@ -101,13 +102,24 @@ A successfully generated preview exits 0 even when its `data.blockers` array is 
 
 Results go to stdout. Progress, prompts, warnings, and errors go to stderr. `--quiet` retains results and errors; `--verbose` adds redacted request context. They are mutually exclusive. Colors are used only on terminal diagnostics, and `NO_COLOR` (including an empty value) or `--no-color` disables them. `--no-browser` prints manual links; with `REGISTRAR=godaddy`, setup also requires an existing PAT in this mode to prevent automatic GoDaddy OAuth.
 
-JSON is available for status, doctor, config show/check, and setup previews:
+JSON is available for status, list, doctor, config show/check, and setup previews:
 
 ```json
 {"schema_version":1,"command":"status","data":{"zone":{},"routing":{},"destinations":[],"rules":[]}}
 ```
 
-Status emits a complete result after all reads succeed. Doctor/config checks also emit their diagnostic report when checks fail, alongside a nonzero exit code. Help, version, completions, guided setup, and the sending guide use text output.
+`cmail list` answers "which addresses exist and where does each one forward?" for the configured domain, or for any other zone the token can read with `--domain`. Each forward destination is marked `verified`, `unverified` (Cloudflare will not deliver until the verification link is clicked) or `unregistered`. Disabled rules are shown with `[disabled]`, and the catch-all rule is listed separately:
+
+```text
+Addresses on example.com (2):
+  contact@example.com -> owner@example.net (verified)  [disabled]
+  hello@example.com   -> owner@example.net (verified)
+Catch-all (any other address): disabled -> drop
+```
+
+With `--format json`, `data.addresses[]` holds `address`, `rule_id`, `name`, `enabled`, `priority`, `matchers` and `actions`; forward actions also carry `destinations[]` with `email` and `state`. `data.catch_all` is `null` when the zone has no catch-all rule.
+
+Status and list emit a complete result after all reads succeed. Doctor/config checks also emit their diagnostic report when checks fail, alongside a nonzero exit code. Help, version, completions, guided setup, and the sending guide use text output.
 
 A successful setup prints addresses and actual elapsed wall time:
 

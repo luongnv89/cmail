@@ -26,12 +26,12 @@ _cmail_complete() {
       elif [ "$command" = config ] && [ -z "$sub" ]; then sub="$word"
       else args=$((args + 1)); fi
     done
-    case "$command" in setup) flags="$flags --domain --destination --addresses --registrar --dry-run --wait-timeout" ;; doctor) flags="$flags --offline" ;; esac
+    case "$command" in setup) flags="$flags --domain --destination --addresses --registrar --dry-run --wait-timeout" ;; doctor) flags="$flags --offline" ;; list) flags="$flags --domain" ;; esac
     [ "$command $sub" != 'config set' ] || flags="$flags --stdin"
     if [[ "$cur" = -* ]] && [ "$ended" = 0 ]; then choices="$flags"
     else
       case "$command $sub" in
-        ' '|'help ') choices='setup status doctor send-as config completion help' ;;
+        ' '|'help ') choices='setup status list doctor send-as config completion help' ;;
         'config ') choices='init show check set path' ;;
         'config set') [ "$args" != 0 ] || choices='DOMAIN DEST_EMAIL ADDRESSES REGISTRAR GDDY_ENV CF_ZONE_ID CF_ACCOUNT_ID DRY_RUN CLOUDFLARE_API_TOKEN GDDY_PAT' ;;
         'completion ') [ "$args" != 0 ] || choices='bash zsh fish' ;;

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # cmail — guided free custom-domain email setup (Cloudflare Email Routing,
 # optional Gmail "Send mail as")
-# Subcommands: setup | send-as | status | doctor | help
+# Subcommands: setup | send-as | status | list | doctor | config | help
 set -euo pipefail
 trap 'exit 130' INT
 trap 'exit 143' TERM
@@ -122,12 +122,8 @@ cmd_status() {
   if [ -z "${DOMAIN:-}" ] || [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
     config_error 'DOMAIN and CLOUDFLARE_API_TOKEN are required; run cmail setup'; return 3
   fi
-  local zone_id="${CF_ZONE_ID:-}" resp data text
-  if [ -z "$zone_id" ]; then
-    resp=$(cf_routing_request GET "/zones?name=$DOMAIN") || return 1
-    zone_id=$(jq -er --arg domain "$DOMAIN" '[.result[] | select(.name==$domain)] | if length==1 then .[0].id else error("ambiguous zone") end' <<< "$resp") \
-      || die "zone for $DOMAIN not uniquely found; check Cloudflare token resources and cmail setup"
-  fi
+  local zone_id data text
+  zone_id=$(cf_zone_id_for_domain) || return 1
   data=$(cf_status_data "$zone_id") || return 1
   if [ "$CMAIL_FORMAT" = json ]; then output_envelope status "$data"
   else
@@ -138,6 +134,36 @@ cmd_status() {
       (.rules[] | "  \(.matchers[0].value // "custom matcher") -> \(.actions[0].value | join(", "))  enabled=\(.enabled)")' <<< "$data") || die 'could not format routing state; inspect provider data'
     printf '%s\n' "$text"
   fi
+}
+
+cmd_list() {
+  ensure_read_tools
+  config_load || return 3
+  if [ -z "${DOMAIN:-}" ] || [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+    config_error 'a domain (DOMAIN or --domain) and CLOUDFLARE_API_TOKEN are required'; return 3
+  fi
+  local zone_id data text
+  zone_id=$(cf_zone_id_for_domain) || return 1
+  data=$(cf_list_data "$zone_id") || return 1
+  if [ "$CMAIL_FORMAT" = json ]; then output_envelope list "$data"; return; fi
+  text=$(jq -r '
+    def pad($n): if $n > 0 then " " * $n else "" end;
+    def target: if .type == "forward" then
+        (if .destinations == [] then "forward (no destination)"
+         else [.destinations[] | "\(.email) (\(.state))"] | join(", ") end)
+      elif .type == "drop" then "drop"
+      elif .type == "worker" then "worker \(.value | join(", "))"
+      else "\(.type) \(.value | join(", "))" end;
+    def targets: if .actions == [] then "no action" else [.actions[] | target] | join("; ") end;
+    def shown: .address // "custom matcher (\(.name))";
+    ([.addresses[] | shown | length] | max // 0) as $width
+    | "Addresses on \(.domain) (\(.addresses | length)):",
+      (if .addresses == [] then "  none" else empty end),
+      (.addresses[] | "  \(shown)\(pad($width - (shown | length))) -> \(targets)\(if .enabled then "" else "  [disabled]" end)"),
+      "Catch-all (any other address): " + (if .catch_all == null then "not configured"
+        else "\(if .catch_all.enabled then "enabled" else "disabled" end) -> \(.catch_all | targets)" end)' <<< "$data") \
+    || die 'could not format the address list; inspect provider data with --format json'
+  printf '%s\n' "$text"
 }
 
 doctor_tool() {
@@ -183,6 +209,7 @@ case "$CLI_COMMAND" in
   setup) cmd_setup ;;
   send-as) cmd_send_as ;;
   status) cmd_status ;;
+  list) cmd_list ;;
   doctor) cmd_doctor ;;
   config) cmd_config ;;
   completion) cat "$CMAIL_DIR/completions/cmail.${CLI_ARGS[0]}" ;;

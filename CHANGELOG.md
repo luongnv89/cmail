@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add read-only `cmail list [--domain DOMAIN]`: every address on a domain, sorted,
+  with its forward destinations (marked verified, unverified or unregistered),
+  drop/worker actions, disabled rules, and the catch-all rule. Text and
+  `--format json` output, completions, and offline regressions. `--domain` is now
+  accepted by `setup` and `list` only.
 - Make GoDaddy automation optional (#20). **Behavior change:** setup now defaults
   to `REGISTRAR=manual` and no longer requires `gddy` or GoDaddy authentication.
   It accepts an existing domain at any registrar. An already-active Cloudflare
