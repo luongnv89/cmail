@@ -86,7 +86,7 @@ details p { margin: .4rem 0; }
 .flow-dot { fill: var(--ink); }
 .envelope { fill: var(--paper); stroke: var(--ink); stroke-width: 1.5; }
 @media (prefers-reduced-motion: no-preference) {
-  .envelope-move { animation: travel 4.5s ease-in-out infinite; }
+  .envelope-move { animation: travel 4.5s ease-in-out; }
 }
 @keyframes travel { 0% { transform: translateY(0); opacity: 0; } 8% { opacity: 1; } 88% { opacity: 1; } 100% { transform: translateY(300px); opacity: 0; } }
 .steps-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; counter-reset: s; padding: 0; list-style: none; }
@@ -101,6 +101,7 @@ details p { margin: .4rem 0; }
 .term-bar span { margin-left: .5rem; flex: 1; }
 .term-bar button { min-height: 32px; padding: .2rem .7rem; font-size: .8rem; background: transparent; color: var(--term-ink); border-color: #57534E; }
 .term-bar button:hover { box-shadow: none; border-color: var(--term-ink); }
+.term-bar button:focus-visible { outline-color: var(--term-ink); }
 .term pre { background: none; border: 0; color: var(--term-ink); margin: 0; padding: 1rem 1.1rem 1.2rem; font-size: .84rem; white-space: pre; }
 .term .p { color: var(--term-ok); }
 .term .s { color: var(--term-step); font-weight: 700; }

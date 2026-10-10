@@ -54,7 +54,8 @@
         if (i >= lines.length) { finish(); return; }
         const line = lines[i++];
         line.classList.add('on');
-        const top = line.offsetTop - pre.clientHeight + line.offsetHeight + 16;
+        const top = line.getBoundingClientRect().bottom - pre.getBoundingClientRect().top
+          + pre.scrollTop - pre.clientHeight + 16;
         if (top > pre.scrollTop) pre.scrollTop = top;
         const text = line.textContent;
         // Pause longer on prompts and section headers so the flow is easy to follow.

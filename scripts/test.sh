@@ -27,4 +27,5 @@ for file in cmail install.sh lib/*.sh scripts/*.sh; do "$TEST_BASH" -n "$file"; 
 for suite in tests/*_test.sh; do run "$TEST_BASH" "$suite"; done
 for suite in tests/pages_test.py tests/site_test.py tests/skill_setup_test.py; do run python3 "$suite"; done
 run node --test tests/checklist_test.js
+run node --test tests/terminal_test.js
 printf 'PASS: %s offline suites in %ss (%s)\n' "$count" "$((SECONDS - started))" "$TEST_BASH"
