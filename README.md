@@ -5,14 +5,24 @@ simple steps**, delivered to **the inbox you already use** (Gmail, Outlook,
 iCloud, Proton, a work address, …). Built on **Cloudflare Email Routing**; no
 new mailbox and no Google account needed.
 
-## Current CLI: install this reviewed checkout
+## Install in one command
 
 ```bash
-bash install.sh --local
-export PATH="$HOME/.local/bin:$PATH"
+curl -fsSL https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh | bash
+export PATH="$HOME/.local/bin:$PATH"   # only if the installer says it is not on PATH
 cmail --version
 cmail config init
 cmail setup
+```
+
+The installer downloads the pinned v0.2.0 release runtime into your home
+directory (no sudo), then tells you whether `~/.local/bin` is already on your
+PATH. To read it first, download it, review it, then run it:
+`curl -fsSLO https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh && bash install.sh`.
+To install a cloned checkout you reviewed, without downloads, run this inside it:
+
+```bash
+bash install.sh --local
 ```
 
 The current CLI (`0.2.0`) has command-specific help, private
@@ -106,17 +116,21 @@ not live authenticated setup or delivery.
 
 ## Installation
 
-From a source checkout **containing `install.sh`**, install with one command:
+Install with one command, without cloning the repository:
 
 ```bash
-bash install.sh
+curl -fsSL https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh | bash
 ```
 
-This installer ships in the v0.2.0 release; it is **not in the v0.1.0 release**.
-No remote bootstrap (curl) command is documented or published;
-see the [distribution decision and recorded status](docs/distribution.md).
-From a checkout of `main`, unflagged `bash install.sh` installs the pinned v0.2.0 runtime.
-The v0.2.0 tag's own installer still pins v0.1.0; from a v0.2.0 checkout, use `--local`.
+The same installer also runs from a source checkout **containing `install.sh`**:
+`bash install.sh` downloads the pinned runtime, and `bash install.sh --local`
+installs the checkout itself. `--local` needs that checkout, so it does not work
+through `curl | bash`.
+
+The one-line command reads `install.sh` from `main`, because the v0.2.0 tag's own
+installer still pins v0.1.0; from a v0.2.0 checkout, use `--local`. The installer
+is **not in the v0.1.0 release**. See the
+[distribution decision and recorded status](docs/distribution.md).
 
 The installer downloads the complete v0.2.0 runtime at a pinned commit over
 HTTPS. It requires Bash 3.2+, curl and standard macOS/Linux utilities, but not
@@ -153,7 +167,7 @@ Follow the [current CLI guide](docs/cli.md) for it. Only when ready for the
 guided, potentially live-changing workflow, run installed `cmail setup`. Installation success proves CLI availability, not functioning
 DNS, provider permissions or end-to-end email delivery.
 
-Re-run `bash install.sh` to reinstall the pinned runtime. To upgrade after
+Re-run the one-line command or `bash install.sh` to reinstall the pinned runtime. To upgrade after
 reviewing an upstream revision, provide its full 40-character lowercase SHA:
 `CMAIL_REF=<reviewed-commit-sha> bash install.sh`. Moving branches/tags are not
 accepted. Each successful run activates a fresh runtime and retains old ones;

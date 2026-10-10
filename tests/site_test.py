@@ -142,6 +142,29 @@ class SiteTests(unittest.TestCase):
         md = (ROOT / 'docs/setup.md').read_text()
         self.assertIn('[star the project on GitHub](https://github.com/luongnv89/cmail)', md)
 
+    def test_issue25_one_line_curl_install_is_the_main_method(self):
+        one_liner = 'curl -fsSL https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh | bash'
+        texts = {name: unescape((ROOT / name).read_text())
+                 for name in ['README.md', 'docs/setup.html', 'docs/setup.md', 'docs/docs.html']}
+        for name, text in texts.items():
+            with self.subTest(name=name):
+                self.assertIn(one_liner, text)
+                # The clone-and-install route stays documented, after the one-liner.
+                self.assertIn('bash install.sh --local', text)
+                self.assertLess(text.index(one_liner), text.index('bash install.sh --local'))
+        self.assertNotIn('No remote bootstrap', texts['README.md'])
+        for name in ['docs/setup.html', 'docs/setup.md']:
+            text = texts[name]
+            step = text[text.index('nstall cmail'):text.index('Create a Cloudflare API token')]
+            self.assertIn(one_liner, step)
+            self.assertIn('export PATH="$HOME/.local/bin:$PATH"', step)
+            self.assertLess(step.index(one_liner), step.index('git clone'))
+        self.assertIn('Run one <code>curl</code> command', (ROOT / 'docs/index.html').read_text())
+        # A piped script has no file path, so only --local may resolve one.
+        installer = (ROOT / 'install.sh').read_text()
+        self.assertNotIn('"${BASH_SOURCE[0]}"', installer)
+        self.assertIn('${BASH_SOURCE[0]:-}', installer)
+
     def test_every_page_links_every_page(self):
         for name in PAGES:
             hrefs = {a.get('href') for t, a in Page(ROOT / 'docs' / name).elements if t == 'a'}

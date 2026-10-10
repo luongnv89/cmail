@@ -13,12 +13,15 @@ installation now pins the immutable v0.2.0 release commit. See [current CLI usag
 cmail's upstream repository and its GitHub releases are the chosen distribution
 route. This is upstream distribution, **not** Homebrew/core admission or an
 endorsement by Homebrew. The user-local installer is deliberately independent
-of a package manager and does not need sudo. From a checkout containing the
-installer, the installation entry point is one command:
+of a package manager and does not need sudo. The installation entry point is
+one command, with no clone:
 
 ```bash
-bash install.sh
+curl -fsSL https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh | bash
 ```
+
+From a checkout containing the installer, `bash install.sh` does the same, and
+`bash install.sh --local` installs the checkout itself.
 
 See [README installation](https://github.com/luongnv89/cmail/blob/main/README.md#installation) for verification, paths,
 configuration and upgrades. Remote installation downloads the nine base runtime files
@@ -90,12 +93,16 @@ Observed via GitHub on 2026-10-07:
 
 No release was created or amended, no package was published, and no Homebrew
 submission was made as part of this change. Recording these pending outcomes
-is intentional, not a claim that publication occurred. A source checkout with
-this change can install now; a released remote bootstrap command is pending.
+is intentional, not a claim that publication occurred.
 
-Before advertising a remote one-command installer, publish a reviewed immutable
-revision containing `install.sh`, document that exact revision (not a moving
-`main` URL), verify a download/install/help cycle on clean macOS and Linux
-machines, and record the actual release URL/outcome here. The current offline
-regressions verify the local installer and installed CLI, not public hosting,
-Homebrew eligibility/admission, provider authentication, DNS or mail delivery.
+The one-line command reads `install.sh` from `main`, because the v0.2.0 tag's
+own installer still pins v0.1.0. `main` is a moving URL for the installer
+itself, but the runtime it downloads stays pinned to an immutable release
+commit, and the installer refuses moving refs for `CMAIL_REF`. Bash parses the
+whole installer before running it, so a download cut short runs nothing. Once a
+release ships whose own `install.sh` pins that release, the one-liner can point
+at the release tag instead. To avoid trusting `main`, download `install.sh`,
+review it, then run it, or install a reviewed clone with `--local`. The current
+offline regressions verify the piped, checkout and local installer routes and
+the installed CLI, not public hosting, Homebrew eligibility/admission, provider
+authentication, DNS or mail delivery.

@@ -16,7 +16,7 @@ Do them in order and tick each one when its **Done when** check passes.
 - A free Cloudflare account
 - The inbox that should receive the mail (any provider)
 - A second mailbox to send a test from
-- macOS or Linux with `bash`, `curl`, `jq` and `git`
+- macOS or Linux with `bash`, `curl` and `jq` (and `git` only if you install from a clone)
 
 Already use the domain for a website or email? Note its DNS records now (step 4).
 
@@ -27,13 +27,21 @@ Already use the domain for a website or email? Note its DNS records now (step 4)
 ### 2. Install cmail
 
 ```bash
-git clone https://github.com/luongnv89/cmail
-cd cmail
-bash install.sh --local
-export PATH="$HOME/.local/bin:$PATH"
+curl -fsSL https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh | bash
+export PATH="$HOME/.local/bin:$PATH"       # only if the installer says it is not on PATH
 cmail --version
 cmail config init
 cmail config set ADDRESSES hello,contact   # optional; default is hello
+```
+
+The installer puts the pinned cmail 0.2.0 release in `~/.local/bin` without sudo.
+Add the `export PATH` line to your shell profile to keep it.
+Prefer to review the code first? Clone it and install that checkout, with no downloads:
+
+```bash
+git clone https://github.com/luongnv89/cmail
+cd cmail
+bash install.sh --local
 ```
 
 **Done when:** `cmail --version` prints `cmail 0.2.0`.

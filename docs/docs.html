@@ -30,11 +30,13 @@
     <div>
       <section id="install" aria-labelledby="install-h">
         <h2 id="install-h">Install</h2>
-        <pre><code>git clone https://github.com/luongnv89/cmail
-cd cmail
-bash install.sh --local
+        <pre><code>curl -fsSL https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh | bash
 export PATH="$HOME/.local/bin:$PATH"
 cmail --version</code></pre>
+        <p>To install a clone you reviewed instead, with no downloads:</p>
+        <pre><code>git clone https://github.com/luongnv89/cmail
+cd cmail
+bash install.sh --local</code></pre>
         <div class="table-wrap"><table>
           <thead><tr><th scope="col">What</th><th scope="col">Where</th><th scope="col">Override at install</th></tr></thead>
           <tbody>
@@ -44,9 +46,10 @@ cmail --version</code></pre>
           </tbody>
         </table></div>
         <ul>
-          <li><code>--local</code> installs the checkout you cloned, with no downloads. Plain <code>bash install.sh</code> downloads the pinned v0.2.0 runtime from GitHub.</li>
+          <li>The one-line command and plain <code>bash install.sh</code> download the pinned v0.2.0 runtime from GitHub. <code>--local</code> installs the checkout you cloned, with no downloads.</li>
+          <li>The installer says whether <code>~/.local/bin</code> is on your PATH and prints the <code>export PATH</code> line to add to your shell profile if it is not.</li>
           <li>Needs Bash 3.2+, <code>curl</code> and <code>jq</code>. No sudo. Installing never runs setup or edits your shell profile.</li>
-          <li>To update, pull the repo and run the installer again. Your config is kept.</li>
+          <li>To update, run the installer again (for a clone, pull it first). Your config is kept.</li>
         </ul>
       </section>
 
