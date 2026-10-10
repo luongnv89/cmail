@@ -128,10 +128,16 @@ cmd_status() {
   if [ "$CMAIL_FORMAT" = json ]; then output_envelope status "$data"
   else
     text=$(jq -r '
+      def target: if .type == "forward" then
+          (if (.value // []) == [] then "forward (no destination)" else .value | join(", ") end)
+        elif (.value | type) == "array" then "\(.type) \(.value | join(", "))"
+        else .type end;
+      def targets: if (.actions // []) == [] then "no action" else [.actions[] | target] | join("; ") end;
+      def matched: if any(.matchers[]?; .type == "all") then "catch-all" else .matchers[0].value // "custom matcher" end;
       "Domain:        \(.zone.name)", "Zone:          \(.zone.status)",
       "Email routing: \(.routing.status) (enabled=\(.routing.enabled))", "Destinations:",
       (.destinations[] | "  \(.email)  verified=\(.verified)"), "Rules:",
-      (.rules[] | "  \(.matchers[0].value // "custom matcher") -> \(.actions[0].value | join(", "))  enabled=\(.enabled)")' <<< "$data") || die 'could not format routing state; inspect provider data'
+      (.rules[] | "  \(matched) -> \(targets)  enabled=\(.enabled)")' <<< "$data") || die 'could not format routing state; inspect provider data'
     printf '%s\n' "$text"
   fi
 }
