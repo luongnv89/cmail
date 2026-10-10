@@ -45,8 +45,8 @@ nameserver replacement (confirmation prompt) → wait for Active (polls ~20 min)
 click) → forwarding rules → `Receiving is set up` summary, then exit 0. Setup
 never runs the Gmail guide: sending is the separate, optional `cmail send-as`
 command (waits for Enter), used only when the user asked to send from the
-custom address. The default installer pins legacy v0.1.0 instead: after the
-same receiving stages it runs the Gmail guide, which pauses without input.
+custom address. Legacy v0.1.0 differs: after the same receiving stages it
+runs the Gmail guide, which pauses without input.
 Record trusted offline help at gate 1; never assume installation selects the
 checkout's newer behavior. For receive-only use, ignore the legacy Gmail guide
 and verify gate 8's exact post-receiving checkpoint and status rules.

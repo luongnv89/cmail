@@ -8,7 +8,7 @@ if [ "${1:-}" = --help ]; then
   printf '%s\n' 'Usage: bash install.sh [--local]' \
     '--local: install this reviewed checkout without downloads or credentials' \
     'Overrides: CMAIL_REF (40-character commit), CMAIL_BIN_DIR, CMAIL_DATA_DIR, CMAIL_CONFIG_DIR' \
-    'Defaults: pinned v0.1.0 runtime, ~/.local/bin, ~/.local/share/cmail, ~/.config/cmail'
+    'Defaults: pinned v0.2.0 runtime, ~/.local/bin, ~/.local/share/cmail, ~/.config/cmail'
   exit 0
 fi
 local_mode=0
@@ -17,7 +17,7 @@ elif [ "$#" != 0 ]; then fail 'unknown argument (see --help)'; fi
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ "$local_mode" = 1 ] && [ -n "${CMAIL_REF:-}" ]; then fail 'CMAIL_REF applies to remote installation; unset it for --local'; fi
 [ -n "${HOME:-}" ] || fail 'HOME must be set'
-ref="${CMAIL_REF:-eb45f9558ecc5874e6a21d6f1b93fe1379f46841}"
+ref="${CMAIL_REF:-21b3a082172ca4c4ef0c1a3651a9ad80504c1ed1}"
 [ "${#ref}" = 40 ] || fail 'CMAIL_REF must be a full lowercase commit SHA'
 case "$ref" in *[!0-9a-f]*) fail 'CMAIL_REF must be a full lowercase commit SHA' ;; esac
 bin_dir="${CMAIL_BIN_DIR:-$HOME/.local/bin}"

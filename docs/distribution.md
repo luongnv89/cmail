@@ -6,7 +6,7 @@
 completion files from this reviewed checkout, without downloads, setup, or
 provider access. Config and upgrade/rollback protections are preserved.
 The new CLI is published in the [v0.2.0 release](https://github.com/luongnv89/cmail/releases/tag/v0.2.0); unflagged remote
-installation still keeps its existing immutable legacy v0.1.0 pin. See [current CLI usage](https://github.com/luongnv89/cmail/blob/main/docs/cli.md).
+installation now pins the immutable v0.2.0 release commit. See [current CLI usage](https://github.com/luongnv89/cmail/blob/main/docs/cli.md).
 
 ## Chosen route: upstream GitHub source distribution
 
@@ -31,9 +31,11 @@ the active launcher. A late activation failure may retain an unused validated
 runtime; retaining it also prevents signal cleanup from deleting a newly active
 runtime. A local lock rejects concurrent installs into the same runtime store. Different runtime stores must not share a launcher destination.
 
-The default runtime commit is `eb45f9558ecc5874e6a21d6f1b93fe1379f46841`
-(the existing v0.1.0 source tree). Installation requires Bash 3.2+, curl and
-standard macOS/Linux utilities. HTTPS is required even across redirects. An
+The default runtime commit is `21b3a082172ca4c4ef0c1a3651a9ad80504c1ed1`
+(the v0.2.0 release tree). The v0.2.0 tag's own `install.sh` still pins the
+v0.1.0 commit; use `--local` from a v0.2.0 checkout to install 0.2.0.
+Installation requires Bash 3.2+, curl and standard macOS/Linux utilities.
+HTTPS is required even across redirects. An
 immutable source pin and TLS do **not** constitute signed release verification
 or independent checksums. Only run installers and configurations you trust.
 All destinations and their parent directories must be controlled by your user;

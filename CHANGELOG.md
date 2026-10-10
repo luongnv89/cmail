@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Move the installer's default pinned runtime from the v0.1.0 release commit to
+  the v0.2.0 release commit (`21b3a08`), so unflagged `bash install.sh` installs
+  the 0.2.0 CLI. Docs, skill guidance and offline regressions now describe the
+  new pin.
+
 ## v0.2.0 — 2026-10-10
 
 - Fix plain-text `cmail status` failing with "could not format routing state"

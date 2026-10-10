@@ -6,9 +6,9 @@ measures configuration; independent delivery remains Gate 9 evidence.
 # Verification matrix
 
 Use the selected trusted launcher (installed, or source `./cmail`) and always pass
-the selected config as `ENV_FILE`. The current installer pins legacy v0.1.0;
-these gates support it and the reviewed current source, with different setup
-completion evidence at gate 8. Record trusted offline help capabilities at gate 1.
+the selected config as `ENV_FILE`. The current installer pins v0.2.0; these
+gates support it, legacy v0.1.0 and the reviewed current source, with different
+setup completion evidence at gate 8. Record trusted offline help capabilities at gate 1.
 **You run every check below** unless it is marked hands-on.
 Hands-on evidence comes from the user as a sanitized observation (exact
 domain/account, state, time), labelled user-reported. With no evidence, the gate

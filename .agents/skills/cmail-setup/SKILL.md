@@ -14,8 +14,9 @@ Use this skill when the user asks to set up, resume or troubleshoot cmail
 (a domain at any registrar → Cloudflare Email Routing → any inbox the user owns;
 GoDaddy automation is optional); you run the commands. With reviewed current source, receiving takes a few simple steps and
 needs no Google account: `./cmail setup` sets up receiving only. The default
-installer pins legacy v0.1.0, whose setup still includes the Gmail guide and lacks
-`send-as`; its post-receiving pause is accepted only by gate 8's exact checks.
+installer pins the v0.2.0 runtime. A legacy v0.1.0 runtime's setup still includes
+the Gmail guide and lacks `send-as`; its post-receiving pause is accepted only by
+gate 8's exact checks.
 Ignore that guide for receive-only requests. Sending from the custom address
 (`cmail send-as`, Gmail only) is optional and never the default: include it only
 when the user asks to send, and do not ask for DEST_EMAIL to be Gmail otherwise.
@@ -149,16 +150,17 @@ lines). `status` exit 0 alone is not a verdict.
    If provenance cannot be established, stop BLOCKED; never run an unknown PATH
    match to discover whether it is trusted.
    Only then use the quoted trusted absolute path with `help` (or trusted
-   `./cmail help`), not unsupported `cmail --version`. Confirm
+   `./cmail help`), not `cmail --version` (unsupported by legacy/snapshot
+   runtimes). Confirm
    setup/status/doctor/help and library load; record whether `send-as` is listed
    to distinguish current-source and legacy completion evidence. A different
    binary or broken library load fails this gate.
-3. Select source execution or deliberate legacy installation. For the latter,
+3. Select source execution or deliberate installation. For the latter,
    read and run the reviewed checkout's **`bash install.sh`** (needs Bash 3.2+ and
-   curl; downloads a pinned runtime; sets up no provider).
+   curl; downloads the pinned v0.2.0 runtime; sets up no provider).
    v0.1.0 lacks the installer; no remote bootstrap or `brew install cmail` exists.
    For the new receive-only/optional-send workflow, prefer the reviewed source
-   snapshot in README instead of installing the legacy default. Clone upstream
+   snapshot in README instead of the installer's default. Clone upstream
    into a user-owned directory and fetch the pin explicitly; it need not be
    advertised on the default branch. Select the immutable feature revision:
 
@@ -175,9 +177,9 @@ lines). `status` exit 0 alone is not a verdict.
    release/installer ships. Help must list `send-as` before this source workflow
    proceeds; stop if missing. Select this checkout's trusted absolute `cmail`
    path, not PATH `cmail`, and checkout `.env` (or explicitly reused ENV_FILE).
-   For deliberate legacy installation, read the checkout's `install.sh`, then run
+   For deliberate installation, read the checkout's `install.sh`, then run
    it; the default pinned runtime does not gain features from the checkout.
-4. Legacy installation defaults: launcher `~/.local/bin/cmail`, runtimes `~/.local/share/cmail/`,
+4. Installation defaults: launcher `~/.local/bin/cmail`, runtimes `~/.local/share/cmail/`,
    config `~/.config/cmail/.env`. Installer overrides are absolute `CMAIL_BIN_DIR`,
    `CMAIL_DATA_DIR`, `CMAIL_CONFIG_DIR`; runtime override is `ENV_FILE`.
    Call the launcher by absolute path; report the PATH line for the user's profile instead of editing it.

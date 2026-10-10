@@ -18,7 +18,7 @@ cmail setup
 The current CLI (`0.2.0`) has command-specific help, private
 literal configuration, read-only diagnostics, full setup previews, JSON reports,
 shell completions, and an elapsed-time setup summary. `--local` installs the
-checkout you reviewed; unflagged `bash install.sh` retains the legacy v0.1.0 pin.
+checkout you reviewed; unflagged `bash install.sh` installs the pinned v0.2.0 runtime.
 The new CLI is published as the [v0.2.0 release](https://github.com/luongnv89/cmail/releases/tag/v0.2.0).
 
 ```bash
@@ -73,8 +73,8 @@ git checkout --detach cda65f0554a870ed8079e93741a331918118acec
 ```
 
 Use this checkout's `./cmail`, not a PATH `cmail`; config defaults to checkout
-`.env`. The [installer](#installation) still pins legacy v0.1.0: its setup
-includes the Gmail guide and it has no `send-as` command.
+`.env`. The [installer](#installation) installs the pinned v0.2.0 runtime, which
+follows the [current CLI guide](docs/cli.md), not this snapshot.
 
 > **Sending is optional, not the default** in this source workflow. `./cmail setup`
 > only sets up receiving. If you also want to *send* as `hello@your-domain`, run
@@ -115,9 +115,10 @@ bash install.sh
 This installer ships in the v0.2.0 release; it is **not in the v0.1.0 release**.
 No remote bootstrap (curl) command is documented or published;
 see the [distribution decision and recorded status](docs/distribution.md).
-Even from a v0.2.0 checkout, unflagged `bash install.sh` installs the pinned v0.1.0 runtime.
+From a checkout of `main`, unflagged `bash install.sh` installs the pinned v0.2.0 runtime.
+The v0.2.0 tag's own installer still pins v0.1.0; from a v0.2.0 checkout, use `--local`.
 
-The installer downloads the complete v0.1.0 runtime at a pinned commit over
+The installer downloads the complete v0.2.0 runtime at a pinned commit over
 HTTPS. It requires Bash 3.2+, curl and standard macOS/Linux utilities, but not
 git, jq, sudo, a package manager, authentication or provider access. It checks
 syntax and offline help before activating a launcher. It never runs setup or
@@ -146,11 +147,10 @@ export PATH="$HOME/.local/bin:$PATH"   # only if this directory is not on PATH
 cmail help
 ```
 
-This default installed runtime is **legacy v0.1.0**: `cmail setup` still includes
-the Gmail sending guide and has no `cmail send-as`. For receiving-only setup and
-optional sending, use the reviewed source quickstart below instead. Only when
-ready for the legacy guided, potentially live-changing workflow, run installed
-`cmail setup`. Installation success proves CLI availability, not functioning
+This default installed runtime is **v0.2.0**: `cmail setup` sets up receiving
+only, at any registrar by default, and sending is the optional `cmail send-as`.
+Follow the [current CLI guide](docs/cli.md) for it. Only when ready for the
+guided, potentially live-changing workflow, run installed `cmail setup`. Installation success proves CLI availability, not functioning
 DNS, provider permissions or end-to-end email delivery.
 
 Re-run `bash install.sh` to reinstall the pinned runtime. To upgrade after
@@ -182,8 +182,8 @@ git checkout --detach cda65f0554a870ed8079e93741a331918118acec
 All workflow commands below refer to this checkout's `./cmail`, not PATH `cmail`.
 It defaults to checkout `.env`; to reuse private installed config, explicitly set
 `ENV_FILE="$HOME/.config/cmail/.env"` for every `./cmail` invocation. Do not run
-`bash install.sh` as part of this quickstart: its default pin selects legacy
-v0.1.0, regardless of the checkout revision.
+`bash install.sh` as part of this quickstart: its default pin selects the v0.2.0
+runtime, regardless of the checkout revision.
 
 The script walks you through each step. Authentication is browser-based
 (OAuth) wherever possible:
@@ -238,7 +238,7 @@ Copy the whole directory into your agent's skill location; see its
 installer does not install agent skills; the skill is included in the v0.2.0 release.
 
 Ask “Use cmail-setup to help me set up custom email” or `/cmail-setup` in an
-agent supporting slash skills. The agent selects a trusted source or legacy
+agent supporting slash skills. The agent selects a trusted source or
 installed runtime and its tools, fills the non-secret config, runs a read-only
 preflight and then runs that runtime's setup itself,
 troubleshooting and rerunning on failure. It verifies each gate before advancing.

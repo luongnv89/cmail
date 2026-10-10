@@ -58,7 +58,7 @@ DNSSEC/DS records. Plan migration before changing anything. Only if sending: che
 Google policy and whether App Passwords are permitted. Missing access is not a
 purchase signal.
 
-### 2. Select reviewed current source (or legacy installation)
+### 2. Select reviewed current source (or installation)
 
 - [ ] Verify the trusted CLI and select the actual config path.
 
@@ -82,15 +82,16 @@ runtime for this source workflow. Use `./cmail`, never PATH `cmail`, in the
 following steps; config defaults to checkout `.env`. Help proves no provider
 readiness. Keep the checkout for the checker/skill.
 
-**Legacy installation alternative (not this quickstart):** after reviewing
+**Installation alternative (not this quickstart):** after reviewing
 `install.sh` and the [distribution contract](distribution.md), `bash install.sh`
-downloads the pinned v0.1.0 runtime regardless of checkout revision. Its setup
-still includes the Gmail guide and it lacks `send-as`. v0.1.0 itself has neither
-installer nor newer skill/checker. No released remote bootstrap or Homebrew
-package is promised. Installer bootstrap requires Bash/curl/standard utilities,
-not jq/gddy/sudo/provider access; it does not run setup or edit profiles.
+downloads the pinned v0.2.0 runtime regardless of checkout revision. It follows
+the [current CLI guide](https://github.com/luongnv89/cmail/blob/main/docs/cli.md),
+not this snapshot's steps. v0.1.0 itself has neither installer nor newer
+skill/checker. No released remote bootstrap or Homebrew package is promised.
+Installer bootstrap requires Bash/curl/standard utilities, not
+jq/gddy/sudo/provider access; it does not run setup or edit profiles.
 
-Legacy defaults: launcher `~/.local/bin/cmail`, runtimes
+Installer defaults: launcher `~/.local/bin/cmail`, runtimes
 `~/.local/share/cmail/runtime.*`, config `~/.config/cmail/.env`. Absolute install
 overrides: CMAIL_BIN_DIR, CMAIL_DATA_DIR, CMAIL_CONFIG_DIR. All paths/parents must
 be user-controlled and non-symlink; existing config is preserved. Verify the
@@ -306,7 +307,7 @@ and inspect fresh state. Create success/truncated status does not prove correctn
 **Skip this step if you only need to receive mail.** It applies only when you
 want to send from the custom address and DEST_EMAIL is a Gmail/Google account.
 `./cmail send-as` prints the same guidance; source `./cmail setup` does not run it.
-The legacy pinned installation still shows the Gmail guide during setup; ignore
+A legacy v0.1.0 installation still shows the Gmail guide during setup; ignore
 that guide for receive-only use (the skill recognizes its post-receiving pause).
 
 Recheck [January 2027 policy and alias instructions](https://support.google.com/mail/answer/22370).

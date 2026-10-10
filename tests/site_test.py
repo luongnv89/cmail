@@ -116,12 +116,13 @@ class SiteTests(unittest.TestCase):
             self.assertIn(link, readme)
 
     def test_issue17_quickstarts_select_feature_runtime_not_default_installer(self):
-        # Issue #17: installing from a newer checkout still downloads v0.1.0.
+        # Issue #17: the default installer downloads its own pinned commit (the
+        # v0.2.0 release), not the checkout's revision or the feature snapshot.
         feature_sha = 'cda65f0554a870ed8079e93741a331918118acec'
-        legacy_sha = 'eb45f9558ecc5874e6a21d6f1b93fe1379f46841'
+        default_sha = '21b3a082172ca4c4ef0c1a3651a9ad80504c1ed1'
         installer = (ROOT / 'install.sh').read_text()
-        self.assertIn('ref="${CMAIL_REF:-' + legacy_sha + '}"', installer)
-        self.assertNotEqual(feature_sha, legacy_sha)
+        self.assertIn('ref="${CMAIL_REF:-' + default_sha + '}"', installer)
+        self.assertNotEqual(feature_sha, default_sha)
         for name in ['README.md', 'docs/index.html', 'docs/setup.html', 'docs/setup.md']:
             with self.subTest(name=name):
                 text = unescape((ROOT / name).read_text())
@@ -142,8 +143,9 @@ class SiteTests(unittest.TestCase):
                 flat = ' '.join(re.sub(r'<[^>]*>', '', text).replace('**', '').split())
                 for required in ['development source snapshot', 'not v0.1.0',
                                  'compatible release/installer ships', 'config defaults to checkout',
-                                 'Gmail guide', 'send-as', 'legacy', './cmail setup']:
+                                 'pinned v0.2.0 runtime', 'send-as', './cmail setup']:
                     self.assertIn(required.lower(), flat.lower(), name)
+                self.assertNotIn('pinned v0.1.0', flat.lower(), name)
                 if name == 'README.md':
                     self.assertIn('Must list send-as', flat)
                 else:
