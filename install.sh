@@ -2,10 +2,13 @@
 # User-local installation only: never run setup, doctor or a package manager.
 set -euo pipefail
 umask 077
-
+# Bash parses this whole group before running any of it, so a download cut
+# short during `curl ... | bash` fails to parse instead of running partially.
+{
 fail() { printf 'cmail install: %s\n' "$*" >&2; exit 1; }
 if [ "${1:-}" = --help ]; then
   printf '%s\n' 'Usage: bash install.sh [--local]' \
+    '   or: curl -fsSL https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh | bash' \
     '--local: install this reviewed checkout without downloads or credentials' \
     'Overrides: CMAIL_REF (40-character commit), CMAIL_BIN_DIR, CMAIL_DATA_DIR, CMAIL_CONFIG_DIR' \
     'Defaults: pinned v0.2.0 runtime, ~/.local/bin, ~/.local/share/cmail, ~/.config/cmail'
@@ -14,8 +17,14 @@ fi
 local_mode=0
 if [ "$#" = 1 ] && [ "$1" = --local ]; then local_mode=1
 elif [ "$#" != 0 ]; then fail 'unknown argument (see --help)'; fi
-SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ "$local_mode" = 1 ] && [ -n "${CMAIL_REF:-}" ]; then fail 'CMAIL_REF applies to remote installation; unset it for --local'; fi
+if [ "$local_mode" = 1 ]; then
+  [ -z "${CMAIL_REF:-}" ] || fail 'CMAIL_REF applies to remote installation; unset it for --local'
+  # A piped script has no file path, so there is no checkout to copy from.
+  script_path="${BASH_SOURCE[0]:-}"
+  [ -n "$script_path" ] && [ -f "$script_path" ] \
+    || fail '--local needs a cloned checkout: run bash install.sh --local inside it'
+  SOURCE_DIR="$(cd "$(dirname "$script_path")" && pwd)"
+fi
 [ -n "${HOME:-}" ] || fail 'HOME must be set'
 ref="${CMAIL_REF:-21b3a082172ca4c4ef0c1a3651a9ad80504c1ed1}"
 [ "${#ref}" = 40 ] || fail 'CMAIL_REF must be a full lowercase commit SHA'
@@ -138,7 +147,14 @@ mv -f "$candidate" "$launcher" || fail 'launcher activation failed (previous ins
 candidate=''
 [ "$local_mode" = 0 ] || ref='local checkout snapshot'
 printf 'Installed cmail runtime %s\nLauncher: %s\nConfig: %s/.env\n' "$ref" "$launcher" "$config_dir"
-# Print a command for the user's shell without expanding this process's PATH.
-# shellcheck disable=SC2016
-printf 'Verify: %q help\nPATH (if needed): export PATH=%q:"$PATH"\n' "$launcher" "$bin_dir"
+printf 'Verify: %q help\n' "$launcher"
+case ":${PATH:-}:" in
+  *":$bin_dir:"*) printf 'PATH: %s is already on your PATH; run cmail help\n' "$bin_dir" ;;
+  *)
+    # Print a command for the user's shell without expanding this process's PATH.
+    # shellcheck disable=SC2016
+    printf 'PATH: %s is not on your PATH. Run this, and add it to ~/.zshrc or ~/.bashrc to keep it:\n  export PATH=%q:"$PATH"\n' "$bin_dir" "$bin_dir"
+    ;;
+esac
 printf '%s\n' 'Installation did not run setup or change DNS. Run cmail setup only when ready.'
+}

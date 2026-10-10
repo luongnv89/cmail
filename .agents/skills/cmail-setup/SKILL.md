@@ -158,7 +158,9 @@ lines). `status` exit 0 alone is not a verdict.
 3. Select source execution or deliberate installation. For the latter,
    read and run the reviewed checkout's **`bash install.sh`** (needs Bash 3.2+ and
    curl; downloads the pinned v0.2.0 runtime; sets up no provider).
-   v0.1.0 lacks the installer; no remote bootstrap or `brew install cmail` exists.
+   v0.1.0 lacks the installer; no `brew install cmail` exists. The README's
+   one-line `curl … | bash` runs the same `install.sh` from `main`; as an agent,
+   read that installer (downloaded or in the checkout) before running it, never pipe it unread.
    For the new receive-only/optional-send workflow, prefer the reviewed source
    snapshot in README instead of the installer's default. Clone upstream
    into a user-owned directory and fetch the pin explicitly; it need not be

@@ -21,6 +21,14 @@
 - Setup guide: show a congratulations card asking for a GitHub star once all 8
   steps are checked. It hides again when a step is unchecked or progress is
   reset, and its state is restored on reload (#27).
+- Install with one command, without cloning:
+  `curl -fsSL https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh | bash`.
+  The installer no longer fails when piped (it previously stopped with
+  `BASH_SOURCE[0]: unbound variable`), runs nothing if the download is cut
+  short, and says whether `~/.local/bin` is already on PATH or prints the
+  `export PATH` line to add. It still downloads the pinned v0.2.0 runtime;
+  `bash install.sh` and `bash install.sh --local` from a checkout keep working.
+  The README, setup guide and CLI docs now lead with the one-line command (#25).
 
 ## v0.2.0 — 2026-10-10
 

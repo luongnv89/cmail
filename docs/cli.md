@@ -2,14 +2,20 @@
 
 Set up custom-domain receiving, inspect forwarding, and diagnose problems. Incoming mail is forwarded by Cloudflare to an inbox you already own. Sending uses a separate optional manual guide.
 
-## Install the reviewed checkout
+## Install
 
 ```bash
-bash install.sh --local
-export PATH="$HOME/.local/bin:$PATH"
+curl -fsSL https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh | bash
+export PATH="$HOME/.local/bin:$PATH"   # only if the installer says it is not on PATH
 cmail --version
 cmail config init
 cmail setup
+```
+
+The one-line command downloads the pinned v0.2.0 runtime without a clone or sudo. To install a reviewed checkout instead, run this inside it:
+
+```bash
+bash install.sh --local
 ```
 
 `--local` copies this checkout's runtime without downloads, provider access, or configuration replacement. Installed configuration defaults to `~/.config/cmail/.env`; direct `./cmail` execution defaults to checkout `.env`. `cmail config path` prints the selected path. The launcher path can be overridden at installation with `CMAIL_BIN_DIR`; use that directory in PATH instead when customized.

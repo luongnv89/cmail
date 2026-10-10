@@ -178,8 +178,40 @@ ln -s "$original_data" "$CMAIL_DATA_DIR"
 expect_failure 'symlink runtime rejected' 'symlink directory'
 export CMAIL_DATA_DIR="$original_data" CMAIL_BIN_DIR=relative
 expect_failure 'relative directory rejected' 'absolute paths'
-# Install the reviewed local checkout with network access forbidden by the mock.
+# The one-line `curl ... | bash` route: bash reads the script from stdin, so it
+# has no file path of its own.
 unset CMAIL_REF
+piped="$TMP/piped space '\$;"
+piped_install() {
+  CMAIL_BIN_DIR="$piped/bin" CMAIL_DATA_DIR="$piped/data" CMAIL_CONFIG_DIR="$piped/config" \
+    "$BASH" "$@" > "$TMP/piped-output" 2> "$TMP/error"
+}
+before_downloads=$(wc -l < "$CURL_LOG")
+piped_install < "$ROOT/install.sh" || fail "piped install failed: $(< "$TMP/error")"
+"$piped/bin/cmail" help > "$TMP/help"
+grep -q 'custom-domain email' "$TMP/help" || fail 'piped install not runnable'
+[ "$(($(wc -l < "$CURL_LOG") - before_downloads))" = 15 ] || fail 'piped install incomplete download'
+[ "$(tail -n 15 "$CURL_LOG" | grep -c '/21b3a082172ca4c4ef0c1a3651a9ad80504c1ed1/')" = 15 ] \
+  || fail 'piped install unpinned'
+[ ! -e "$piped/config/.env" ] || fail 'piped install created config'
+grep -q 'is not on your PATH' "$TMP/piped-output" || fail 'piped install gave no PATH guidance'
+grep -qF "export PATH=$(printf '%q' "$piped/bin"):\"\$PATH\"" "$TMP/piped-output" \
+  || fail 'piped install PATH command'
+pass 'piped install downloads the pinned runtime and explains PATH'
+PATH="$piped/bin:$PATH" piped_install < "$ROOT/install.sh" || fail 'piped reinstall failed'
+grep -q 'already on your PATH' "$TMP/piped-output" || fail 'PATH detection'
+pass 'piped reinstall recognises a launcher directory already on PATH'
+before_downloads=$(wc -l < "$CURL_LOG")
+if piped_install -s -- --local < "$ROOT/install.sh"; then fail 'piped --local succeeded'; fi
+grep -q 'needs a cloned checkout' "$TMP/error" || fail 'piped --local diagnostic'
+[ "$(wc -l < "$CURL_LOG")" = "$before_downloads" ] || fail 'piped --local downloaded files'
+pass 'piped --local fails clearly without downloads'
+piped="$TMP/truncated"
+if head -n 60 "$ROOT/install.sh" | piped_install; then fail 'truncated script succeeded'; fi
+[ ! -e "$piped" ] || fail 'truncated script created directories'
+[ "$(wc -l < "$CURL_LOG")" = "$before_downloads" ] || fail 'truncated script downloaded files'
+pass 'truncated piped download runs nothing'
+# Install the reviewed local checkout with network access forbidden by the mock.
 export CMAIL_BIN_DIR="$TMP/bin space '\$;"
 export FAIL_FILE=cmail
 before_downloads=$(wc -l < "$CURL_LOG")

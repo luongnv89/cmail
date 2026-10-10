@@ -56,7 +56,7 @@
           <li>A free <a href="https://dash.cloudflare.com/sign-up">Cloudflare account</a>.</li>
           <li>The <strong>inbox</strong> that should receive the mail (any provider).</li>
           <li>A <strong>second mailbox</strong> to send a test from.</li>
-          <li>macOS or Linux with <code>bash</code>, <code>curl</code>, <code>jq</code> and <code>git</code>.</li>
+          <li>macOS or Linux with <code>bash</code>, <code>curl</code> and <code>jq</code> (and <code>git</code> only if you install from a clone).</li>
         </ul>
         <p class="callout warn">Already use this domain for a website or email? Note its DNS records now. You will copy them into Cloudflare in step 4.</p>
         <p class="done-when"><strong>Done when:</strong> you can log in to your registrar, Cloudflare and both mailboxes.</p>
@@ -69,7 +69,7 @@
           <rect class="flow-box cf" x="220" y="10" width="190" height="66" rx="8"/><text x="238" y="40" font-size="16" font-weight="700">Cloudflare</text><text class="sub" x="238" y="60">free account</text>
           <rect class="flow-box" x="10" y="92" width="190" height="66" rx="8"/><text x="28" y="122" font-size="16" font-weight="700">Receiving inbox</text><text class="sub" x="28" y="142">you@gmail.com</text>
           <rect class="flow-box" x="220" y="92" width="190" height="66" rx="8"/><text x="238" y="122" font-size="16" font-weight="700">Test mailbox</text><text class="sub" x="238" y="142">a different address</text>
-          <rect class="flow-box" x="10" y="174" width="400" height="66" rx="8"/><text x="28" y="204" font-size="16" font-weight="700">Terminal</text><text class="sub" x="28" y="224">macOS / Linux · bash · curl · jq · git</text>
+          <rect class="flow-box" x="10" y="174" width="400" height="66" rx="8"/><text x="28" y="204" font-size="16" font-weight="700">Terminal</text><text class="sub" x="28" y="224">macOS / Linux · bash · curl · jq</text>
         </svg>
       </div>
     </li>
@@ -79,24 +79,23 @@
       <div>
         <div class="step-head"><span class="num">2</span><div class="step-meta"><span class="tag you">You</span><span class="tag">2 min</span></div><h2>Install cmail</h2></div>
         <ol>
-          <li>Clone the repository.</li>
-          <li>Run the installer. It copies cmail to <code>~/.local/bin</code>. No sudo needed.</li>
+          <li>Run the one-line installer. It installs the pinned cmail 0.2.0 release in <code>~/.local/bin</code>. No sudo needed.</li>
+          <li>If it says <code>~/.local/bin</code> is not on your PATH, run the <code>export PATH</code> line it prints.</li>
           <li>Create your private config file and choose your addresses (default: <code>hello</code>).</li>
         </ol>
-        <pre><code>git clone https://github.com/luongnv89/cmail
-cd cmail
-bash install.sh --local
+        <pre><code>curl -fsSL https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh | bash
 export PATH="$HOME/.local/bin:$PATH"
 cmail --version
 cmail config init
 cmail config set ADDRESSES hello,contact</code></pre>
         <p class="meta">Add the <code>export PATH</code> line to your shell profile to keep it. Config lives in <code>~/.config/cmail/.env</code> (mode 600).</p>
+        <p class="meta">Prefer to review the code first? Clone it and install that checkout, with no downloads: <code>git clone https://github.com/luongnv89/cmail</code>, <code>cd cmail</code>, then <code>bash install.sh --local</code>.</p>
         <p class="done-when"><strong>Done when:</strong> <code>cmail --version</code> prints <code>cmail 0.2.0</code>.</p>
         <label class="check" for="step-install"><input id="step-install" type="checkbox">cmail is installed</label>
       </div>
       <div class="visual">
         <div class="term" aria-label="Terminal: installing cmail">
-          <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i><span>~/cmail</span></div>
+          <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i><span>~</span></div>
           <pre><span class="p">$</span> cmail --version
 cmail 0.2.0
 <span class="p">$</span> cmail config init
