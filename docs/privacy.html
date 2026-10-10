@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="cmail collects no data. What the website stores, which services the CLI contacts, and where your token lives.">
+  <title>Privacy — cmail</title>
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header><a class="brand" href="index.html">cmail</a><nav aria-label="Main"><a href="index.html">Home</a><a href="setup.html">Setup guide</a><a href="docs.html">Docs</a><a href="changelog.html">Changelog</a><a href="privacy.html" aria-current="page">Privacy</a><a href="https://github.com/luongnv89/cmail">GitHub</a></nav></header>
+<main id="main">
+  <div class="page-intro">
+    <p class="kicker">Privacy</p>
+    <h1>We collect nothing.</h1>
+    <p class="lead">cmail has no server, no accounts, no analytics and no telemetry. Your token and settings stay on your computer.</p>
+  </div>
+
+  <section class="block" aria-labelledby="where">
+    <h2 id="where">Where your data goes</h2>
+    <svg class="diagram" viewBox="0 0 720 230" role="img" aria-labelledby="where-t where-d" style="max-width:720px">
+      <title id="where-t">Data flow</title>
+      <desc id="where-d">Your computer holds the config file and talks directly to the Cloudflare API, and to GoDaddy only if you opt in. Nothing goes to a cmail server, because there is none.</desc>
+      <rect class="flow-box" x="10" y="60" width="250" height="110" rx="8"/>
+      <text x="30" y="92" font-size="17" font-weight="700">Your computer</text>
+      <text class="sub" x="30" y="116">~/.config/cmail/.env (mode 600)</text>
+      <text class="sub" x="30" y="138">token, domain, addresses</text>
+      <rect class="flow-box cf" x="450" y="10" width="260" height="66" rx="8"/>
+      <text x="470" y="40" font-size="16" font-weight="700">api.cloudflare.com</text><text class="sub" x="470" y="60">with your own token, over HTTPS</text>
+      <rect class="flow-box" x="450" y="92" width="260" height="56" rx="8" stroke-dasharray="5 4"/>
+      <text x="470" y="125" font-size="15" font-weight="700">GoDaddy via gddy</text><text class="sub" x="612" y="125">opt-in only</text>
+      <rect class="flow-box" x="450" y="164" width="260" height="56" rx="8" stroke-dasharray="2 4"/>
+      <text x="470" y="197" font-size="15" font-weight="700">cmail server</text><text class="sub" x="590" y="197">does not exist</text>
+      <path class="flow-line" d="M260 100 L450 43 M260 118 L450 120"/>
+    </svg>
+  </section>
+
+  <section class="block" aria-labelledby="cli">
+    <h2 id="cli">The command-line tool</h2>
+    <div class="grid">
+      <div class="card"><h3>Stored locally</h3><p>Settings and your Cloudflare token are kept in one config file with mode 600. Secrets are redacted in <code>config show</code> and <code>--verbose</code> output.</p></div>
+      <div class="card"><h3>Services contacted</h3><p><code>api.cloudflare.com</code> with your token. GoDaddy only if <code>REGISTRAR=godaddy</code>. The installer (without <code>--local</code>) downloads from <code>raw.githubusercontent.com</code>.</p></div>
+      <div class="card"><h3>Browser links</h3><p>Setup may open Cloudflare, Gmail or Google Account pages in your browser. Use <code>--no-browser</code> to print the links instead.</p></div>
+    </div>
+    <p>The forwarded mail itself is handled by Cloudflare and your inbox provider under their own privacy policies. cmail never sees your messages.</p>
+  </section>
+
+  <section class="block" aria-labelledby="site">
+    <h2 id="site">This website</h2>
+    <ul class="prose">
+      <li><strong>No cookies, analytics, fonts or third-party scripts.</strong> Every file is served from this site.</li>
+      <li><strong>One browser storage key.</strong> The setup guide saves which steps you ticked under <code>cmail:setup-progress:v2</code>, as true/false values only. It stays in your browser. <em>Reset progress</em> deletes it.</li>
+      <li><strong>No forms.</strong> The site never asks for tokens, passwords or email addresses.</li>
+      <li><strong>Hosting.</strong> The site is served by GitHub Pages, which may log visits under <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub’s privacy statement</a>.</li>
+    </ul>
+  </section>
+
+  <section class="block" aria-labelledby="contact">
+    <h2 id="contact">Questions</h2>
+    <p>Open an issue on <a href="https://github.com/luongnv89/cmail/issues">GitHub</a>. The source is public, so you can check every network call yourself in <a href="https://github.com/luongnv89/cmail/blob/main/lib/cloudflare.sh">lib/cloudflare.sh</a>.</p>
+  </section>
+</main>
+<footer><span>Last updated 10 October 2026</span><nav aria-label="Footer"><a href="index.html">Home</a><a href="setup.html">Setup</a><a href="docs.html">Docs</a><a href="changelog.html">Changelog</a><a href="https://github.com/luongnv89/cmail/issues">Report an issue</a></nav></footer>
+</body>
+</html>

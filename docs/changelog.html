@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="What changed in each cmail release.">
+  <title>Changelog — cmail</title>
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header><a class="brand" href="index.html">cmail</a><nav aria-label="Main"><a href="index.html">Home</a><a href="setup.html">Setup guide</a><a href="docs.html">Docs</a><a href="changelog.html" aria-current="page">Changelog</a><a href="privacy.html">Privacy</a><a href="https://github.com/luongnv89/cmail">GitHub</a></nav></header>
+<main id="main">
+  <div class="page-intro">
+    <p class="kicker">Release history</p>
+    <h1>Changelog</h1>
+    <p class="lead">The highlights of each release. Full details are in <a href="https://github.com/luongnv89/cmail/blob/main/CHANGELOG.md">CHANGELOG.md</a>.</p>
+  </div>
+
+  <article class="release" aria-labelledby="unreleased">
+    <div><h2 id="unreleased">Unreleased</h2><p class="meta">on <code>main</code></p></div>
+    <div>
+      <ul>
+        <li><span class="badge">Changed</span>Plain <code>bash install.sh</code> now installs the v0.2.0 runtime instead of v0.1.0.</li>
+        <li><span class="badge">Docs</span>Website rewritten: an 8-step visual setup guide for 0.2.0, plus new Docs, Changelog and Privacy pages.</li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="release" aria-labelledby="v020">
+    <div><h2 id="v020">v0.2.0</h2><p class="meta">10 October 2026 · <a href="https://github.com/luongnv89/cmail/releases/tag/v0.2.0">release</a></p></div>
+    <div>
+      <h3>Any registrar, no GoDaddy needed</h3>
+      <ul>
+        <li><span class="badge">Changed</span>Setup defaults to <code>REGISTRAR=manual</code>: bring a domain from any registrar. cmail prints the nameservers and waits for activation. GoDaddy automation is now opt-in with <code>--registrar godaddy</code>.</li>
+      </ul>
+      <h3>A new, safer CLI</h3>
+      <ul>
+        <li><span class="badge">New</span><code>cmail list</code>: every address on a domain and where it forwards.</li>
+        <li><span class="badge">New</span><code>setup --dry-run</code> previews the whole workflow without changing anything.</li>
+        <li><span class="badge">New</span><code>cmail config</code> commands, secret input via <code>--stdin</code>, JSON output, shell completions.</li>
+        <li><span class="badge">New</span>Setup reports the elapsed time on success or failure.</li>
+        <li><span class="badge">Changed</span>Receiving needs no Google account. Gmail sending moved to the optional <code>cmail send-as</code>.</li>
+        <li><span class="badge">Changed</span>Any purchase needs the domain typed at a terminal; flags or piped input can never approve one.</li>
+        <li><span class="badge">Fixed</span><code>cmail status</code> no longer fails on rules without a forward destination.</li>
+      </ul>
+      <h3>Also</h3>
+      <ul>
+        <li><span class="badge">New</span>User-local installer, the <code>cmail-setup</code> agent skill, this website, and macOS/Linux CI.</li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="release" aria-labelledby="v010">
+    <div><h2 id="v010">v0.1.0</h2><p class="meta">7 October 2026 · <a href="https://github.com/luongnv89/cmail/releases/tag/v0.1.0">release</a></p></div>
+    <div>
+      <ul>
+        <li><span class="badge">New</span>First release. <code>cmail setup</code> automates GoDaddy, the Cloudflare zone, nameservers, Email Routing, destination verification and forwarding rules, then guides Gmail “Send mail as”.</li>
+        <li><span class="badge">New</span><code>cmail status</code> and <code>cmail doctor</code>.</li>
+        <li><span class="badge">Fixed</span>Reliable nameserver comparison, rule and destination reuse, account selection and recovery messages.</li>
+      </ul>
+    </div>
+  </article>
+</main>
+<footer><span>cmail release history</span><nav aria-label="Footer"><a href="index.html">Home</a><a href="setup.html">Setup</a><a href="docs.html">Docs</a><a href="privacy.html">Privacy</a><a href="https://github.com/luongnv89/cmail/issues">Report an issue</a></nav></footer>
+</body>
+</html>

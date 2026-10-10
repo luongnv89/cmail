@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="cmail 0.2.0 command-line reference: install, commands, configuration, registrar modes, previews, JSON output, exit codes and shell completions.">
+  <title>CLI docs — cmail</title>
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header><a class="brand" href="index.html">cmail</a><nav aria-label="Main"><a href="index.html">Home</a><a href="setup.html">Setup guide</a><a href="docs.html" aria-current="page">Docs</a><a href="changelog.html">Changelog</a><a href="privacy.html">Privacy</a><a href="https://github.com/luongnv89/cmail">GitHub</a></nav></header>
+<main id="main">
+  <div class="page-intro">
+    <p class="kicker">Reference · cmail 0.2.0</p>
+    <h1>Command-line docs</h1>
+    <p class="lead">Every command, setting and output format. New here? Start with the <a href="setup.html">setup guide</a>.</p>
+  </div>
+  <div class="docs-layout">
+    <aside class="toc"><nav aria-label="On this page"><ol>
+      <li><a href="#install">Install</a></li>
+      <li><a href="#commands">Commands</a></li>
+      <li><a href="#config">Configuration</a></li>
+      <li><a href="#registrar">Registrar modes</a></li>
+      <li><a href="#preview">Preview &amp; JSON</a></li>
+      <li><a href="#options">Global options</a></li>
+      <li><a href="#exit">Exit codes</a></li>
+      <li><a href="#completion">Shell completions</a></li>
+    </ol></nav></aside>
+    <div>
+      <section id="install" aria-labelledby="install-h">
+        <h2 id="install-h">Install</h2>
+        <pre><code>git clone https://github.com/luongnv89/cmail
+cd cmail
+bash install.sh --local
+export PATH="$HOME/.local/bin:$PATH"
+cmail --version</code></pre>
+        <div class="table-wrap"><table>
+          <thead><tr><th scope="col">What</th><th scope="col">Where</th><th scope="col">Override at install</th></tr></thead>
+          <tbody>
+            <tr><td>Launcher</td><td><code>~/.local/bin/cmail</code></td><td><code>CMAIL_BIN_DIR</code></td></tr>
+            <tr><td>Runtime</td><td><code>~/.local/share/cmail/</code></td><td><code>CMAIL_DATA_DIR</code></td></tr>
+            <tr><td>Config</td><td><code>~/.config/cmail/.env</code></td><td><code>CMAIL_CONFIG_DIR</code></td></tr>
+          </tbody>
+        </table></div>
+        <ul>
+          <li><code>--local</code> installs the checkout you cloned, with no downloads. Plain <code>bash install.sh</code> downloads the pinned v0.2.0 runtime from GitHub.</li>
+          <li>Needs Bash 3.2+, <code>curl</code> and <code>jq</code>. No sudo. Installing never runs setup or edits your shell profile.</li>
+          <li>To update, pull the repo and run the installer again. Your config is kept.</li>
+        </ul>
+      </section>
+
+      <section id="commands" aria-labelledby="commands-h">
+        <h2 id="commands-h">Commands</h2>
+        <div class="table-wrap"><table class="cmd-table">
+          <thead><tr><th scope="col">Command</th><th scope="col">What it does</th><th scope="col">Changes things?</th></tr></thead>
+          <tbody>
+            <tr><td><code>cmail setup</code></td><td>Guided receiving setup in a terminal</td><td>Yes, asks first</td></tr>
+            <tr><td><code>cmail setup --dry-run</code></td><td>Full plan and blockers</td><td>No</td></tr>
+            <tr><td><code>cmail status</code></td><td>Zone, routing, destinations and rules</td><td>No</td></tr>
+            <tr><td><code>cmail list [--domain D]</code></td><td>Every address and where it forwards</td><td>No</td></tr>
+            <tr><td><code>cmail doctor</code></td><td>Check tools, config and token</td><td>No</td></tr>
+            <tr><td><code>cmail doctor --offline</code></td><td>Same, without network requests</td><td>No</td></tr>
+            <tr><td><code>cmail send-as</code></td><td>Optional Gmail sending guide</td><td>No (manual)</td></tr>
+            <tr><td><code>cmail config init</code></td><td>Create a private config file</td><td>Local file</td></tr>
+            <tr><td><code>cmail config show</code></td><td>Show settings, secrets redacted</td><td>No</td></tr>
+            <tr><td><code>cmail config check</code></td><td>Validate settings</td><td>No</td></tr>
+            <tr><td><code>cmail config set KEY VALUE</code></td><td>Update one setting</td><td>Local file</td></tr>
+            <tr><td><code>cmail config path</code></td><td>Print the config path in use</td><td>No</td></tr>
+            <tr><td><code>cmail completion SHELL</code></td><td>Print bash, zsh or fish completions</td><td>No</td></tr>
+            <tr><td><code>cmail help [COMMAND]</code></td><td>Help for any command</td><td>No</td></tr>
+          </tbody>
+        </table></div>
+        <div class="term" aria-label="Example: cmail status and cmail doctor">
+          <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i><span>example</span></div>
+          <pre><span class="p">$</span> cmail list
+Addresses on example.com (2):
+  contact@example.com -&gt; owner@example.net (verified)  [disabled]
+  hello@example.com   -&gt; owner@example.net (verified)
+Catch-all (any other address): disabled -&gt; drop
+
+<span class="p">$</span> cmail doctor --offline
+PASS  bash available
+PASS  curl available
+PASS  jq available</pre>
+        </div>
+        <p class="meta">Destinations are marked <code>verified</code>, <code>unverified</code> (click the Cloudflare link) or <code>unregistered</code>.</p>
+      </section>
+
+      <section id="config" aria-labelledby="config-h">
+        <h2 id="config-h">Configuration</h2>
+        <p>Settings live in one private file (mode 600). <code>cmail setup</code> fills it for you; set values ahead of time if you prefer:</p>
+        <pre><code>cmail config set DOMAIN example.com
+cmail config set DEST_EMAIL you@gmail.com
+cmail config set ADDRESSES hello,contact
+cmail config set CLOUDFLARE_API_TOKEN --stdin &lt; /path/to/private/token
+cmail config check</code></pre>
+        <div class="table-wrap"><table>
+          <thead><tr><th scope="col">Key</th><th scope="col">Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><code>DOMAIN</code></td><td>Your domain, e.g. <code>example.com</code></td></tr>
+            <tr><td><code>DEST_EMAIL</code></td><td>Inbox that receives the mail</td></tr>
+            <tr><td><code>ADDRESSES</code></td><td>Comma-separated names: <code>hello,contact</code></td></tr>
+            <tr><td><code>CLOUDFLARE_API_TOKEN</code></td><td>Scoped API token (secret; set via <code>--stdin</code> or setup’s hidden prompt)</td></tr>
+            <tr><td><code>REGISTRAR</code></td><td><code>manual</code> (default) or <code>godaddy</code></td></tr>
+            <tr><td><code>CF_ACCOUNT_ID</code></td><td>Optional. Pick a Cloudflare account when you have several</td></tr>
+            <tr><td><code>CF_ZONE_ID</code></td><td>Saved by setup. No need to set</td></tr>
+            <tr><td><code>GDDY_ENV</code>, <code>GDDY_PAT</code></td><td>GoDaddy mode only: environment and optional token</td></tr>
+            <tr><td><code>DRY_RUN</code></td><td><code>1</code> = same as <code>setup --dry-run</code></td></tr>
+          </tbody>
+        </table></div>
+        <p><strong>Precedence:</strong> command option → environment variable → config file → default. Pick another file with <code>--config PATH</code> or <code>CMAIL_CONFIG</code>.</p>
+        <p class="callout">Values are plain literals. Shell commands and <code>$(…)</code> expansions are rejected. Secrets never go on the command line.</p>
+      </section>
+
+      <section id="registrar" aria-labelledby="registrar-h">
+        <h2 id="registrar-h">Registrar modes</h2>
+        <div class="grid two">
+          <div class="card"><h3><code>manual</code> · default</h3><p>Any registrar. cmail prints the Cloudflare nameservers; you set them at your registrar while cmail waits. It never changes delegation and never buys a domain.</p></div>
+          <div class="card"><h3><code>godaddy</code> · opt-in</h3><p>Uses the <a href="https://developer.godaddy.com/en/docs/api-users/cli/set-up">gddy CLI</a> to pick a GoDaddy domain and switch nameservers after you confirm. The only mode that can offer a purchase, which needs the domain typed at a terminal.</p></div>
+        </div>
+        <pre><code>cmail setup --domain example.com      # any registrar
+cmail setup --registrar godaddy       # opt in once
+cmail config set REGISTRAR godaddy    # opt in permanently</code></pre>
+      </section>
+
+      <section id="preview" aria-labelledby="preview-h">
+        <h2 id="preview-h">Preview &amp; JSON</h2>
+        <p><code>setup --dry-run</code> previews the whole workflow: no provider changes, purchases, config writes or browser launches. It exits 0 even with blockers, so read <code>data.blockers</code>.</p>
+        <pre><code>cmail setup --dry-run --format json
+cmail status --format json | jq '.data.rules'
+cmail doctor --offline --format json</code></pre>
+        <p>JSON is available for <code>status</code>, <code>list</code>, <code>doctor</code>, <code>config show/check</code> and previews:</p>
+        <pre><code>{"schema_version":1,"command":"status","data":{"zone":{},"routing":{},"destinations":[],"rules":[]}}</code></pre>
+        <p class="meta">Setup and send-as need a real terminal. In scripts, use <code>--dry-run</code>.</p>
+      </section>
+
+      <section id="options" aria-labelledby="options-h">
+        <h2 id="options-h">Global options</h2>
+        <div class="table-wrap"><table class="cmd-table">
+          <tbody>
+            <tr><td><code>-c, --config PATH</code></td><td>Use a specific config file</td></tr>
+            <tr><td><code>-f, --format text|json</code></td><td>Report format</td></tr>
+            <tr><td><code>-v, --verbose</code> / <code>-q, --quiet</code></td><td>More (redacted) detail / less progress</td></tr>
+            <tr><td><code>--no-color</code></td><td>Plain output (also <code>NO_COLOR</code>)</td></tr>
+            <tr><td><code>--no-browser</code></td><td>Print links instead of opening them</td></tr>
+            <tr><td><code>--timeout SECONDS</code></td><td>HTTP timeout, default 30</td></tr>
+            <tr><td><code>setup --wait-timeout SECONDS</code></td><td>Each activation/verification wait, default 1200</td></tr>
+            <tr><td><code>-h, --help</code> · <code>-V, --version</code></td><td>Help and version</td></tr>
+          </tbody>
+        </table></div>
+        <p class="meta">Results go to stdout; progress, prompts and errors to stderr.</p>
+      </section>
+
+      <section id="exit" aria-labelledby="exit-h">
+        <h2 id="exit-h">Exit codes</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th scope="col">Code</th><th scope="col">Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>0</td><td>Success, or report generated</td></tr>
+            <tr><td>1</td><td>Runtime or check failure</td></tr>
+            <tr><td>2</td><td>Invalid arguments, or no terminal available</td></tr>
+            <tr><td>3</td><td>Invalid or incomplete input/config</td></tr>
+            <tr><td>130</td><td>Interrupted (<kbd>Ctrl</kbd>+<kbd>C</kbd>)</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <section id="completion" aria-labelledby="completion-h">
+        <h2 id="completion-h">Shell completions</h2>
+        <pre><code># bash
+cmail completion bash &gt; ~/.cmail-completion.bash
+echo 'source ~/.cmail-completion.bash' &gt;&gt; ~/.bashrc
+
+# zsh (put fpath before compinit in .zshrc)
+mkdir -p ~/.zfunc &amp;&amp; cmail completion zsh &gt; ~/.zfunc/_cmail
+
+# fish
+cmail completion fish &gt; ~/.config/fish/completions/cmail.fish</code></pre>
+        <p class="meta">Full details: <a href="https://github.com/luongnv89/cmail/blob/main/docs/cli.md">docs/cli.md</a> on GitHub.</p>
+      </section>
+    </div>
+  </div>
+</main>
+<footer><span>cmail 0.2.0 reference</span><nav aria-label="Footer"><a href="index.html">Home</a><a href="setup.html">Setup</a><a href="changelog.html">Changelog</a><a href="privacy.html">Privacy</a><a href="https://github.com/luongnv89/cmail/issues">Report an issue</a></nav></footer>
+</body>
+</html>
