@@ -262,6 +262,7 @@ and includes the Gmail guide in setup.
 | `./cmail setup` | Guided receive setup (forwarding to any inbox) |
 | `./cmail send-as` | Optional: guided Gmail "Send mail as" for sending from your custom address |
 | `./cmail status` | Show zone, routing, destination, and rule state |
+| `./cmail list [--domain DOMAIN]` | List every address on a domain and where it forwards (with destination verification and catch-all) |
 | `./cmail doctor` | Check tools + auth; may install missing dependencies |
 
 `status` and `doctor` can create `.env` from the template or secure its permissions. They do not change live DNS or email-routing settings.

@@ -72,7 +72,7 @@ esac''')
         self.fixture_file.write_text(json.dumps(self.fixtures))
 
     def test_help_every_level(self):
-        commands = [(), ('setup',), ('status',), ('doctor',), ('send-as',), ('config',),
+        commands = [(), ('setup',), ('status',), ('list',), ('doctor',), ('send-as',), ('config',),
                     ('completion',), ('help',)] + [('config', name) for name in ('init','show','check','set','path')]
         for command in commands:
             with self.subTest(command=command):
@@ -106,7 +106,9 @@ esac''')
                  ('-v','-q','status'), ('--quiet=yes','status'), ('completion','powershell'),
                  ('config','wat'), ('config','set','DOMAIN'), ('setup','--registrar','namecheap'),
                  ('setup','--registrar='), ('setup','--registrar'), ('status','--registrar','manual'),
-                 ('doctor','--registrar=godaddy')]
+                 ('doctor','--registrar=godaddy'), ('status','--domain','example.org'), ('list','extra'),
+                 ('list','--registrar','manual'), ('list','--destination','a@example.net'), ('list','--dry-run'),
+                 ('list','--domain=')]
         for args in cases:
             with self.subTest(args=args):
                 result = self.invoke(*args)
@@ -617,6 +619,116 @@ esac''')
         result=self.invoke('config','path','--config',str(self.config),env={'CMAIL_CONFIG':str(chosen)})
         self.assertEqual(result.stdout.strip(),str(self.config))
 
+    def list_fixtures(self):
+        self.cloudflare()
+        rules='/zones/'+self.zone+'/email/routing/rules?per_page=50&page=1'
+        literal=lambda value:[{'type':'literal','field':'to','value':value}]
+        self.fixtures['/accounts/'+self.account+'/email/routing/addresses?per_page=50&page=1']['result'].append(
+            {'email':'pending@example.org','verified':None})
+        self.fixtures[rules]['result']=[
+            {'id':'r1','name':'fwd hello','enabled':True,'matchers':literal('hello@example.com'),
+             'actions':[{'type':'forward','value':['Owner@example.net']}]},
+            {'id':'r2','enabled':False,'matchers':literal('contact@example.com'),
+             'actions':[{'type':'forward','value':['pending@example.org','ghost@example.io']}]},
+            {'id':'r3','enabled':True,'matchers':literal('spam@example.com'),'actions':[{'type':'drop'}]},
+            {'id':'r4','enabled':True,'matchers':literal('bot@example.com'),'actions':[{'type':'worker','value':['parser']}]},
+            {'id':'ca','enabled':True,'matchers':[{'type':'all'}],'actions':[{'type':'drop'}]}]
+        self.fixtures['/zones/'+self.zone+'/email/routing/rules/catch_all']={'success':True,'result':
+            {'id':'ca','enabled':False,'matchers':[{'type':'all'}],'actions':[{'type':'forward','value':['owner@example.net']}]}}
+        self.save_responses()
+
+    def test_list_json(self):
+        self.list_fixtures()
+        result=self.invoke('list','--format=json')
+        self.assertEqual(result.returncode,0,result.stderr)
+        data=json.loads(result.stdout)
+        self.assertEqual(data['command'],'list')
+        data=data['data']
+        self.assertEqual((data['domain'],data['zone_id']),('example.com',self.zone))
+        self.assertEqual([a['address'] for a in data['addresses']],
+                         ['bot@example.com','contact@example.com','hello@example.com','spam@example.com'])
+        contact=data['addresses'][1]
+        self.assertFalse(contact['enabled'])
+        self.assertEqual(contact['actions'][0]['destinations'],[{'email':'pending@example.org','state':'unverified'},
+                                                                {'email':'ghost@example.io','state':'unregistered'}])
+        self.assertEqual(data['addresses'][2]['actions'][0]['destinations'][0]['state'],'verified')
+        self.assertEqual(data['addresses'][3]['actions'],[{'type':'drop','value':[]}])
+        self.assertFalse(data['catch_all']['enabled'])
+        self.assertEqual(data['catch_all']['actions'][0]['destinations'][0]['state'],'verified')
+        self.assertNotIn('POST',self.calls.read_text())
+        self.assertNotIn('synthetic-token',result.stdout+result.stderr)
+
+    def test_list_text(self):
+        self.list_fixtures()
+        result=self.invoke('list')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(result.stdout,
+            'Addresses on example.com (4):\n'
+            '  bot@example.com     -> worker parser\n'
+            '  contact@example.com -> pending@example.org (unverified), ghost@example.io (unregistered)  [disabled]\n'
+            '  hello@example.com   -> Owner@example.net (verified)\n'
+            '  spam@example.com    -> drop\n'
+            'Catch-all (any other address): disabled -> owner@example.net (verified)\n')
+
+    def test_list_empty_domain(self):
+        self.cloudflare()
+        self.fixtures['/zones/'+self.zone+'/email/routing/rules/catch_all']={'success':True,'result':None}
+        self.save_responses()
+        result=self.invoke('list')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(result.stdout,'Addresses on example.com (0):\n  none\nCatch-all (any other address): not configured\n')
+
+    def test_list_domain_override_uses_zone_lookup(self):
+        self.list_fixtures()
+        other='c'*32
+        self.config.write_text(FIXTURE+'CF_ZONE_ID='+self.zone+'\n')
+        self.fixtures['/zones?name=example.org']={'success':True,'result':[{'id':other,'name':'example.org'}]}
+        self.fixtures['/zones/'+other]={'success':True,'result':{'id':other,'name':'example.org','status':'active',
+                                                                'account':{'id':self.account}}}
+        self.fixtures['/zones/'+other+'/email/routing/rules?per_page=50&page=1']={'success':True,'result':[
+            {'id':'o1','enabled':True,'matchers':[{'type':'literal','field':'to','value':'sales@example.org'}],
+             'actions':[{'type':'forward','value':['owner@example.net']}]}]}
+        self.fixtures['/zones/'+other+'/email/routing/rules/catch_all']={'success':True,'result':
+            {'enabled':False,'matchers':[{'type':'all'}],'actions':[{'type':'drop'}]}}
+        self.save_responses()
+        result=self.invoke('list','--domain','Example.ORG','--format','json')
+        self.assertEqual(result.returncode,0,result.stderr)
+        data=json.loads(result.stdout)['data']
+        self.assertEqual((data['domain'],data['zone_id']),('example.org',other))
+        self.assertEqual([a['address'] for a in data['addresses']],['sales@example.org'])
+        calls=self.calls.read_text()
+        self.assertIn('GET /zones?name=example.org',calls)
+        self.assertNotIn('/zones/'+self.zone,calls)
+
+    def test_list_rule_pagination(self):
+        self.list_fixtures()
+        self.fixtures['/zones/'+self.zone+'/email/routing/rules?per_page=50&page=1']['result_info']={'total_pages':2}
+        self.fixtures['/zones/'+self.zone+'/email/routing/rules?per_page=50&page=2']={'success':True,'result':[
+            {'id':'p2','enabled':True,'matchers':[{'type':'literal','field':'to','value':'apex@example.com'}],
+             'actions':[{'type':'forward','value':['owner@example.net']}]}],'result_info':{'total_pages':2}}
+        self.save_responses()
+        result=self.invoke('list','--format=json')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(json.loads(result.stdout)['data']['addresses'][0]['address'],'apex@example.com')
+
+    def test_list_late_failure_has_no_partial_stdout(self):
+        self.list_fixtures()
+        self.fixtures['/zones/'+self.zone+'/email/routing/rules/catch_all']={
+            'success':False,'errors':[{'message':'denied synthetic-token'}],'_status':403}
+        self.save_responses()
+        result=self.invoke('list')
+        self.assertEqual(result.returncode,1)
+        self.assertEqual(result.stdout,'')
+        self.assertIn('HTTP 403',result.stderr)
+        self.assertNotIn('synthetic-token',result.stderr)
+
+    def test_list_requires_domain(self):
+        self.config.write_text('CLOUDFLARE_API_TOKEN=synthetic-token\n')
+        result=self.invoke('list')
+        self.assertEqual(result.returncode,3)
+        self.assertEqual(result.stdout,'')
+        self.assertFalse(self.calls.exists())
+
     def test_completion_generation_offline(self):
         for shell in ('bash','zsh','fish'):
             result=self.invoke('completion',shell)
@@ -631,7 +743,7 @@ esac''')
                                (('config','set',''),'REGISTRAR'),(('setup','--'),'--registrar'),
                                (('setup','--registrar',''),'godaddy'),(('setup','--registrar','','--'),'--dry-run'),
                                (('--config','somepath','doctor','--'),'--offline'),
-                               (('status','--format',''),'json')]:
+                               (('status','--format',''),'json'),(('',),'list'),(('list','--'),'--domain')]:
             result=subprocess.run([self.shell,'-c',script,'probe',str(ROOT),*words],
                                    env=self.env,text=True,capture_output=True)
             self.assertEqual(result.returncode,0,result.stderr)
@@ -649,7 +761,7 @@ file=$1; shift; words=(cmail "$@"); CURRENT=${#words}; _probe() { source "$file"
                                (('config','set',''),'REGISTRAR'),(('setup','--'),'--registrar'),
                                (('setup','--registrar',''),'godaddy'),(('setup','--registrar','','--'),'--dry-run'),
                                (('--config','somepath','doctor','--'),'--offline'),
-                               (('status','--format',''),'json')]:
+                               (('status','--format',''),'json'),(('',),'list'),(('list','--'),'--domain')]:
             result=subprocess.run(['zsh','-f','-c',script,'probe',str(file),*words],
                                    env=self.env,text=True,capture_output=True)
             self.assertEqual(result.returncode,0,result.stderr)
@@ -664,7 +776,8 @@ file=$1; shift; words=(cmail "$@"); CURRENT=${#words}; _probe() { source "$file"
                                  ('cmail config set ','DOMAIN'),('cmail config set ','REGISTRAR'),
                                  ('cmail setup --','--registrar'),('cmail setup --registrar ','godaddy'),
                                  ('cmail doctor --','--offline'),
-                                 ('cmail status --format ','json')]:
+                                 ('cmail status --format ','json'),('cmail ','list'),
+                                 ('cmail list --','--domain')]:
             result=subprocess.run(['fish','--no-config','-c','source $argv[1]; complete -C $argv[2]',str(file),command],
                                    env=self.env,text=True,capture_output=True)
             self.assertEqual(result.returncode,0,result.stderr)

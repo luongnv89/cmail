@@ -24,13 +24,13 @@ for ((i=2; i<CURRENT; i++)); do
   elif [[ "$command" == config && -z "$sub" ]]; then sub="$word"
   else (( args++ )); fi
  done
-case "$command" in setup) flags+=(--domain --destination --addresses --registrar --dry-run --wait-timeout) ;; doctor) flags+=(--offline) ;; esac
+case "$command" in setup) flags+=(--domain --destination --addresses --registrar --dry-run --wait-timeout) ;; doctor) flags+=(--offline) ;; list) flags+=(--domain) ;; esac
 [[ "$command $sub" != 'config set' ]] || flags+=(--stdin)
 if [[ "$cur" == -* ]] && (( ! ended )); then
   compadd -a flags
 else
   case "$command $sub" in
-    ' '|'help ') choices=(setup status doctor send-as config completion help) ;;
+    ' '|'help ') choices=(setup status list doctor send-as config completion help) ;;
     'config ') choices=(init show check set path) ;;
     'config set') (( args )) || choices=(DOMAIN DEST_EMAIL ADDRESSES REGISTRAR GDDY_ENV CF_ZONE_ID CF_ACCOUNT_ID DRY_RUN CLOUDFLARE_API_TOKEN GDDY_PAT) ;;
     'completion ') (( args )) || choices=(bash zsh fish) ;;

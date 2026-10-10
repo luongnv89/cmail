@@ -410,3 +410,39 @@ cf_status_data() {
      destinations:[$destinations[] | {email,verified:(.verified!=null),verified_at:.verified}],
      rules:[$rules[] | {id,enabled,matchers,actions}]}'
 }
+
+cf_zone_id_for_domain() { # prints the saved CF_ZONE_ID, else the single zone named $DOMAIN
+  local resp
+  if [ -n "${CF_ZONE_ID:-}" ]; then printf '%s\n' "$CF_ZONE_ID"; return; fi
+  resp=$(cf_routing_request GET "/zones?name=$DOMAIN") || return 1
+  jq -er --arg domain "$DOMAIN" '[.result[] | select(.name==$domain)] | if length==1 then .[0].id else error("ambiguous zone") end' <<< "$resp" \
+    || die "zone for $DOMAIN not uniquely found; check Cloudflare token resources and cmail setup"
+}
+
+cf_list_data() { # $1 = zone_id — every address on the domain and where it forwards
+  local zone account destinations rules catch_all
+  zone=$(cf_routing_request GET "/zones/$1") || return 1
+  jq -e --arg domain "$DOMAIN" '.result | .name==$domain and (.account.id|type=="string" and length>0)' \
+    >/dev/null <<< "$zone" || die 'zone does not match DOMAIN or returned malformed data; check cmail config and the Cloudflare dashboard'
+  account=$(jq -r '.result.account.id' <<< "$zone")
+  destinations=$(cf_addresses_list "$account") || return 1
+  rules=$(cf_rules_list "$1") || return 1
+  catch_all=$(cf_routing_request GET "/zones/$1/email/routing/rules/catch_all") || return 1
+  jq -e '.result == null or (.result | type=="object")' >/dev/null <<< "$catch_all" \
+    || die 'Cloudflare returned an invalid catch-all rule'
+  # Destination state decides whether forwarding actually delivers.
+  jq -nc --arg id "$1" --argjson zone "$zone" --argjson destinations "$destinations" \
+    --argjson rules "$rules" --argjson catch_all "$catch_all" '
+    ($destinations | map({key:(.email|ascii_downcase), value:(if .verified != null then "verified" else "unverified" end)})
+      | from_entries) as $state
+    | def actions: [(.actions // [])[] | {type:(.type // "unknown"), value:(.value // [])}
+        | if .type == "forward" then . + {destinations:[.value[] | {email:., state:($state[ascii_downcase] // "unregistered")}]} else . end];
+      def catch_all_rule: any((.matchers // [])[]; .type == "all");
+    {domain:$zone.result.name, zone_id:$id, zone_status:$zone.result.status,
+     addresses:([$rules[] | select(catch_all_rule | not)
+       | {address:([(.matchers // [])[] | select(.type=="literal" and .field=="to") | .value][0]),
+          rule_id:(.id // .tag), name:(.name // ""), enabled:(.enabled == true), priority, matchers:(.matchers // []), actions:actions}]
+       | sort_by((.address // "~") | ascii_downcase)),
+     catch_all:($catch_all.result // {} | if (.actions // []) == [] and .enabled == null then null
+       else {rule_id:(.id // .tag), enabled:(.enabled == true), actions:actions} end)}'
+}

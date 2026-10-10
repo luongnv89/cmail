@@ -15,6 +15,7 @@ Usage: cmail [options] COMMAND [options]
 Commands:
   setup                 Configure receiving with a guided workflow
   status                Inspect zone, routing, destinations, and rules
+  list                  List a domain's addresses and where each forwards
   doctor                Check dependencies, configuration, and authentication
   send-as               Optional Gmail sending guide: ./cmail send-as
   config                Manage private configuration
@@ -46,6 +47,7 @@ Elapsed time includes user input, provider requests, and verification waits.
 EOF
       ;;
     status) printf '%s\n' 'Usage: cmail status [options]' 'Read-only Cloudflare zone, routing, destination, and rule report.' 'Use --format json for scripts.' ;;
+    list) printf '%s\n' 'Usage: cmail list [--domain DOMAIN] [options]' 'Read-only list of every address on a domain, where it forwards, and the catch-all rule.' '  --domain DOMAIN   Domain to list (default: DOMAIN setting); uses the configured token' 'Use --format json for scripts.' ;;
     doctor) printf '%s\n' 'Usage: cmail doctor [--offline] [options]' 'Read-only dependency/configuration/authentication checks. Never installs tools.' '  --offline    Check local tools and configuration without contacting providers' ;;
     send-as) printf '%s\n' 'Usage: cmail send-as [options]' 'Optional manual Gmail sending guide. Requires a terminal and configured receiving.' ;;
     config) printf '%s\n' 'Usage: cmail config COMMAND [options]' 'Commands: init, show, check, set KEY [VALUE], path' 'Use cmail config COMMAND --help for details.' ;;
@@ -81,13 +83,16 @@ cli_parse() {
   CMAIL_VERBOSE="${CMAIL_VERBOSE:-0}" CMAIL_QUIET="${CMAIL_QUIET:-0}"
   CMAIL_NO_COLOR=0 CMAIL_NO_BROWSER=0 CMAIL_OFFLINE=0 CMAIL_DRY_RUN=0
   CMAIL_WAIT_TIMEOUT=1200 CLI_CONFIG='' CLI_DOMAIN='' CLI_DESTINATION='' CLI_ADDRESSES='' CLI_REGISTRAR=''
-  CLI_STDIN=0 CLI_HELP=0 CLI_VERSION=0 CLI_SETUP_OPTIONS=0
+  CLI_STDIN=0 CLI_HELP=0 CLI_VERSION=0 CLI_SETUP_OPTIONS=0 CLI_DOMAIN_OPTION=0
   local arg option value end=0 positionals=()
   while [ "$#" -gt 0 ]; do
     arg="$1"; shift
     if [ "$end" = 1 ]; then positionals+=("$arg"); continue; fi
     option="${arg%%=*}"
-    case "$option" in --domain|--destination|--addresses|--registrar|--wait-timeout) CLI_SETUP_OPTIONS=1 ;; esac
+    case "$option" in
+      --domain) CLI_DOMAIN_OPTION=1 ;;
+      --destination|--addresses|--registrar|--wait-timeout) CLI_SETUP_OPTIONS=1 ;;
+    esac
     case "$option" in
       --) [ "$arg" = -- ] || cli_error "unknown option '$arg'"; end=1 ;;
       -h|--help|-V|--version|-v|--verbose|-q|--quiet|--no-color|--no-browser|--offline|--dry-run|--stdin)
@@ -114,7 +119,7 @@ cli_parse() {
   done
   [ "${#positionals[@]}" = 0 ] || CLI_COMMAND="${positionals[0]}"
   case "$CLI_COMMAND" in
-    ''|setup|status|doctor|send-as|config|completion|help) ;;
+    ''|setup|status|list|doctor|send-as|config|completion|help) ;;
     *) cli_error "unknown command '$CLI_COMMAND'" ;;
   esac
   if [ "$CLI_COMMAND" = config ]; then
@@ -139,6 +144,8 @@ cli_parse() {
   if [ "$CLI_SETUP_OPTIONS" = 1 ]; then
     [ "$CLI_COMMAND" = setup ] || cli_error 'setup options are only available for setup'
   fi
+  [ "$CLI_DOMAIN_OPTION" = 0 ] || [ "$CLI_COMMAND" = setup ] || [ "$CLI_COMMAND" = list ] \
+    || cli_error '--domain is only available for setup and list'
   [ "$CLI_STDIN" = 0 ] || [ "$CLI_COMMAND $CLI_SUBCOMMAND" = 'config set' ] || cli_error '--stdin is only available for config set'
   case "$CLI_COMMAND $CLI_SUBCOMMAND" in
     'config set')
@@ -151,9 +158,9 @@ cli_parse() {
   esac
   if [ "$CMAIL_FORMAT" = json ]; then
     case "$CLI_COMMAND $CLI_SUBCOMMAND" in
-      'status '|'doctor '|'config show'|'config check') ;;
+      'status '|'list '|'doctor '|'config show'|'config check') ;;
       'setup ') ;; # legacy DRY_RUN is resolved after reading configuration
-      *) cli_error 'JSON is available for status, doctor, config show/check, and setup --dry-run' ;;
+      *) cli_error 'JSON is available for status, list, doctor, config show/check, and setup --dry-run' ;;
     esac
   fi
 }
