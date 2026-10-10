@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.2.0 — 2026-10-10
+
 - Fix plain-text `cmail status` failing with "could not format routing state"
   when a rule has no forward destinations (drop, worker, catch-all, or no
   action). Rules now show `drop`, `worker NAME`, `no action`, and `catch-all`;
@@ -23,7 +25,7 @@
   `registrar` and skips GoDaddy reads and blockers in manual mode. New
   `REGISTRAR` config key, `--registrar` option, completions, recovery guidance,
   and offline regressions.
-- Add the `0.2.0-dev` CLI: strict arguments, command-level help/version, text/JSON
+- Add the 0.2.0 CLI: strict arguments, command-level help/version, text/JSON
   reports, read-only doctor/status, full setup previews, literal configuration
   with environment precedence, private atomic config commands, secret stdin
   input, bash/zsh/fish completions, and complete local-checkout installation.
@@ -36,8 +38,8 @@
   flags, and environment variables can never approve a purchase.
 - Add subprocess, configuration, terminal, timing, and installation regressions,
   `make test`/`make lint`, and macOS/Linux CLI CI. Document the current CLI and
-  distinguish it from historical snapshot/legacy automation recipes. No release
-  publication or live DNS/email verification is included.
+  distinguish it from historical snapshot/legacy automation recipes. No live
+  DNS/email verification is included.
 
 - Fix the runtime mismatch in receive-only/optional-send quickstarts (#17).
   README, landing page and both setup guides now select the immutable reviewed
@@ -98,8 +100,14 @@
   generated launcher, private external config, staged validation and offline
   installer regressions. Installation does not run setup/doctor or provider calls.
 - Document installation/verification/upgrades and the chosen upstream GitHub
-  route, Homebrew prerequisites and actual distribution status. Installer release
-  publication and Homebrew submission remain pending; no license is selected.
+  route, Homebrew prerequisites and actual distribution status. Homebrew
+  submission remains pending; no license is selected.
+
+### Other Changes
+- Add a GitHub Pages workflow that validates the documentation, checklist and staged site artifact, then deploys the six allowlisted site files after relevant changes land on `main`; pull requests validate without deploying ([PR #10](https://github.com/luongnv89/cmail/pull/10)). @luongnv89
+- Mirror the cmail-setup skill under `.agents/skills` for local agent discovery, link `.claude/skills/cmail-setup` to it, and mark `install.sh` executable ([PR #12](https://github.com/luongnv89/cmail/pull/12)). @luongnv89
+
+**Full Changelog**: https://github.com/luongnv89/cmail/compare/v0.1.0...v0.2.0
 
 ## v0.1.0 — 2026-10-07
 

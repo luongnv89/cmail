@@ -2,11 +2,11 @@
 
 ## Current reviewed-checkout installation
 
-`bash install.sh --local` installs the complete `0.2.0-dev` runtime and its
+`bash install.sh --local` installs the complete `0.2.0` runtime and its
 completion files from this reviewed checkout, without downloads, setup, or
 provider access. Config and upgrade/rollback protections are preserved.
-The new CLI is not published in a tagged release; remote installation keeps
-its existing immutable legacy pin. See [current CLI usage](https://github.com/luongnv89/cmail/blob/main/docs/cli.md).
+The new CLI is published in the [v0.2.0 release](https://github.com/luongnv89/cmail/releases/tag/v0.2.0); unflagged remote
+installation still keeps its existing immutable legacy v0.1.0 pin. See [current CLI usage](https://github.com/luongnv89/cmail/blob/main/docs/cli.md).
 
 ## Chosen route: upstream GitHub source distribution
 
@@ -63,7 +63,7 @@ A Bash CLI is a plausible formula candidate, but cmail is **not currently
 ready for a core submission**. No LICENSE exists in this repository; public
 source access alone is not an open-source license. The maintainer must decide
 licensing and distribution rights; this change does not select a license.
-The current development CLI checks dependencies without installing them; legacy
+The current 0.2.0 CLI checks dependencies without installing them; legacy
 v0.1.0 still has nested installers. A Homebrew package would need to declare
 appropriate dependencies and target a reviewed compatible release. A formula must place the complete runtime in libexec and
 keep mutable user config outside the keg. Provider-dependent setup cannot be

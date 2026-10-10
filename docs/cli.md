@@ -1,4 +1,4 @@
-# cmail CLI guide (0.2.0-dev)
+# cmail CLI guide (0.2.0)
 
 Set up custom-domain receiving, inspect forwarding, and diagnose problems. Incoming mail is forwarded by Cloudflare to an inbox you already own. Sending uses a separate optional manual guide.
 
@@ -14,7 +14,7 @@ cmail setup
 
 `--local` copies this checkout's runtime without downloads, provider access, or configuration replacement. Installed configuration defaults to `~/.config/cmail/.env`; direct `./cmail` execution defaults to checkout `.env`. `cmail config path` prints the selected path. The launcher path can be overridden at installation with `CMAIL_BIN_DIR`; use that directory in PATH instead when customized.
 
-The unflagged installer retains the pinned v0.1.0 runtime. That older runtime has different commands and behavior. This development CLI is not a published release. Reinstall the reviewed checkout with `--local` to update it; existing configuration is preserved.
+The unflagged installer retains the pinned v0.1.0 runtime. That older runtime has different commands and behavior. This CLI is published as the [v0.2.0 release](https://github.com/luongnv89/cmail/releases/tag/v0.2.0). Reinstall the reviewed checkout with `--local` to update it; existing configuration is preserved.
 
 Runtime requirements: Bash 3.2+, curl, and jq on macOS/Linux. gddy is needed only for opt-in GoDaddy automation (`REGISTRAR=godaddy`). Setup checks tools and prints installation instructions. The optional Google sending guide requires browser/account eligibility and separate delivery checks.
 

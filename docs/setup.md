@@ -3,7 +3,7 @@
 [Introduction](index.html) · [Interactive checklist](setup.html) · [Runtime README](https://github.com/luongnv89/cmail/blob/main/README.md) · [Agent skill](https://github.com/luongnv89/cmail/blob/main/skills/cmail-setup/SKILL.md)
 
 This checklist documents the previous pinned snapshot. For the newer
-`0.2.0-dev` reviewed-checkout CLI, including full read-only previews, terminal
+`0.2.0` reviewed-checkout CLI ([released as v0.2.0](https://github.com/luongnv89/cmail/releases/tag/v0.2.0)), including full read-only previews, terminal
 requirements and elapsed-time summaries, use the [current CLI guide](https://github.com/luongnv89/cmail/blob/main/docs/cli.md).
 The pinned snapshot automates GoDaddy (steps 3–4 and 8 here). The current CLI
 works with an existing domain at **any registrar** by default and needs no

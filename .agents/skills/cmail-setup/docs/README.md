@@ -69,8 +69,8 @@ as required by that agent. For agents supporting slash skills:
 ```
 
 Otherwise ask “Use cmail-setup to help configure my custom email.” This directory
-is portable; the cmail runtime installer does not install agent skills. No tagged
-release containing this skill is claimed. Python 3 runs its config helpers;
+is portable; the cmail runtime installer does not install agent skills. This
+skill is included in the v0.2.0 release. Python 3 runs its config helpers;
 local manual checks are documented as a fallback.
 
 ## Resources

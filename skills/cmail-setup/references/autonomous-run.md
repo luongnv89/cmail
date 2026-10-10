@@ -1,6 +1,6 @@
 # Running `cmail setup` autonomously
 
-## Current CLI capability gate (0.2.0-dev)
+## Current CLI capability gate (0.2.0)
 
 After Gate 1 provenance, check trusted help/version. If help advertises the full
 `setup --dry-run` plan and `config` commands, use this section for the new runtime;

@@ -11,7 +11,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header><a class="brand" href="index.html">cmail</a><nav aria-label="Main"><a href="setup.html">Setup guide</a><a href="https://github.com/luongnv89/cmail">Source on GitHub</a></nav></header>
 <main id="main">
-  <p>This guide targets the previous pinned snapshot. The newer reviewed-checkout CLI adds full setup previews and elapsed-time summaries, and works with an existing domain at any registrar without GoDaddy (GoDaddy automation is opt-in). See the <a href="https://github.com/luongnv89/cmail/blob/main/docs/cli.md">current CLI guide</a> for its commands and installation.</p>
+  <p>This guide targets the previous pinned snapshot. The newer reviewed-checkout CLI, released as <a href="https://github.com/luongnv89/cmail/releases/tag/v0.2.0">v0.2.0</a>, adds full setup previews, a read-only <code>cmail list</code> of your addresses and elapsed-time summaries, and works with an existing domain at any registrar without GoDaddy (GoDaddy automation is opt-in). See the <a href="https://github.com/luongnv89/cmail/blob/main/docs/cli.md">current CLI guide</a> for its commands and installation.</p>
   <!-- AIDA subset: attention, interest, desire, action. No invented social proof. -->
   <section class="hero" aria-labelledby="hero-title">
     <div><p class="kicker">Custom-domain email · a few simple steps</p><h1 id="hero-title">Your domain.<br>Your everyday inbox.</h1>
@@ -22,7 +22,7 @@
     </div>
     <aside class="route" aria-label="How mail flows"><p><strong>Your custom address</strong>hello@your-domain</p><p><strong>Cloudflare Email Routing</strong>Forwards incoming mail</p><p><strong>Your existing inbox</strong>Receives mail from any provider; Gmail send-as is optional</p></aside>
   </section>
-  <section class="block" aria-labelledby="how"><h2 id="how">Custom-domain email in three simple steps.</h2><p>This workflow uses a reviewed development source snapshot, <strong>not v0.1.0</strong>, until a compatible release/installer ships. Fetch the pin explicitly; it need not be advertised on the default branch. Bring a GoDaddy domain and a free Cloudflare account.</p><pre><code>git clone https://github.com/luongnv89/cmail
+  <section class="block" aria-labelledby="how"><h2 id="how">Custom-domain email in three simple steps.</h2><p>This workflow uses a reviewed development source snapshot, <strong>not v0.1.0</strong>, until a compatible release/installer ships. Fetch the pin explicitly; it need not be advertised on the default branch. This snapshot needs a GoDaddy domain and a free Cloudflare account; for a domain at any registrar, use the v0.2.0 CLI (<a href="https://github.com/luongnv89/cmail/blob/main/docs/cli.md">current CLI guide</a>).</p><pre><code>git clone https://github.com/luongnv89/cmail
 cd cmail
 git fetch origin cda65f0554a870ed8079e93741a331918118acec
 git checkout --detach cda65f0554a870ed8079e93741a331918118acec
@@ -39,7 +39,7 @@ git checkout --detach cda65f0554a870ed8079e93741a331918118acec
     <details><summary>Does cmail provide a mailbox?</summary><p>No. Cloudflare forwards incoming mail to an existing inbox. Your existing inbox holds the messages. This is not Google Workspace provisioning.</p></details>
     <details><summary>Is everything automatic?</summary><p>No. You create the Cloudflare token, approve DNS changes, verify the destination email, and, only if you want to send, configure Gmail send-as yourself. The CLI cannot prove end-to-end delivery.</p></details>
     <details><summary>What does it cost?</summary><p>You pay for the domain. Provider plans, sending limits, eligibility and policies still apply; cmail cannot guarantee permanent free service.</p></details>
-    <details><summary>Can I preview setup safely?</summary><p>The guide makes no provider calls. <code>./cmail help</code> is offline. <code>DRY_RUN=1</code> previews only nameserver replacement; <code>./cmail setup</code> can still create zones, enable routing, send verification emails or purchase a domain.</p></details>
+    <details><summary>Can I preview setup safely?</summary><p>The guide makes no provider calls. <code>./cmail help</code> is offline. In this snapshot, <code>DRY_RUN=1</code> previews only nameserver replacement; <code>./cmail setup</code> can still create zones, enable routing, send verification emails or purchase a domain.</p></details>
     <details><summary>Will this guarantee professional deliverability?</summary><p>No. Optional Gmail sending does not establish domain DKIM alignment, and recipients may see your Gmail address. Inspect independent test results and use a dedicated mail service when you need stronger guarantees.</p></details>
     <details><summary>Is the agent skill certified or installed automatically?</summary><p>No. It is a separate portable guide and optional local checker. Its offline tests are not a measured live behavioral benchmark. The runtime installer does not install it; the repository has no license granting redistribution rights.</p></details>
   </section>

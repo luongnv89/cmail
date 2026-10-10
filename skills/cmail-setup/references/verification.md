@@ -1,4 +1,4 @@
-Current-runtime note: `0.2.0-dev` supports full read-only previews and requires
+Current-runtime note: `0.2.0` supports full read-only previews and requires
 terminal stdin for guided setup. Follow the capability gate in
 `autonomous-run.md` before choosing execution recipes below. A setup timer
 measures configuration; independent delivery remains Gate 9 evidence.

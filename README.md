@@ -15,11 +15,11 @@ cmail config init
 cmail setup
 ```
 
-The current development CLI (`0.2.0-dev`) has command-specific help, private
+The current CLI (`0.2.0`) has command-specific help, private
 literal configuration, read-only diagnostics, full setup previews, JSON reports,
 shell completions, and an elapsed-time setup summary. `--local` installs the
 checkout you reviewed; unflagged `bash install.sh` retains the legacy v0.1.0 pin.
-The new CLI is not yet published as a release.
+The new CLI is published as the [v0.2.0 release](https://github.com/luongnv89/cmail/releases/tag/v0.2.0).
 
 ```bash
 cmail doctor --offline
@@ -54,7 +54,7 @@ Developer checks: `make test` and `make lint`; Bash 3.2 compatibility:
 
 The instructions below describe the pinned development snapshot and legacy
 release. Their dependency installation, configuration, dry-run, and automation
-behavior differs from `0.2.0-dev`; use the [current CLI guide](docs/cli.md) with
+behavior differs from `0.2.0`; use the [current CLI guide](docs/cli.md) with
 this checkout or a `--local` installation.
 
 The receive-only workflow below uses a **reviewed development source snapshot**,
@@ -85,7 +85,7 @@ includes the Gmail guide and it has no `send-as` command.
 Inspired by this [Tokifyi thread](https://x.com/tokifyi/status/2025741929997361371):
 $0/month for email — you only pay for the domain itself.
 
-Release: [v0.1.0](https://github.com/luongnv89/cmail/releases/tag/v0.1.0) · [Changelog](CHANGELOG.md).
+Release: [v0.2.0](https://github.com/luongnv89/cmail/releases/tag/v0.2.0) · [Changelog](CHANGELOG.md).
 
 ## Start here
 
@@ -112,10 +112,10 @@ From a source checkout **containing `install.sh`**, install with one command:
 bash install.sh
 ```
 
-This installer is new and is **not in the v0.1.0 release**. A released remote
-bootstrap command is pending separately authorized release/publication;
+This installer ships in the v0.2.0 release; it is **not in the v0.1.0 release**.
+No remote bootstrap (curl) command is documented or published;
 see the [distribution decision and recorded status](docs/distribution.md).
-Do not assume the existing release contains the installer.
+Even from a v0.2.0 checkout, unflagged `bash install.sh` installs the pinned v0.1.0 runtime.
 
 The installer downloads the complete v0.1.0 runtime at a pinned commit over
 HTTPS. It requires Bash 3.2+, curl and standard macOS/Linux utilities, but not
@@ -235,7 +235,7 @@ The portable [cmail-setup skill](skills/cmail-setup/SKILL.md) guides installatio
 dependency checks, private configuration, provider access and troubleshooting.
 Copy the whole directory into your agent's skill location; see its
 [installation and usage guide](skills/cmail-setup/docs/README.md). The runtime
-installer does not install agent skills, and no tagged skill release is claimed.
+installer does not install agent skills; the skill is included in the v0.2.0 release.
 
 Ask “Use cmail-setup to help me set up custom email” or `/cmail-setup` in an
 agent supporting slash skills. The agent selects a trusted source or legacy

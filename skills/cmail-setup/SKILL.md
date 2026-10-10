@@ -23,7 +23,7 @@ Run `cmail setup` as the primary path: prepare its inputs, run it,
 troubleshoot any failure, then verify the result gate by gate. A setup request is
 consent for every **auto** action below. Ask only at a **stop**.
 
-For the new `0.2.0-dev` CLI, use `bash install.sh --local` on the reviewed
+For the new `0.2.0` CLI, use `bash install.sh --local` on the reviewed
 checkout and follow the capability gate in `references/autonomous-run.md`.
 It requires terminal stdin for setup, uses a full read-only preview, and prints
 elapsed setup time. Its default `REGISTRAR=manual` works at any registrar
