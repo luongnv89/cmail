@@ -6,6 +6,13 @@
   the v0.2.0 release commit (`21b3a08`), so unflagged `bash install.sh` installs
   the 0.2.0 CLI. Docs, skill guidance and offline regressions now describe the
   new pin.
+- Rewrite the documentation site for the 0.2.0 CLI: a concise 8-step setup
+  guide with a sticky progress stepper, an illustrative replay of a `cmail setup`
+  session built from real CLI output, a token-permission mock, a nameserver swap
+  diagram and per-step "Done when" checks. Add CLI docs, changelog and privacy
+  pages. Checklist progress moves to the `cmail:setup-progress:v2` key (older
+  14-step progress is not carried over). The site no longer documents the old
+  pinned source snapshot; the README keeps that history.
 
 ## v0.2.0 — 2026-10-10
 

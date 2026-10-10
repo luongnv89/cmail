@@ -28,14 +28,14 @@ test('missing progress has a clean baseline', () => {
   assert.deepEqual(parse(null), { steps: {}, corrupt: false });
 });
 test('valid versioned allowlisted booleans load', () => {
-  assert.deepEqual(parse(JSON.stringify({ version: 1, steps: { readiness: true, install: false } })).steps,
-    { readiness: true, install: false });
+  assert.deepEqual(parse(JSON.stringify({ version: 1, steps: { ready: true, install: false } })).steps,
+    { ready: true, install: false });
 });
 test('malformed/non-object/wrong-version/nonboolean/unknown state is rejected', () => {
   for (const raw of ['{', '', 'null', '42', 'true', '[]', '"text"', '{}',
     '{"version":2,"steps":{}}', '{"version":1,"steps":[]}',
-    '{"version":1,"steps":{"readiness":"true"}}',
-    '{"version":1,"steps":{"readiness":1}}',
+    '{"version":1,"steps":{"ready":"true"}}',
+    '{"version":1,"steps":{"ready":1}}',
     '{"version":1,"steps":{"token":"example-private-value"}}',
     '{"version":1,"steps":{"__proto__":true}}',
     '{"version":1,"steps":{},"domain":"example.com"}']) {
@@ -44,12 +44,12 @@ test('malformed/non-object/wrong-version/nonboolean/unknown state is rejected', 
 });
 test('toggle/check/uncheck updates count and progress', () => {
   const f = fixture();
-  assert.equal(f.meter.max, 14);
+  assert.equal(f.meter.max, 8);
   assert.equal(f.meter.value, 0);
   assert.equal(f.nodes.get('#progress-panel').hidden, false);
   f.first.checked = true; f.first.fire('change');
   assert.equal(f.meter.value, 1);
-  assert.match(f.count.textContent, /1 of 14/);
+  assert.match(f.count.textContent, /1 of 8/);
   f.first.checked = false; f.first.fire('change');
   assert.equal(f.meter.value, 0);
 });
@@ -97,7 +97,7 @@ test('remove failure still resets visit but truthfully warns about reload', () =
   assert.equal(fixture(storage).first.checked, true);
 });
 test('corruption ignores all progress and next toggle replaces invalid payload', () => {
-  const storage = memory(); storage.setItem(KEY, '{"version":1,"steps":{"readiness":true,"secret":"example"}}');
+  const storage = memory(); storage.setItem(KEY, '{"version":1,"steps":{"ready":true,"secret":"example"}}');
   const f = fixture(storage); assert.equal(f.first.checked, false);
   assert.match(f.notice.textContent, /invalid/);
   f.first.checked = true; f.first.fire('change');
@@ -106,7 +106,7 @@ test('corruption ignores all progress and next toggle replaces invalid payload',
 });
 test('complete message is not a provider certification', () => {
   const f = fixture(); for (const id of IDS) f.nodes.get('#step-' + id).checked = true;
-  f.first.fire('change'); assert.equal(f.meter.value, 14);
+  f.first.fire('change'); assert.equal(f.meter.value, 8);
   assert.match(f.count.textContent, /not automatic provider verification/);
 });
 test('unknown input text/credentials are never read or persisted', () => {
@@ -117,4 +117,12 @@ test('unknown input text/credentials are never read or persisted', () => {
 });
 test('missing DOM is harmless and leaves native fallback', () => {
   assert.doesNotThrow(() => init({ querySelector: () => null }, () => { throw new Error(); }));
+});
+test('retired v1 progress key is removed; unrelated keys are kept', () => {
+  const storage = memory();
+  storage.setItem('cmail:setup-progress:v1', '{"version":1,"steps":{"readiness":true}}');
+  storage.setItem('unrelated', 'retained');
+  fixture(storage);
+  assert.equal(storage.getItem('cmail:setup-progress:v1'), null);
+  assert.equal(storage.getItem('unrelated'), 'retained');
 });

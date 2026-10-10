@@ -14,8 +14,9 @@ from urllib.parse import unquote, urljoin, urlsplit
 from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
-FILES = {'index.html', 'setup.html', 'setup.md', 'distribution.md',
-         'assets/styles.css', 'assets/checklist.js'}
+PAGES = ['index.html', 'setup.html', 'docs.html', 'changelog.html', 'privacy.html']
+FILES = {*PAGES, 'setup.md', 'distribution.md',
+         'assets/styles.css', 'assets/checklist.js', 'assets/terminal.js'}
 
 
 class Links(HTMLParser):
@@ -93,7 +94,7 @@ class PagesTests(unittest.TestCase):
         thread.start()
         try:
             base = f'http://127.0.0.1:{server.server_port}/cmail/'
-            for name in ['index.html', 'setup.html']:
+            for name in PAGES:
                 url = urljoin(base, name)
                 with urlopen(url) as response:
                     text = response.read().decode()

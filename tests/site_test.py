@@ -12,8 +12,8 @@ from pathlib import Path
 from urllib.parse import urlsplit, unquote
 
 ROOT = Path(__file__).resolve().parents[1]
-IDS = ['readiness', 'install', 'dependencies', 'registrar', 'zone', 'token',
-       'config', 'access', 'delegation', 'routing', 'destination', 'rules', 'gmail', 'delivery']
+IDS = ['ready', 'install', 'token', 'setup', 'nameservers', 'verify', 'test', 'send']
+PAGES = ['index.html', 'setup.html', 'docs.html', 'changelog.html', 'privacy.html']
 
 
 class Page(HTMLParser):
@@ -29,7 +29,7 @@ class Page(HTMLParser):
 
 class SiteTests(unittest.TestCase):
     def test_local_links_and_assets_exist_and_anchors_resolve(self):
-        for filename in ['index.html', 'setup.html']:
+        for filename in PAGES:
             page = Page(ROOT / 'docs' / filename)
             for tag, attrs in page.elements:
                 for attribute in ['href', 'src']:
@@ -58,7 +58,7 @@ class SiteTests(unittest.TestCase):
         self.assertFalse(any(tag in ['form', 'textarea'] for tag, _ in page.elements))
 
     def test_unique_ids_landmarks_and_nojs_fallback(self):
-        for name in ['index.html', 'setup.html']:
+        for name in PAGES:
             page = Page(ROOT / 'docs' / name)
             ids = [a['id'] for _, a in page.elements if 'id' in a]
             self.assertEqual(len(ids), len(set(ids)))
@@ -79,14 +79,28 @@ class SiteTests(unittest.TestCase):
         positions = [html.index('class="step" id="' + x + '"') for x in IDS]
         self.assertEqual(positions, sorted(positions))
         md = (ROOT / 'docs/setup.md').read_text()
-        self.assertEqual(re.findall(r'^### (\d+)\.', md, re.M), [str(x) for x in range(1, 15)])
-        self.assertEqual(len(re.findall(r'^- \[ \]', md, re.M)), 14)
+        self.assertEqual(re.findall(r'^### (\d+)\.', md, re.M), [str(x) for x in range(1, len(IDS) + 1)])
+        self.assertEqual(len(re.findall(r'^- \[ \]', md, re.M)), len(IDS))
         js = (ROOT / 'docs/assets/checklist.js').read_text()
         for step in IDS:
             self.assertIn("'" + step + "'", js)
+        # The overall stepper links every step, in order, and its done-state CSS covers each one.
+        stepper = re.search(r'<ol class="stepper">(.*?)</ol>', html, re.S).group(1)
+        self.assertEqual(re.findall(r'href="#([a-z]+)"', stepper), IDS)
+        css = (ROOT / 'docs/assets/styles.css').read_text()
+        for step in IDS:
+            self.assertIn('#step-%s:checked) .stepper a[href="#%s"]' % (step, step), css)
+
+    def test_every_page_links_every_page(self):
+        for name in PAGES:
+            hrefs = {a.get('href') for t, a in Page(ROOT / 'docs' / name).elements if t == 'a'}
+            for target in PAGES:
+                self.assertIn(target, hrefs, f'{name} -> {target}')
+            current = [a['href'] for t, a in Page(ROOT / 'docs' / name).elements if 'aria-current' in a]
+            self.assertEqual(current, [name])
 
     def test_repository_github_links_point_at_real_files(self):
-        for filename in ['index.html', 'setup.html']:
+        for filename in PAGES:
             for _, attrs in Page(ROOT / 'docs' / filename).elements:
                 link = attrs.get('href', '')
                 prefix = 'https://github.com/luongnv89/cmail/'
@@ -101,33 +115,88 @@ class SiteTests(unittest.TestCase):
 
     def test_setup_documents_actual_contract_and_safety(self):
         for name in ['setup.html', 'setup.md']:
-            text = (ROOT / 'docs' / name).read_text()
-            for value in ['CLOUDFLARE_API_TOKEN', 'GDDY_PAT', 'GDDY_ENV', 'CF_ACCOUNT_ID',
-                          'CF_ZONE_ID', 'DOMAIN', 'DEST_EMAIL', 'ADDRESSES', 'DRY_RUN',
-                          'Zone Settings', 'Email Routing Rules', 'Email Routing Addresses',
+            text = unescape((ROOT / 'docs' / name).read_text())
+            for value in ['bash install.sh --local', 'cmail config init', 'cmail setup',
+                          'cmail setup --dry-run', 'cmail send-as', 'cmail list', 'cmail 0.2.0',
+                          'Zone Settings', 'DNS', 'Email Routing Rules', 'Email Routing Addresses',
+                          'zone already active on Cloudflare', 'DNSSEC', 'Receiving is set up',
                           'January 2027', 'Advanced Protection', '587', 'TLS', 'smtp.gmail.com',
-                          'check_config.py', 'x-request-id', 'api.ote-godaddy.com']:
+                          'not proof', 'different']:
                 self.assertIn(value, text, f'{name}: {value}')
-            self.assertRegex(text, r'previews only.*nameserver')
-            self.assertIn('not proof', text)
-            self.assertIn('pinned', text)
+            self.assertRegex(text, r'(?i)replace (?:<strong>|\*\*)?all(?:</strong>|\*\*)? nameservers')
+            self.assertRegex(text, r'(?i)changes nothing')
         readme = (ROOT / 'README.md').read_text()
-        for link in ['docs/index.html', 'docs/setup.html', 'docs/setup.md', 'node --test tests/checklist_test.js', 'python3 tests/site_test.py']:
+        for link in ['docs/index.html', 'docs/setup.html', 'docs/setup.md', 'docs/docs.html',
+                     'docs/changelog.html', 'docs/privacy.html',
+                     'node --test tests/checklist_test.js', 'python3 tests/site_test.py']:
             self.assertIn(link, readme)
+
+    def test_terminal_simulations_quote_real_cli_output(self):
+        # Simulated sessions must not invent output: each quoted line exists in the runtime source.
+        source = '\n'.join(p.read_text() for p in [ROOT / 'cmail', *sorted((ROOT / 'lib').glob('*.sh'))])
+        html = unescape(re.sub(r'<[^>]+>', '', (ROOT / 'docs/setup.html').read_text()))
+        for line in ['Setting up RECEIVING: your custom addresses will forward to an inbox you already use.',
+                     'Cloudflare token verified and saved to .env',
+                     'email routing enabled (Cloudflare routing DNS records added and locked)',
+                     'still unverified — waiting (click the email link)…',
+                     'zone already active on Cloudflare', 'Receiving is set up', 'Elapsed time: ',
+                     'Cloudflare assigned these nameservers to', 'Setup stopped at:',
+                     'email address to receive forwarded mail (any provider)',
+                     'domain you already own, at any registrar (e.g. example.com)']:
+            self.assertIn(line, html)
+            self.assertIn(line.rstrip(), source)
+        for header in re.findall(r'── ([^─]+?) ──', html):
+            fixed = re.split(r'[:(]', header)[0].strip()
+            self.assertIn(fixed, source, header)
+        self.assertIn('Created private configuration:', source)
+        version = subprocess.run([str(ROOT / 'cmail'), '--version'], cwd=ROOT,
+                                 text=True, capture_output=True, timeout=5)
+        self.assertEqual(version.stdout.strip(), 'cmail ' + (ROOT / 'VERSION').read_text().strip())
+        self.assertIn(version.stdout.strip(), html)
+
+    def test_cli_docs_cover_every_command_and_setting(self):
+        help_result = subprocess.run([str(ROOT / 'cmail'), 'help'], cwd=ROOT,
+                                     text=True, capture_output=True, timeout=5)
+        self.assertEqual(help_result.returncode, 0, help_result.stderr)
+        commands = re.findall(r'^  ([a-z-]+)\s', help_result.stdout.split('Start here:')[0], re.M)
+        self.assertIn('list', commands)
+        docs = unescape((ROOT / 'docs/docs.html').read_text())
+        for command in commands:
+            self.assertIn('cmail ' + command, docs)
+        for key in ['DOMAIN', 'DEST_EMAIL', 'ADDRESSES', 'CLOUDFLARE_API_TOKEN', 'REGISTRAR',
+                    'CF_ACCOUNT_ID', 'CF_ZONE_ID', 'GDDY_ENV', 'GDDY_PAT', 'DRY_RUN',
+                    '--dry-run', '--stdin', '--registrar godaddy', '--format json', '--no-browser']:
+            self.assertIn(key, docs)
+        for code in ['0', '1', '2', '3', '130']:
+            self.assertIn('<td>%s</td>' % code, docs)
+
+    def test_changelog_and_privacy_stay_in_sync(self):
+        changelog = (ROOT / 'docs/changelog.html').read_text()
+        for version in re.findall(r'^## (v\d+\.\d+\.\d+)', (ROOT / 'CHANGELOG.md').read_text(), re.M):
+            self.assertIn('id="%s"' % version.replace('.', ''), changelog)
+            self.assertIn('>%s</h2>' % version, changelog)
+        privacy = (ROOT / 'docs/privacy.html').read_text()
+        key = re.search(r"const KEY = '([^']+)'", (ROOT / 'docs/assets/checklist.js').read_text()).group(1)
+        self.assertIn(key, privacy)
+        for host in ['api.cloudflare.com', 'raw.githubusercontent.com']:
+            self.assertIn(host, privacy)
+        # The only API host the runtime calls is the one the privacy page names.
+        source = '\n'.join(p.read_text() for p in [ROOT / 'cmail', *sorted((ROOT / 'lib').glob('*.sh'))])
+        self.assertEqual(set(re.findall(r'https://(api\.[a-z0-9.-]+)', source)), {'api.cloudflare.com'})
 
     def test_issue17_quickstarts_select_feature_runtime_not_default_installer(self):
         # Issue #17: the default installer downloads its own pinned commit (the
         # v0.2.0 release), not the checkout's revision or the feature snapshot.
+        # Only the README still documents the historical snapshot; the site targets 0.2.0.
         feature_sha = 'cda65f0554a870ed8079e93741a331918118acec'
         default_sha = '21b3a082172ca4c4ef0c1a3651a9ad80504c1ed1'
         installer = (ROOT / 'install.sh').read_text()
         self.assertIn('ref="${CMAIL_REF:-' + default_sha + '}"', installer)
         self.assertNotEqual(feature_sha, default_sha)
-        for name in ['README.md', 'docs/index.html', 'docs/setup.html', 'docs/setup.md']:
+        for name in ['README.md']:
             with self.subTest(name=name):
-                text = unescape((ROOT / name).read_text())
-                blocks = (re.findall(r'<pre><code>(.*?)</code></pre>', text, re.S)
-                          if name.endswith('.html') else re.findall(r'```bash\n(.*?)```', text, re.S))
+                text = (ROOT / name).read_text()
+                blocks = re.findall(r'```bash\n(.*?)```', text, re.S)
                 quickstarts = [block for block in blocks if 'git clone' in block]
                 self.assertTrue(quickstarts, name)
                 for block in quickstarts:
@@ -146,10 +215,7 @@ class SiteTests(unittest.TestCase):
                                  'pinned v0.2.0 runtime', 'send-as', './cmail setup']:
                     self.assertIn(required.lower(), flat.lower(), name)
                 self.assertNotIn('pinned v0.1.0', flat.lower(), name)
-                if name == 'README.md':
-                    self.assertIn('Must list send-as', flat)
-                else:
-                    self.assertRegex(flat, r'(?:must (?:load offline and )?list|lists).*send-as')
+                self.assertIn('Must list send-as', flat)
                 self.assertRegex(flat, r'(?:stop if missing|If `?send-as`? is missing, stop)')
         # Capability check is offline: no config or provider access is needed.
         help_result = subprocess.run([str(ROOT / 'cmail'), 'help'], cwd=ROOT,
@@ -194,28 +260,22 @@ class SiteTests(unittest.TestCase):
             self.assertEqual(git(clone, 'rev-parse', 'HEAD').stdout.strip(), pin)
             self.assertEqual(git(clone, 'branch', '--show-current').stdout.strip(), '')
 
-    def test_issue17_guides_use_checkout_config_or_explicit_reuse(self):
-        for name in ['docs/setup.md', 'docs/setup.html']:
-            text = unescape((ROOT / name).read_text())
-            for command in ['cp -n .env.example .env', 'chmod 600 .env',
-                            'python3 skills/cmail-setup/scripts/check_config.py .env',
-                            'bash -n .env', 'ENV_FILE="$HOME/.config/cmail/.env"',
-                            './cmail send-as', './cmail setup']:
-                self.assertIn(command, text, name)
-            self.assertIn('same path for both checks', text)
+    def test_issue17_readme_uses_checkout_config_or_explicit_reuse(self):
         readme = (ROOT / 'README.md').read_text()
         self.assertIn('ENV_FILE="$HOME/.config/cmail/.env"', readme)
         self.assertIn('for every `./cmail` invocation', readme)
 
     def test_no_remote_runtime_assets_or_provider_calls(self):
-        for filename in ['index.html', 'setup.html']:
+        for filename in PAGES:
             for tag, attrs in Page(ROOT / 'docs' / filename).elements:
                 if tag in ['script', 'img', 'iframe'] or (tag == 'link' and attrs.get('rel') == 'stylesheet'):
                     path = attrs.get('src', attrs.get('href', ''))
                     self.assertFalse(urlsplit(path).scheme, path)
-        js = (ROOT / 'docs/assets/checklist.js').read_text()
-        for forbidden in ['fetch(', 'XMLHttpRequest', 'innerHTML', 'localStorage.clear', 'eval(']:
-            self.assertNotIn(forbidden, js)
+        for script in ['checklist.js', 'terminal.js']:
+            js = (ROOT / 'docs/assets' / script).read_text()
+            for forbidden in ['fetch(', 'XMLHttpRequest', 'innerHTML', 'localStorage.clear', 'eval(']:
+                self.assertNotIn(forbidden, js, script)
+        self.assertIn('prefers-reduced-motion', (ROOT / 'docs/assets/terminal.js').read_text())
 
     def test_palette_contrast_and_focus(self):
         css = (ROOT / 'docs/assets/styles.css').read_text()

@@ -89,13 +89,13 @@ Release: [v0.2.0](https://github.com/luongnv89/cmail/releases/tag/v0.2.0) · [Ch
 
 ## Start here
 
-[cmail introduction](docs/index.html) → [ordered, checkable setup guide](docs/setup.html)
-([Markdown fallback](docs/setup.md)). The configured Pages target is
-[luongnv89.github.io/cmail](https://luongnv89.github.io/cmail/), available after
-Pages is enabled and a deployment succeeds. The guide covers account/key acquisition,
-private config, DNS migration, confirmation and independent delivery tests.
-Checkmarks save only step IDs/booleans in this browser; they do not verify providers.
-No credentials are collected by the site. See [local preview](docs/setup.md#local-preview-and-maintenance).
+Website: [luongnv89.github.io/cmail](https://luongnv89.github.io/cmail/), built from `docs/`:
+[introduction](docs/index.html) → [8-step visual setup guide](docs/setup.html)
+([Markdown version](docs/setup.md)) · [CLI docs](docs/docs.html) ·
+[changelog](docs/changelog.html) · [privacy](docs/privacy.html).
+The guide targets the current 0.2.0 CLI. Checkmarks save only step IDs/booleans
+in your browser; they do not verify providers, and the site collects no credentials.
+See [local preview](docs/setup.md#local-preview).
 
 **Gmail sending policy:** [Google's current help](https://support.google.com/mail/answer/22370)
 announces removal of third-party “Send as” starting **January 2027**. Check current

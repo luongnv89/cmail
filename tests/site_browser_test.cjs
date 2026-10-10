@@ -47,18 +47,18 @@ test('native labels, keyboard Space toggles, progress and persistence across rel
   const ctx = await context();
   try {
     const { page, errors } = await pageFor(ctx);
-    const input = page.getByRole('checkbox', { name: 'I checked prerequisites and migration impact', exact: true });
+    const input = page.getByRole('checkbox', { name: 'I have everything I need', exact: true });
     await input.focus(); await page.keyboard.press('Space');
     assert.equal(await input.isChecked(), true);
-    assert.match(await page.locator('#progress-count').innerText(), /1 of 14/);
+    assert.match(await page.locator('#progress-count').innerText(), /1 of 8/);
     await page.reload(); assert.equal(await input.isChecked(), true);
     await input.focus(); await page.keyboard.press('Space');
     assert.equal(await input.isChecked(), false);
-    await page.locator('label[for="step-readiness"]').click();
+    await page.locator('label[for="step-ready"]').click();
     assert.equal(await input.isChecked(), true);
     assert.deepEqual(errors, []);
     const stored = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), KEY);
-    assert.equal(Object.keys(stored.steps).length, 14);
+    assert.equal(Object.keys(stored.steps).length, 8);
     assert.ok(Object.values(stored.steps).every(value => typeof value === 'boolean'));
   } finally { await ctx.close(); }
 });
@@ -80,20 +80,20 @@ test('no-JS guide has usable native checkboxes and hides enhancement controls', 
   const ctx = await context({ javaScriptEnabled: false });
   try {
     const { page } = await pageFor(ctx);
-    assert.equal(await page.getByRole('checkbox').count(), 14);
+    assert.equal(await page.getByRole('checkbox').count(), 8);
     const input = page.getByRole('checkbox').first();
     await input.focus(); await page.keyboard.press('Space'); assert.equal(await input.isChecked(), true);
     await page.keyboard.press('Space'); assert.equal(await input.isChecked(), false);
     assert.equal(await page.locator('#progress-panel').isVisible(), false);
     assert.match(await page.locator('noscript').innerText(), /JavaScript is off/);
-    assert.equal(await page.locator('#delivery').isVisible(), true);
+    assert.equal(await page.locator('#send').isVisible(), true);
   } finally { await ctx.close(); }
 });
 test('malformed, primitive, wrong-type and unknown stored state does not break controls', async () => {
   const ctx = await context();
   try {
     const { page, errors } = await pageFor(ctx);
-    for (const raw of ['{', 'null', '[]', '42', '{"version":1,"steps":{"readiness":"yes"}}', '{"version":1,"steps":{"unknown":true}}']) {
+    for (const raw of ['{', 'null', '[]', '42', '{"version":1,"steps":{"ready":"yes"}}', '{"version":1,"steps":{"unknown":true}}']) {
       await page.evaluate(({ key, raw }) => localStorage.setItem(key, raw), { key: KEY, raw });
       await page.reload(); assert.equal(await page.getByRole('checkbox').first().isChecked(), false);
       assert.match(await page.locator('#storage-notice').innerText(), /invalid/);
@@ -137,22 +137,22 @@ test('all checked steps retain visible safety details; completion is not verific
   try {
     const { page } = await pageFor(ctx);
     for (const input of await page.getByRole('checkbox').all()) await input.check();
-    assert.equal(await page.locator('#setup-progress').evaluate(e => e.value), 14);
+    assert.equal(await page.locator('#setup-progress').evaluate(e => e.value), 8);
     assert.match(await page.locator('#progress-count').innerText(), /not automatic provider verification/);
-    assert.equal(await page.locator('#delegation aside').isVisible(), true);
+    assert.equal(await page.locator('#send .callout').isVisible(), true);
   } finally { await ctx.close(); }
 });
 for (const width of [375, 768, 1280]) {
   test(`offline static site at ${width}px has no overflow or broken assets`, async () => {
     const ctx = await context({ viewport: { width, height: 900 } });
     try {
-      for (const filename of ['index.html', 'setup.html']) {
+      for (const filename of ['index.html', 'setup.html', 'docs.html', 'changelog.html', 'privacy.html']) {
         const { page, errors, responses, failures } = await pageFor(ctx, filename);
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
         assert.equal(await page.locator('h1').isVisible(), true);
         assert.equal(await page.evaluate(() => getComputedStyle(document.body).color), 'rgb(0, 0, 0)');
         await page.reload();
-        const assets = ['assets/styles.css', ...(filename === 'setup.html' ? ['assets/checklist.js'] : [])];
+        const assets = ['assets/styles.css', ...(filename === 'setup.html' ? ['assets/checklist.js', 'assets/terminal.js'] : [])];
         for (const asset of assets) {
           assert.ok(responses.some(response => response.url === base + asset && response.status === 200), asset);
         }

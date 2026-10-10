@@ -7,7 +7,8 @@ if [[ -e _site || -L _site ]]; then
   exit 1
 fi
 
-files=(index.html setup.html setup.md distribution.md assets/styles.css assets/checklist.js)
+files=(index.html setup.html setup.md docs.html changelog.html privacy.html distribution.md
+  assets/styles.css assets/checklist.js assets/terminal.js)
 for file in "${files[@]}"; do
   if [[ ! -f "docs/$file" || -L "docs/$file" ]]; then
     printf 'Missing or symlinked public site input: %s\n' "$file" >&2

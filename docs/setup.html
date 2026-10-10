@@ -3,124 +3,357 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Ordered cmail setup: prerequisites, private provider credentials, DNS migration, Cloudflare routing to any inbox, optional Gmail aliases and independent delivery checks.">
+  <meta name="description" content="Set up hello@your-domain in 8 short steps: install cmail, create a Cloudflare token, run cmail setup, switch nameservers, verify and test.">
   <title>Setup guide — cmail</title>
   <link rel="stylesheet" href="assets/styles.css">
   <script src="assets/checklist.js" defer></script>
+  <script src="assets/terminal.js" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
-<header><a class="brand" href="index.html">cmail</a><nav aria-label="Main"><a href="setup.html" aria-current="page">Setup guide</a><a href="https://github.com/luongnv89/cmail">Source on GitHub</a></nav></header>
+<header><a class="brand" href="index.html">cmail</a><nav aria-label="Main"><a href="index.html">Home</a><a href="setup.html" aria-current="page">Setup guide</a><a href="docs.html">Docs</a><a href="changelog.html">Changelog</a><a href="privacy.html">Privacy</a><a href="https://github.com/luongnv89/cmail">GitHub</a></nav></header>
 <main id="main">
-  <p>This guide targets the previous pinned snapshot. The newer reviewed-checkout CLI, released as <a href="https://github.com/luongnv89/cmail/releases/tag/v0.2.0">v0.2.0</a>, adds full setup previews, a read-only <code>cmail list</code> of your addresses and elapsed-time summaries, and works with an existing domain at any registrar without GoDaddy (GoDaddy automation is opt-in). See the <a href="https://github.com/luongnv89/cmail/blob/main/docs/cli.md">current CLI guide</a> for its commands and installation.</p>
-  <div class="guide-intro"><p class="kicker">First-time setup · one checkpoint at a time</p><h1>Connect your domain, carefully.</h1><p class="lead">Follow the steps in order. Check a step only after its stated check passes. If it fails, fix that step before moving on.</p><p>This is Cloudflare forwarding to any inbox you own (Gmail, Outlook, iCloud, Proton, …), plus an <strong>optional</strong> manual Gmail send-as step for sending, not a new mailbox or Google Workspace setup. If you only need to receive mail, skip step 13. These checkmarks are <strong>your record</strong>, not automatic verification. The page makes no provider requests and accepts no credentials.</p></div>
-  <aside class="callout"><strong>The short version: a few simple steps.</strong> Use the reviewed development source snapshot (not v0.1.0) until a compatible release/installer ships. Check prerequisites (step 1), review/select source (step 2), run <code>./cmail setup</code>, then send yourself a test (step 14). <code>./cmail setup</code> carries out steps 3–12 for you and pauses only for browser approvals, the Cloudflare token, the nameserver confirmation and one verification click; read those steps to review or troubleshoot. <strong>Sending is optional and only on request</strong> in this source workflow: step 13 (<code>./cmail send-as</code>) is not part of the default setup.</aside>
-  <aside class="callout"><strong>Gmail outbound policy warning (optional sending only).</strong> <a href="https://support.google.com/mail/answer/22370">Google announces third-party “Send as” removal starting January 2027</a>. Confirm current availability before committing to this optional sending path. Inbound forwarding is separate and needs no Google account. If Gmail or account policy blocks aliases/App Passwords, stop the outbound steps and choose an approved mail provider outside this guide; do not bypass security controls.</aside>
-  <div class="guide-layout">
-    <aside class="toc"><nav aria-label="Setup steps"><ol><li><a href="#readiness">Prerequisites</a></li><li><a href="#install">Select source / install</a></li><li><a href="#dependencies">Runtime tools</a></li><li><a href="#registrar">GoDaddy &amp; domain</a></li><li><a href="#zone">Cloudflare zone &amp; IDs</a></li><li><a href="#token">Cloudflare token</a></li><li><a href="#config">Private config</a></li><li><a href="#access">Verify resource access</a></li><li><a href="#delegation">Migrate DNS &amp; delegate</a></li><li><a href="#routing">Enable routing</a></li><li><a href="#destination">Verify destination</a></li><li><a href="#rules">Forwarding rules</a></li><li><a href="#gmail">Gmail send-as (optional)</a></li><li><a href="#delivery">Test delivery</a></li></ol></nav><p><a href="setup.md">Markdown guide</a><br><a href="#sources">Official references</a></p></aside>
-    <div>
-      <section id="progress-panel" class="progress-panel" aria-label="Your checklist progress" hidden><p id="progress-count" role="status" aria-live="polite"></p><label for="setup-progress">Setup steps checked</label><progress id="setup-progress" value="0" max="14">0 of 14</progress><button id="reset-progress" type="button">Reset progress</button><p id="storage-notice" role="status" aria-live="polite"></p><p>Progress belongs to this browser profile and site origin; it does not sync. Reset only clears this checklist, not your accounts. Avoid shared profiles. Multiple tabs use the last saved change.</p></section>
-      <noscript><p class="callout">JavaScript is off. You can still read every instruction and check/uncheck the boxes for this visit. Persistent progress and reset require JavaScript.</p></noscript>
-      <ol class="steps">
-        <li class="step" id="readiness"><h2>Gather the prerequisites and decide the scope</h2>
-          <ol><li>Use macOS or Linux, a trusted local terminal, Bash 3.2+, curl and standard utilities. Git is needed only for the clone route below. Python 3 is optional for the safe config checker.</li><li>Have a GoDaddy account controlling the domain, a Cloudflare account, access to your receiving inbox (any provider; a Gmail/Google account only if you also want to send), and a <strong>different independent mailbox</strong> for tests. Registrar support here is GoDaddy only.</li><li>Choose <code>DOMAIN</code> (bare domain, no URL/path), <code>DEST_EMAIL</code> (full receiving address, any provider), and <code>ADDRESSES</code> (comma-separated local parts such as <code>hello,contact</code>, not full addresses). Decide whether any aliases need sending; receiving alone needs no Gmail setup.</li><li>Inventory existing website, mail/MX, TXT/SPF, subdomain and other DNS records; identify DNSSEC/DS records and any existing mail provider. Plan the migration and downtime before changing delegation or mail records.</li><li>Only if you want to send: check the Gmail policy warning above and whether your Google account permits App Passwords. For business-critical sending, assess an approved mail service instead.</li></ol>
-          <p><strong>Check:</strong> You own/control the intended domain, can open both provider accounts and your receiving inbox, and have a DNS/mail migration plan. Missing access is not a reason to buy another domain.</p><label class="check" for="step-readiness"><input id="step-readiness" type="checkbox">I checked prerequisites and migration impact</label>
-        </li>
-        <li class="step" id="install"><h2>Select reviewed current source (or installation)</h2>
-          <p>For this guide’s receive-only/optional-send workflow, clone <a href="https://github.com/luongnv89/cmail">upstream</a> and select the immutable feature revision below. This is a reviewed development source snapshot, <strong>not v0.1.0</strong>, until a compatible release/installer ships. Fetch the pin explicitly; it need not be advertised on the default branch. Review <code>cmail</code> and <code>lib/</code> before execution:</p>
-          <pre><code>git clone https://github.com/luongnv89/cmail
-cd cmail
-git fetch origin cda65f0554a870ed8079e93741a331918118acec
-git checkout --detach cda65f0554a870ed8079e93741a331918118acec
-./cmail help</code></pre>
-          <p>Keep this checkout for the checker/skill. Use <code>./cmail</code>, never PATH <code>cmail</code>, in the following steps; config defaults to checkout <code>.env</code>.</p>
-          <p><strong>Installation alternative (not this quickstart):</strong> after reviewing <code>install.sh</code> and the <a href="distribution.md">distribution contract</a>, <code>bash install.sh</code> downloads the pinned v0.2.0 runtime regardless of checkout revision. It follows the <a href="https://github.com/luongnv89/cmail/blob/main/docs/cli.md">current CLI guide</a>, not this snapshot’s steps. v0.1.0 itself contains <strong>neither this installer nor the newer skill/checker</strong>. No released remote bootstrap or Homebrew package is promised.</p>
-          <p>Installer default launcher: <code>~/.local/bin/cmail</code>; runtimes: <code>~/.local/share/cmail/runtime.*</code>; config: <code>~/.config/cmail/.env</code>. Installation needs Bash/curl/standard utilities, no sudo, git, jq, gddy or provider credentials (git only for cloning); it neither starts setup nor edits shell profiles. Use user-controlled, non-symlink destinations and parents. Overrides <code>CMAIL_BIN_DIR</code>, <code>CMAIL_DATA_DIR</code>, <code>CMAIL_CONFIG_DIR</code> must be absolute directories. Existing config is preserved. Verify the trusted installed launcher with <code>"$HOME/.local/bin/cmail" help</code>. To reuse its config with source, export <code>ENV_FILE="$HOME/.config/cmail/.env"</code> for every source command and check that same file in step 7. Do not edit a retained runtime’s config.</p>
-          <p><strong>Check before setup:</strong> Trusted <code>./cmail help</code> loads offline and lists setup/send-as/status/doctor/help. If <code>send-as</code> is missing, stop: this is not the runtime for this source workflow. Help is not proof of provider access or delivery.</p><label class="check" for="step-install"><input id="step-install" type="checkbox">I verified the trusted CLI and selected config path</label>
-        </li>
-        <li class="step" id="dependencies"><h2>Prepare runtime dependencies before setup</h2>
-          <p>Check your trusted tools locally:</p><pre><code>bash --version
-curl --version
-jq --version
-gddy --version
-gddy --help</code></pre>
-          <p>Missing curl/jq: install with your existing OS package manager after reviewing the change. Missing gddy: follow <a href="https://developer.godaddy.com/en/docs/api-users/cli/set-up">GoDaddy’s CLI installation guide</a>; review its installer before running it. Its default <code>~/.local/bin</code> needs to be on PATH. Compare <code>gddy tree</code> / help with the domain and nameserver commands cmail uses.</p>
-          <p><code>./cmail setup</code> and <code>./cmail doctor</code> may install missing tools (sudo/package manager or the latest gddy installer). Doctor/status may create or secure local config; doctor can print non-secret config. They are not the optional checker below and not offline help. Current gddy purchase syntax can differ from cmail’s pinned workflow: if command compatibility is uncertain, use staged dashboard actions rather than blindly running setup.</p>
-          <p><strong>Check:</strong> Bash/curl/jq/gddy work from trusted paths and the installed gddy supports the needed commands. If not, stop and resolve compatibility; no provider writes are needed for this check.</p><label class="check" for="step-dependencies"><input id="step-dependencies" type="checkbox">I verified runtime tools and CLI compatibility</label>
-        </li>
-        <li class="step" id="registrar"><h2>Authenticate to GoDaddy and verify an owned domain</h2>
-          <ol><li>Prefer local browser OAuth: run <code>gddy auth login --env prod</code>, sign in to the intended GoDaddy account, and review consent. Inspect <code>gddy auth status --json</code> privately for an unexpired prod session.</li><li>In GoDaddy’s domain portfolio, open the exact domain and its DNS → Nameservers. Locally inspect <code>gddy domain get 'example.com' --env prod --json</code>, replacing <code>example.com</code> with your owned domain. Check ownership and readable current nameservers; do not post raw output.</li><li>Set <code>GDDY_ENV=prod</code> for real resources. <code>ote</code> is a sandbox; it cannot prove production ownership or live delivery.</li></ol>
-          <h3>Optional headless PAT (not required for OAuth)</h3>
-          <p>Sign in to <a href="https://developer.godaddy.com/personal-access-token">Personal Access Tokens</a> → <strong>+ Generate Token</strong>. Choose a descriptive name and expiration, expand Domains &amp; DNS, and grant <code>domains.domain:read</code> for reads and <code>domains.nameserver:update</code> only if approving nameserver replacement. <code>domains.domain:create</code> is needed only for a separately approved registration; do not select every capability by default. Generate, copy the one-time secret to a password manager and save <code>GDDY_PAT</code> in private local config. Never enter it here, in chat, or in a recorded command.</p>
-          <p>Current <a href="https://developer.godaddy.com/en/docs/api-users/auth">GoDaddy documentation</a> specifies <code>Authorization: Bearer &lt;PAT&gt;</code> for Domains v3 at <code>https://api.godaddy.com</code>. Legacy v1/v2 classic keys use <code>Authorization: sso-key &lt;key&gt;:&lt;secret&gt;</code>; cmail has no key/secret fields and does not need them for its gddy OAuth/PAT route. Environment selection is delegated to <code>gddy --env</code>, not a header you supply in cmail. In the <a href="https://github.com/godaddy/cli/blob/c6d47e1432849e6cef8811d262c8773147a55131/rust/src/environments/mod.rs">inspected upstream CLI</a>, built-in prod uses <code>https://api.godaddy.com</code> and ote uses <code>https://api.ote-godaddy.com</code>; local configuration can override endpoints. Its <a href="https://github.com/godaddy/cli/blob/c6d47e1432849e6cef8811d262c8773147a55131/rust/domains-client/src/lib.rs">Domains client</a> sets Authorization and x-request-id headers, not an environment-selector header. Do not assume an OTE header or credential turns a production request into a sandbox. Verify your installed CLI’s environment and endpoint behavior before using OTE; this source observation is not proof for every installed version. Newly issued PATs, OAuth status and newer API docs do not by themselves establish pinned-runtime compatibility.</p>
-          <h3>If you do not yet own a domain</h3>
-          <p>Stop to choose and register it deliberately in the GoDaddy dashboard, reviewing domain, price, term, renewal, contacts and payment method. Then repeat the exact-domain read. cmail can offer registration when <code>DOMAIN</code> is blank and an entered domain is not confirmed owned; it asks to attempt registration and confirm the quote before purchase. Setting an existing <code>DOMAIN</code> skips that picker, so fill it only after verifying ownership. A network/access error is not evidence that a purchase is needed. After any purchase timeout, inspect orders, billing and ownership before retrying; current gddy purchase arguments may differ from the pinned script.</p>
-          <p><strong>Check:</strong> An exact-domain read succeeds in the intended production account with current nameservers. PAT presence or an auth message alone is insufficient.</p><label class="check" for="step-registrar"><input id="step-registrar" type="checkbox">I verified GoDaddy production ownership and nameservers</label>
-        </li>
-        <li class="step" id="zone"><h2>Select the Cloudflare account, zone and IDs</h2>
-          <ol><li>Sign in to <a href="https://dash.cloudflare.com/">Cloudflare</a> and select the intended account. Look for the domain under Domains (older layouts: Websites). Reuse an existing zone; do not create a duplicate because a token cannot see it.</li><li>If genuinely absent, explicitly approve adding the domain (a provider write), use the dashboard’s add/onboard-domain action, choose the appropriate plan, review imported DNS and finish onboarding. Do not change GoDaddy nameservers yet. cmail setup can also create a missing zone, but is not a staged read-only check.</li><li>Open that domain’s Overview → API section and copy <strong>Zone ID</strong> and <strong>Account ID</strong> separately. Account ID can also be copied through dashboard Search → “Copy account ID”. Both are normally 32 hexadecimal characters, but they identify different resources.</li><li>Record the assigned Cloudflare nameserver set privately and compare domain/account identities. These are assigned to your zone; never use example nameservers.</li></ol>
-          <p><code>CF_ACCOUNT_ID</code> selects the account for zone creation and bypasses account discovery only; it grants no permissions. Set it if discovery sees zero/multiple accounts. <code>CF_ZONE_ID</code> identifies this domain’s zone and is saved by setup; status uses it. On an existing zone, account-level destination operations use the account owning that zone, not an unrelated configured account.</p>
-          <p><strong>Check:</strong> You know which account owns which exact zone and have its IDs/assigned nameservers. Dashboard visibility is not proof that a token has access.</p><label class="check" for="step-zone"><input id="step-zone" type="checkbox">I identified the intended Cloudflare zone, account and IDs</label>
-        </li>
-        <li class="step" id="token"><h2>Create the scoped Cloudflare user API token</h2>
-          <ol><li>Open <a href="https://dash.cloudflare.com/profile/api-tokens">My Profile → API Tokens</a> → Create Token → Custom token / Get started. Use a <strong>user API token</strong> for cmail’s <code>/user/tokens/verify</code> flow, not the Global API Key.</li><li>Add these five permissions for the current cmail workflow:</li></ol>
-          <div class="table-wrap"><table><caption>Cloudflare permissions required by cmail</caption><thead><tr><th scope="col">Scope</th><th scope="col">Permission</th><th scope="col">Access / purpose</th></tr></thead><tbody><tr><td>Zone</td><td>Zone</td><td>Edit — zone lookup/creation</td></tr><tr><td>Zone</td><td>Zone Settings</td><td>Edit — routing DNS activation</td></tr><tr><td>Zone</td><td>DNS</td><td>Edit — DNS configuration</td></tr><tr><td>Zone</td><td>Email Routing Rules</td><td>Edit — forwarding rules</td></tr><tr><td>Account</td><td>Email Routing Addresses</td><td>Edit — destinations in owning account</td></tr></tbody></table></div>
-          <ol start="3"><li>Under Zone Resources, Include the specific existing domain; for creating a zone, include the intended account’s zones. Under Account Resources, Include the <strong>same owning account</strong>. Do not grant all accounts as an automatic workaround.</li><li>Review expiration/optional client-IP restrictions, Continue to summary, review, Create Token. Copy the secret once to secure local storage; paste it into <code>CLOUDFLARE_API_TOKEN</code> only in your private editor or the CLI’s hidden prompt. Never paste it into this page or share screenshots of the token.</li></ol>
-          <p><strong>Check:</strong> The five permissions and correct resource scopes are granted. “Active” from token verification means activity only, not access to your domain/account or successful writes.</p><label class="check" for="step-token"><input id="step-token" type="checkbox">I created and privately saved the correctly scoped token</label>
-        </li>
-        <li class="step" id="config"><h2>Fill and check private literal configuration</h2>
-          <p>For the source workflow use checkout <code>.env</code> (default for <code>./cmail</code>). Preserve any existing file. For a new file only, from the reviewed checkout, after verifying user-owned non-symlink parents:</p>
-          <pre><code>(umask 077; cp -n .env.example .env)
-chmod 600 .env</code></pre>
-          <p>Alternatively reuse installed default <code>~/.config/cmail/.env</code> (or install-time <code>CMAIL_CONFIG_DIR</code>) via an explicit runtime <code>ENV_FILE</code>. Export that selected path before every <code>./cmail</code> command, and use the same path for both checks below.</p>
-          <p>Edit locally, without recording or sharing the editor. Use documented <code>KEY='literal value'</code> assignments, no spaces around <code>=</code>, no duplicates or unknown keys. Config is trusted Bash and runtime evaluates it twice: no commands, <code>$()</code>, backticks, expansions, scripts or multiline values. Do not source it as a validation step.</p>
-          <ul><li>Required filled values: <code>DOMAIN</code>, <code>DEST_EMAIL</code>, <code>ADDRESSES</code>, <code>CLOUDFLARE_API_TOKEN</code>.</li><li>Set <code>GDDY_ENV=prod</code>. <code>GDDY_PAT</code> is optional for OAuth; <code>CF_ACCOUNT_ID</code> and <code>CF_ZONE_ID</code> must match your resources when set. <code>DRY_RUN</code> is optional 0/1 and affects nameserver preview only.</li><li><strong>No Google password belongs in .env.</strong> App Passwords go directly into Gmail’s dialog.</li></ul>
-          <p>The newer checkout contains an optional read-only checker; it is not installed by <code>install.sh</code>. From that checkout, run (use your actual file path if different):</p>
-          <pre><code>python3 skills/cmail-setup/scripts/check_config.py .env
-bash -n .env &gt;/dev/null 2&gt;&amp;1</code></pre>
-          <p>The checker never sources or prints values. It requires a regular user-owned non-symlink file with mode 600, known keys and conservative LF-only literal syntax. If Python is unavailable, manually review ownership, permissions, all fields and literal-only content locally; do not call an unrun checker green. In a source checkout confirm <code>git check-ignore .env</code> succeeds and <code>git ls-files --error-unmatch .env</code> fails. Never commit config; rotate leaked credentials.</p>
-          <p><strong>Check:</strong> Both local checks pass and values match your intent. This checks config, not live credentials or provider access. See the <a href="https://github.com/luongnv89/cmail/blob/main/skills/cmail-setup/references/configuration.md">checker’s exact contract</a>.</p><label class="check" for="step-config"><input id="step-config" type="checkbox">I checked the selected private config without exposing it</label>
-        </li>
-        <li class="step" id="access"><h2>Verify actual token access before any migration</h2>
-          <p>Use the actual configured token in a trusted, unrecorded local API client. Follow the <a href="https://github.com/luongnv89/cmail/blob/main/skills/cmail-setup/references/verification.md#gate-4--cloudflare-token-account-and-zone">setup skill’s access gate</a>: read-only GETs to <code>/user/tokens/verify</code>, <code>/zones/&lt;zone-id&gt;</code> and <code>/accounts/&lt;owning-account-id&gt;/email/routing/addresses</code> on <code>https://api.cloudflare.com/client/v4</code>. Enter token through protected local input/storage, never chat, captured tools or shell history. Do not publish request headers or full responses.</p>
-          <p><strong>Check:</strong> Each read returns HTTP 2xx and API success; token is active; exact-zone response matches DOMAIN and owning Account ID with assigned nameservers; owning-account destinations are readable. Read success does not prove write permissions: review token grants and check each operation’s resulting state later.</p>
-          <p>On 401/403, fix the operation’s permission/resource scope. Zero visible accounts: confirm Account Resources and optional correct <code>CF_ACCOUNT_ID</code>. Multiple accounts: select one explicitly. An empty zone list is not proof of absence; inspect dashboard inventory before creation. An active token alone is never enough.</p><label class="check" for="step-access"><input id="step-access" type="checkbox">I verified actual-token access to the exact zone and owning account</label>
-        </li>
-        <li class="step" id="delegation"><h2>Migrate DNS, then replace nameservers deliberately</h2>
-          <ol><li>Copy/review existing web, mail, TXT and other service records in Cloudflare DNS. An automatic import may be incomplete. Plan DNSSEC/DS transition with registrar/provider guidance so old DS records do not invalidate new delegation.</li><li>Compare GoDaddy → exact domain → DNS → Nameservers with Cloudflare Overview’s complete assigned set. If already matching, skip the write.</li><li>Only after approval of the exact domain, complete replacement set and migration plan, change nameservers through the registrar dashboard (or a reviewed compatible CLI). This replaces <strong>all</strong> nameservers and can interrupt websites/mail.</li><li>Read fresh registrar state and wait for Cloudflare to show <strong>Active</strong>. A submitted update is not activation. cmail polls for about 20 minutes; propagation may take 24–48 hours. Wait and recheck rather than repeatedly writing.</li></ol>
-          <aside class="callout"><strong>Do not use setup as a safe preview.</strong> <code>DRY_RUN=1 ./cmail setup</code> previews only GoDaddy nameserver replacement. It can still create Cloudflare zones, enable routing/DNS, register destinations, create rules or offer paid registration. The monolithic command does not enforce this guide’s external gates. Prefer staged dashboard actions or the separate <a href="https://github.com/luongnv89/cmail/tree/main/skills/cmail-setup">cmail-setup skill</a>. If you choose the CLI, review every pending operation first and stop at any mismatch.</aside>
-          <p><strong>Check:</strong> A fresh registrar read shows the exact assigned set and Cloudflare shows this domain Active. If available, corroborate with a public DNS NS lookup. After uncertain writes, inspect both dashboards before retrying; cmail does not roll back delegation.</p><label class="check" for="step-delegation"><input id="step-delegation" type="checkbox">I verified migrated DNS, correct delegation and active zone</label>
-        </li>
-        <li class="step" id="routing"><h2>Enable Cloudflare Email Routing after mail review</h2>
-          <ol><li>In the current dashboard go to <strong>Compute → Email Service → Email Routing</strong>, select/onboard the domain. Older layouts put Email → Email Routing under the domain. Follow <a href="https://developers.cloudflare.com/email-service/get-started/route-emails/">Cloudflare’s current routing guide</a> if labels differ.</li><li>Review proposed routing MX/TXT (SPF and any DKIM) records against your existing mail service. Do not delete old MX/TXT or add competing SPF records without a migration plan.</li><li>Explicitly approve activation only when ready. cmail uses <code>POST /zones/{zone_id}/email/routing/dns</code>, adding/locking routing DNS records, and requires Zone Settings:Edit. Already-enabled routing is reused.</li></ol>
-          <p><strong>Check:</strong> Fresh domain routing state is enabled and its DNS requirements are satisfied. A successful request or <code>./cmail status</code> exit code is not enough. Routing authentication does not establish Gmail outbound domain DKIM alignment.</p><label class="check" for="step-routing"><input id="step-routing" type="checkbox">I verified routing enabled and DNS requirements satisfied</label>
-        </li>
-        <li class="step" id="destination"><h2>Add and verify the destination inbox</h2>
-          <ol><li>Open Email Routing → Destination Addresses in the zone’s <strong>owning account</strong>. Destination addresses are account-scoped and reusable. Reuse an existing verified or pending entry for <code>DEST_EMAIL</code>.</li><li>If absent, approve adding your exact receiving address and sending a verification email. Open that mailbox’s Inbox/Spam and click Cloudflare’s Verify email address link yourself.</li><li>Refresh destination state. If the link is missing/expired, use the dashboard’s resend action deliberately; keep the pending entry instead of making duplicates.</li></ol>
-          <p><strong>Check:</strong> The exact destination shows verified state/timestamp in a fresh dashboard or authenticated list read. Pending status or merely clicking a link is insufficient.</p><label class="check" for="step-destination"><input id="step-destination" type="checkbox">I verified the exact destination in the owning account</label>
-        </li>
-        <li class="step" id="rules"><h2>Create and inspect every forwarding rule</h2>
-          <ol><li>Open Email Routing → intended domain → Routing Rules → Create routing rule. For each <code>ADDRESSES</code> local part, select the domain, choose Send to an email, and select your verified <code>DEST_EMAIL</code>. Save only after reviewing the exact mapping.</li><li>Inspect full details for every requested <code>local@DOMAIN</code>: one intended enabled literal “to” matcher, forwarding to exactly your destination. A catch-all is not required.</li><li>Do not overwrite unrelated/disabled/conflicting rules silently. Correct only the intended conflict after approving it and inspect fresh state again.</li></ol>
-          <p><strong>Check:</strong> Every requested alias has the correct enabled rule, no conflicting duplicate, and the intended destination. A truncated status listing or successful create request does not prove this.</p><label class="check" for="step-rules"><input id="step-rules" type="checkbox">I inspected exact enabled forwarding rules for all aliases</label>
-        </li>
-        <li class="step" id="gmail"><h2>Optional: configure Gmail aliases for sending</h2>
-          <p><strong>Skip this step if you only need to receive mail.</strong> It applies only when you want to send from the custom address and <code>DEST_EMAIL</code> is a Gmail/Google account. <code>./cmail send-as</code> prints the same guidance; source <code>./cmail setup</code> does not run it. A legacy v0.1.0 installation still shows the Gmail guide during setup; ignore that guide for receive-only use (the skill recognizes its post-receiving pause).</p>
-          <p><strong>First recheck <a href="https://support.google.com/mail/answer/22370">Google’s January 2027 Send as restriction</a>.</strong> If unavailable or prohibited, stop; an alternative mail service is outside this workflow. This is not Google Cloud OAuth app creation or Workspace provisioning.</p>
-          <ol><li>Open <a href="https://myaccount.google.com/security">Google Account → Security</a> for <code>DEST_EMAIL</code> and enable 2-Step Verification if allowed. Then open <a href="https://myaccount.google.com/apppasswords">App Passwords</a>, choose a descriptive app name (Mail/cmail if prompted), create an App Password and store it privately. It is displayed only once; never use the ordinary login password.</li><li>App Passwords may be unavailable for security-key-only 2-Step Verification, work/school organizational accounts or Advanced Protection. Respect policy; do not disable protection. Changing the Google account password revokes App Passwords; revoke unused/leaked ones.</li><li>On desktop Gmail, Settings → See all settings → Accounts and Import (or Accounts) → Send mail as → Add another email address. Enter your name and exact custom alias you own; keep “Treat as an alias” for this same-person alias if shown.</li><li>If SMTP is requested, the existing cmail path uses <code>smtp.gmail.com</code>, port <code>587</code>, <strong>TLS</strong>, full <code>DEST_EMAIL</code> as username and that account’s App Password. Enter the password directly in Gmail’s dialog, <strong>not .env, this page, browser localStorage or chat</strong>. Do not select an unsecured connection. This path is subject to Google’s current acceptance/policy, not a guarantee.</li><li>Add Account / Send verification, receive the Gmail confirmation through the already-working forwarding rule, and complete the link/code locally. Repeat for every alias you want to send from. Do not share confirmation codes.</li><li>Inspect Gmail settings for each confirmed alias. When composing choose the custom From address. Set default From/reply-to deliberately if desired; replies otherwise may go to the original Gmail address.</li></ol>
-          <p><strong>Check:</strong> Each requested outbound alias is confirmed in Gmail settings, or you chose receive-only and skipped this step. A CLI pause, Enter key, App Password creation or Sent folder entry does not prove delivery. Recipients may see “on behalf of” your Gmail address; this workflow does not guarantee domain DKIM alignment.</p><label class="check" for="step-gmail"><input id="step-gmail" type="checkbox">I confirmed every eligible outbound alias in Gmail, or skipped sending</label>
-        </li>
-        <li class="step" id="delivery"><h2>Test delivery from an independent mailbox</h2>
-          <ol><li>For <strong>every alias</strong>, send a unique benign test from a different mailbox (not <code>DEST_EMAIL</code>) to the custom address. Confirm arrival in <code>DEST_EMAIL</code>; check Spam. Same-account forwarding can be suppressed by providers.</li><li>Only if you set up sending in step 13: in Gmail compose from that exact custom From address to the independent mailbox. Confirm arrival there (including Spam) and inspect the actual From/reply-to address. A Sent entry alone is not success. Reply back to the alias as an extra check.</li><li>If inbound fails, return to active zone, routing DNS, verified destination and exact rule. If outbound fails, return to Google availability, SMTP/TLS, username/App Password and alias confirmation. After repair repeat the affected tests for affected aliases.</li><li>Record only sanitized alias/direction/time/result privately, not message bodies, credentials or codes. End-to-end observations do not promise universal delivery, sending limits or compliance. For help use the <a href="https://github.com/luongnv89/cmail/blob/main/skills/cmail-setup/references/troubleshooting.md">targeted troubleshooting guide</a>.</li></ol>
-          <p><strong>Check:</strong> Independent inbound receipt is observed for each requested alias, and outbound receipt too when you set up sending. If sending was requested and only inbound works, record outbound as blocked; do not check the whole setup complete.</p><label class="check" for="step-delivery"><input id="step-delivery" type="checkbox">I verified inbound (and, if requested, outbound) delivery for every alias</label>
-        </li>
-      </ol>
-      <section id="sources" class="block sources" aria-labelledby="references"><h2 id="references">Sources and maintenance notes</h2><p>Public authoritative pages fetched on <strong>7 October 2026</strong>; dashboard labels and eligibility can change. No logged-in dashboard, live credentials, provider writes, purchases, DNS changes or email delivery were tested for this guide. PAT/token creation screens require your own login. The current GoDaddy v3 docs differ from legacy cmail/gddy assumptions; verify installed CLI compatibility rather than treating newer docs as proof.</p>
-        <ul><li><a href="https://developers.cloudflare.com/fundamentals/api/get-started/create-token/">Cloudflare: create a user API token</a></li><li><a href="https://developers.cloudflare.com/fundamentals/account/find-account-and-zone-ids/">Cloudflare: account and zone IDs</a></li><li><a href="https://developers.cloudflare.com/email-service/get-started/route-emails/">Cloudflare: routing, destination, rules and external tests</a></li><li><a href="https://developer.godaddy.com/en/docs/api-users/cli/set-up">GoDaddy: CLI installation and OAuth/PAT</a></li><li><a href="https://developer.godaddy.com/en/docs/api-users/auth">GoDaddy: scopes, Bearer versus classic credentials and eligibility</a></li><li><a href="https://developer.godaddy.com/en/docs/api-users/auth/how-to">GoDaddy: generate/store/revoke a PAT</a></li><li><a href="https://developer.godaddy.com/en/docs/api-users/quickstart">GoDaddy: production API quickstart</a></li><li><a href="https://support.google.com/accounts/answer/185833">Google: App Password restrictions and revocation</a></li><li><a href="https://support.google.com/mail/answer/22370">Google: Send as, confirmation, From/reply-to and January 2027 policy</a></li></ul>
-        <p>Source of runtime/config details: <a href="https://github.com/luongnv89/cmail/blob/main/README.md">README</a>, <a href="https://github.com/luongnv89/cmail/blob/main/docs/distribution.md">installer contract</a>, and <a href="https://github.com/luongnv89/cmail/blob/main/skills/cmail-setup/SKILL.md">setup skill</a>. The skill’s offline tests are not a certified or measured live behavioral benchmark; no repository license grants redistribution rights. With Pages enabled on an eligible GitHub plan, site updates on main are validated and deployed by <a href="https://github.com/luongnv89/cmail/blob/main/.github/workflows/pages.yml">GitHub Actions</a>. GitHub source and skill links require repository access while the repository is private; public website access does not grant source access.</p>
-      </section>
+  <div class="page-intro">
+    <p class="kicker">Setup guide · cmail 0.2.0</p>
+    <h1>From domain to inbox in 8 steps.</h1>
+    <p class="lead">A few simple steps, in order. Tick each one when its <strong>Done when</strong> check passes. Your ticks are saved in this browser only.</p>
+    <div class="overview">
+      <div><b>8 steps</b>7 required, 1 optional (sending)</div>
+      <div><b>3 tags</b><span class="tag you">You</span> hands-on · <span class="tag auto">cmail</span> automatic · <span class="tag">Wait</span> DNS time</div>
+      <div><b>Rerun anytime</b><code>cmail setup</code> skips what is already done</div>
     </div>
   </div>
+
+  <div class="guide-top">
+    <nav aria-label="Setup steps">
+      <ol class="stepper">
+        <li><a href="#ready"><span class="num">1</span>Prepare</a></li>
+        <li><a href="#install"><span class="num">2</span>Install</a></li>
+        <li><a href="#token"><span class="num">3</span>Token</a></li>
+        <li><a href="#setup"><span class="num">4</span>Run setup</a></li>
+        <li><a href="#nameservers"><span class="num">5</span>Nameservers</a></li>
+        <li><a href="#verify"><span class="num">6</span>Verify inbox</a></li>
+        <li><a href="#test"><span class="num">7</span>Test</a></li>
+        <li><a href="#send"><span class="num">8</span><span class="opt">Send (optional)</span></a></li>
+      </ol>
+    </nav>
+    <section id="progress-panel" class="progress-panel" aria-label="Your progress" hidden>
+      <p id="progress-count" role="status" aria-live="polite"></p>
+      <label for="setup-progress">Setup steps checked</label><progress id="setup-progress" value="0" max="8">0 of 8</progress>
+      <button id="reset-progress" type="button">Reset progress</button>
+      <p id="storage-notice" role="status" aria-live="polite"></p>
+    </section>
+  </div>
+  <noscript><p class="callout">JavaScript is off. Every step is readable and the boxes work for this visit; saved progress needs JavaScript.</p></noscript>
+
+  <ol class="steps">
+    <!-- 1 -->
+    <li class="step" id="ready">
+      <div>
+        <div class="step-head"><span class="num">1</span><div class="step-meta"><span class="tag you">You</span><span class="tag">2 min</span></div><h2>Check you have everything</h2></div>
+        <ul>
+          <li>A <strong>domain you own</strong>, at any registrar.</li>
+          <li>A free <a href="https://dash.cloudflare.com/sign-up">Cloudflare account</a>.</li>
+          <li>The <strong>inbox</strong> that should receive the mail (any provider).</li>
+          <li>A <strong>second mailbox</strong> to send a test from.</li>
+          <li>macOS or Linux with <code>bash</code>, <code>curl</code>, <code>jq</code> and <code>git</code>.</li>
+        </ul>
+        <p class="callout warn">Already use this domain for a website or email? Note its DNS records now. You will copy them into Cloudflare in step 5.</p>
+        <p class="done-when"><strong>Done when:</strong> you can log in to your registrar, Cloudflare and both mailboxes.</p>
+        <label class="check" for="step-ready"><input id="step-ready" type="checkbox">I have everything I need</label>
+      </div>
+      <div class="visual">
+        <svg class="diagram" viewBox="0 0 420 250" role="img" aria-labelledby="ready-t">
+          <title id="ready-t">Five things you need: domain, Cloudflare account, receiving inbox, test mailbox, terminal</title>
+          <rect class="flow-box" x="10" y="10" width="190" height="66" rx="8"/><text x="28" y="40" font-size="16" font-weight="700">Domain</text><text class="sub" x="28" y="60">example.com</text>
+          <rect class="flow-box cf" x="220" y="10" width="190" height="66" rx="8"/><text x="238" y="40" font-size="16" font-weight="700">Cloudflare</text><text class="sub" x="238" y="60">free account</text>
+          <rect class="flow-box" x="10" y="92" width="190" height="66" rx="8"/><text x="28" y="122" font-size="16" font-weight="700">Receiving inbox</text><text class="sub" x="28" y="142">you@gmail.com</text>
+          <rect class="flow-box" x="220" y="92" width="190" height="66" rx="8"/><text x="238" y="122" font-size="16" font-weight="700">Test mailbox</text><text class="sub" x="238" y="142">a different address</text>
+          <rect class="flow-box" x="10" y="174" width="400" height="66" rx="8"/><text x="28" y="204" font-size="16" font-weight="700">Terminal</text><text class="sub" x="28" y="224">macOS / Linux · bash · curl · jq · git</text>
+        </svg>
+      </div>
+    </li>
+
+    <!-- 2 -->
+    <li class="step" id="install">
+      <div>
+        <div class="step-head"><span class="num">2</span><div class="step-meta"><span class="tag you">You</span><span class="tag">2 min</span></div><h2>Install cmail</h2></div>
+        <ol>
+          <li>Clone the repository.</li>
+          <li>Run the installer. It copies cmail to <code>~/.local/bin</code>. No sudo needed.</li>
+          <li>Create your private config file and choose your addresses (default: <code>hello</code>).</li>
+        </ol>
+        <pre><code>git clone https://github.com/luongnv89/cmail
+cd cmail
+bash install.sh --local
+export PATH="$HOME/.local/bin:$PATH"
+cmail --version
+cmail config init
+cmail config set ADDRESSES hello,contact</code></pre>
+        <p class="meta">Add the <code>export PATH</code> line to your shell profile to keep it. Config lives in <code>~/.config/cmail/.env</code> (mode 600).</p>
+        <p class="done-when"><strong>Done when:</strong> <code>cmail --version</code> prints <code>cmail 0.2.0</code>.</p>
+        <label class="check" for="step-install"><input id="step-install" type="checkbox">cmail is installed</label>
+      </div>
+      <div class="visual">
+        <div class="term" aria-label="Terminal: installing cmail">
+          <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i><span>~/cmail</span></div>
+          <pre><span class="p">$</span> cmail --version
+cmail 0.2.0
+<span class="p">$</span> cmail config init
+Created private configuration: ~/.config/cmail/.env
+Next: cmail setup
+<span class="p">$</span> cmail config set ADDRESSES hello,contact</pre>
+        </div>
+      </div>
+    </li>
+
+    <!-- 3 -->
+    <li class="step" id="token">
+      <div>
+        <div class="step-head"><span class="num">3</span><div class="step-meta"><span class="tag you">You</span><span class="tag">3 min</span></div><h2>Create a Cloudflare API token</h2></div>
+        <ol>
+          <li>Open <a href="https://dash.cloudflare.com/profile/api-tokens">My Profile → API Tokens</a> → <strong>Create Token</strong> → <strong>Custom token</strong> → Get started.</li>
+          <li>Add the <strong>five permissions</strong> shown on the right.</li>
+          <li><strong>Zone Resources:</strong> Include → All zones from an account → your account.<br><strong>Account Resources:</strong> Include → the account that owns your domain.</li>
+          <li>Create the token and copy it. You paste it in the next step.</li>
+        </ol>
+        <p class="callout">Never paste the token into chat, a web page or a screenshot. cmail asks for it with hidden input.</p>
+        <p class="done-when"><strong>Done when:</strong> the token is created with all five permissions and copied somewhere private.</p>
+        <label class="check" for="step-token"><input id="step-token" type="checkbox">I created the token</label>
+      </div>
+      <div class="visual">
+        <div class="mock" aria-label="Simplified view of the Cloudflare token permissions">
+          <div class="mock-bar" aria-hidden="true"><i></i><i></i><i></i><span>dash.cloudflare.com/profile/api-tokens</span></div>
+          <div class="mock-body">
+            <p><strong>Create Custom Token</strong> · Permissions</p>
+            <div class="table-wrap"><table>
+              <caption class="meta" style="caption-side:bottom;text-align:left;padding-top:.5rem">All five rows are required. Simplified illustration.</caption>
+              <thead><tr><th scope="col">Scope</th><th scope="col">Permission</th><th scope="col">Access</th></tr></thead>
+              <tbody>
+                <tr class="hl"><td>Zone</td><td>Zone</td><td>Edit</td></tr>
+                <tr class="hl"><td>Zone</td><td>Zone Settings</td><td>Edit</td></tr>
+                <tr class="hl"><td>Zone</td><td>DNS</td><td>Edit</td></tr>
+                <tr class="hl"><td>Zone</td><td>Email Routing Rules</td><td>Edit</td></tr>
+                <tr class="hl"><td>Account</td><td>Email Routing Addresses</td><td>Edit</td></tr>
+              </tbody>
+            </table></div>
+            <span class="fake-btn">Continue to summary</span>
+          </div>
+        </div>
+      </div>
+    </li>
+
+    <!-- 4 -->
+    <li class="step" id="setup">
+      <div>
+        <div class="step-head"><span class="num">4</span><div class="step-meta"><span class="tag auto">cmail</span><span class="tag you">You</span><span class="tag">2 min + waits</span></div><h2>Run <code>cmail setup</code></h2></div>
+        <pre><code>cmail setup</code></pre>
+        <p>Answer two questions, then paste your token:</p>
+        <ol>
+          <li><strong>Receiving inbox</strong>, e.g. <code>you@gmail.com</code></li>
+          <li><strong>Your domain</strong>, e.g. <code>example.com</code></li>
+        </ol>
+        <p>cmail then creates the Cloudflare zone, enables Email Routing and adds a forwarding rule per address. It stops only when it needs you (steps 5 and 6).</p>
+        <details><summary>Want a preview first?</summary><p><code>cmail setup --dry-run</code> shows the full plan and any blockers. It changes nothing. It needs the token saved in your config first.</p></details>
+        <p class="done-when"><strong>Done when:</strong> setup is running past the token step. Keep the terminal open.</p>
+        <label class="check" for="step-setup"><input id="step-setup" type="checkbox">Setup is running</label>
+      </div>
+      <div class="visual">
+        <div class="term" data-replay aria-label="Replay of a cmail setup session">
+          <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i><span>cmail setup</span></div>
+          <pre><span class="p">$</span> cmail setup
+<span class="s">==&gt;</span> Setting up RECEIVING: your custom addresses will forward to an inbox you already use.
+
+<span class="s">── Dependencies ──</span>
+<span class="k"> ✓</span> curl present
+<span class="k"> ✓</span> jq present
+
+<span class="s">── Configuration ──</span>
+<span class="q"> ?</span> email address to receive forwarded mail (any provider): <span class="u">you@gmail.com</span>
+<span class="q"> ?</span> domain you already own, at any registrar (e.g. example.com): <span class="u">example.com</span>
+
+<span class="s">── Cloudflare API token ──</span>
+<span class="d">   … token instructions, browser opens …</span>
+<span class="q"> ?</span> paste Cloudflare API token: <span class="d">(hidden)</span>
+<span class="k"> ✓</span> Cloudflare token verified and saved to .env
+
+<span class="s">── Cloudflare zone: example.com ──</span>
+<span class="k"> ✓</span> zone 9a7f…e21c — nameservers: ada.ns.cloudflare.com bob.ns.cloudflare.com
+
+<span class="s">── Registrar nameservers: example.com ──</span>
+<span class="w"> !</span> zone is 'pending' — update the nameservers at your domain registrar yourself
+<span class="d">   … see step 5 …</span>
+
+<span class="s">── Waiting for zone activation (nameserver propagation) ──</span>
+<span class="d">    status: pending — retrying in 20s</span>
+<span class="k"> ✓</span> zone active
+
+<span class="s">── Enable Cloudflare Email Routing ──</span>
+<span class="k"> ✓</span> email routing enabled (Cloudflare routing DNS records added and locked)
+
+<span class="s">── Destination address: you@gmail.com ──</span>
+<span class="w"> !</span> verification email sent to you@gmail.com — click the Cloudflare link
+<span class="d">    still unverified — waiting (click the email link)…</span>
+<span class="k"> ✓</span> you@gmail.com verified
+
+<span class="s">── Forwarding addresses (hello,contact -&gt; you@gmail.com) ──</span>
+<span class="k"> ✓</span> hello@example.com -&gt; you@gmail.com
+<span class="k"> ✓</span> contact@example.com -&gt; you@gmail.com
+
+<span class="u">Receiving is set up</span>
+  hello@example.com -&gt; you@gmail.com
+  contact@example.com -&gt; you@gmail.com
+
+Elapsed time: 6m 41s (401 seconds)</pre>
+        </div>
+        <p class="term-caption">Illustrative session, shortened. Your values and timing will differ.</p>
+      </div>
+    </li>
+
+    <!-- 5 -->
+    <li class="step" id="nameservers">
+      <div>
+        <div class="step-head"><span class="num">5</span><div class="step-meta"><span class="tag you">You</span><span class="tag">Wait</span><span class="tag">5 min + DNS time</span></div><h2>Point your domain at Cloudflare</h2></div>
+        <p><strong>Skip this</strong> if setup says <code>zone already active on Cloudflare</code>. Otherwise, at your registrar:</p>
+        <ol>
+          <li><strong>Copy DNS records</strong> you still need (website, MX, TXT) into Cloudflare → your domain → DNS.</li>
+          <li><strong>Turn off DNSSEC</strong> (remove DS records). Re-enable it from Cloudflare later.</li>
+          <li><strong>Replace all nameservers</strong> with the two that cmail printed. Save.</li>
+        </ol>
+        <p>cmail checks every 20 seconds for up to 20 minutes. Propagation can take up to 24–48 hours. If the wait ends first, just run <code>cmail setup</code> again.</p>
+        <p class="done-when"><strong>Done when:</strong> cmail prints <code>✓ zone active</code>.</p>
+        <label class="check" for="step-nameservers"><input id="step-nameservers" type="checkbox">The zone is active</label>
+      </div>
+      <div class="visual">
+        <div class="swap" role="img" aria-label="At your registrar, replace the old nameservers with the two Cloudflare nameservers">
+          <div class="old"><small>Before</small>ns1.old-host.com<br>ns2.old-host.com</div>
+          <div class="arrow" aria-hidden="true">→</div>
+          <div class="new"><small>After (yours will differ)</small>ada.ns.cloudflare.com<br>bob.ns.cloudflare.com</div>
+        </div>
+        <div class="term" aria-label="What cmail prints when the zone is pending">
+          <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i><span>cmail setup</span></div>
+          <pre>Cloudflare assigned these nameservers to example.com:
+  ada.ns.cloudflare.com
+  bob.ns.cloudflare.com
+
+Before switching (services still using the old DNS
+host stop resolving otherwise):
+  1. Copy every DNS record you still need ...
+  2. Turn off DNSSEC at your registrar ...
+Then:
+  3. ... replace ALL nameservers with exactly
+     the ones listed above.
+  4. Save. cmail now checks Cloudflare activation
+     for up to 1200s.</pre>
+        </div>
+      </div>
+    </li>
+
+    <!-- 6 -->
+    <li class="step" id="verify">
+      <div>
+        <div class="step-head"><span class="num">6</span><div class="step-meta"><span class="tag you">You</span><span class="tag">1 min</span></div><h2>Click the verification email</h2></div>
+        <ol>
+          <li>Open your receiving inbox. Check <strong>Spam</strong> too.</li>
+          <li>Open the email from Cloudflare and click <strong>Verify email address</strong>.</li>
+          <li>Go back to the terminal. cmail notices within 15 seconds and finishes.</li>
+        </ol>
+        <p class="meta">No email? In Cloudflare → Email Routing → Destination addresses, resend it. Then rerun <code>cmail setup</code>.</p>
+        <p class="done-when"><strong>Done when:</strong> the terminal shows <code>Receiving is set up</code>.</p>
+        <label class="check" for="step-verify"><input id="step-verify" type="checkbox">Setup finished</label>
+      </div>
+      <div class="visual">
+        <div class="mock" aria-label="Simplified view of the Cloudflare verification email">
+          <div class="mock-bar" aria-hidden="true"><i></i><i></i><i></i><span>Inbox — you@gmail.com</span></div>
+          <div class="mock-body">
+            <div class="mail-head"><b>From</b><span>Cloudflare</span><b>To</b><span>you@gmail.com</span><b>Subject</b><span>Verify your email address</span></div>
+            <p>Confirm that you want to receive email forwarded by Cloudflare Email Routing.</p>
+            <span class="fake-btn">Verify email address</span>
+            <p class="meta" style="margin:.8rem 0 0;font-size:.8rem">Simplified illustration.</p>
+          </div>
+        </div>
+      </div>
+    </li>
+
+    <!-- 7 -->
+    <li class="step" id="test">
+      <div>
+        <div class="step-head"><span class="num">7</span><div class="step-meta"><span class="tag you">You</span><span class="tag">2 min</span></div><h2>Send yourself a test</h2></div>
+        <ol>
+          <li>From a <strong>different</strong> mailbox, email <code>hello@your-domain</code>.</li>
+          <li>Check it arrives in your receiving inbox (and Spam).</li>
+          <li>Repeat for each address. <code>cmail list</code> shows them all.</li>
+        </ol>
+        <p class="meta">Sending from the receiving inbox itself can be silently dropped by some providers, so it is not proof.</p>
+        <p class="done-when"><strong>Done when:</strong> a test message arrives for every address.</p>
+        <label class="check" for="step-test"><input id="step-test" type="checkbox">Test emails arrived</label>
+      </div>
+      <div class="visual">
+        <div class="term" aria-label="Terminal: cmail list">
+          <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i><span>cmail list</span></div>
+          <pre><span class="p">$</span> cmail list
+Addresses on example.com (2):
+  contact@example.com -&gt; you@gmail.com (verified)
+  hello@example.com   -&gt; you@gmail.com (verified)
+Catch-all (any other address): disabled -&gt; drop</pre>
+        </div>
+        <svg class="diagram" viewBox="0 0 420 90" role="img" aria-labelledby="test-t">
+          <title id="test-t">A friend's mailbox sends to hello@example.com, which arrives at you@gmail.com</title>
+          <rect class="flow-box" x="5" y="15" width="120" height="60" rx="8"/><text x="20" y="42" font-size="14" font-weight="700">Other mailbox</text><text class="sub" x="20" y="61">sends test</text>
+          <rect class="flow-box cf" x="150" y="15" width="120" height="60" rx="8"/><text x="163" y="42" font-size="14" font-weight="700">hello@</text><text class="sub" x="163" y="61">example.com</text>
+          <rect class="flow-box" x="295" y="15" width="120" height="60" rx="8"/><text x="310" y="42" font-size="14" font-weight="700">Your inbox</text><text class="sub" x="310" y="61">✓ arrived</text>
+          <path class="flow-line" d="M125 45 H150 M270 45 H295"/>
+        </svg>
+      </div>
+    </li>
+
+    <!-- 8 -->
+    <li class="step" id="send">
+      <div>
+        <div class="step-head"><span class="num">8</span><div class="step-meta"><span class="tag">Optional</span><span class="tag you">You</span><span class="tag">5 min</span></div><h2>Optional: send from your address</h2></div>
+        <p><strong>Sending is optional.</strong> Skip this if you only need to receive. It needs a Gmail account.</p>
+        <p class="callout warn">Google has announced it will remove third-party “Send as” starting <strong>January 2027</strong>. Check <a href="https://support.google.com/mail/answer/22370">Google’s help</a> first.</p>
+        <pre><code>cmail send-as</code></pre>
+        <ol>
+          <li>Create a Google <a href="https://myaccount.google.com/apppasswords">App Password</a> (needs 2-Step Verification).</li>
+          <li>Gmail → Settings → Accounts and Import → <strong>Send mail as</strong> → Add another email address.</li>
+          <li>Enter the SMTP settings on the right. Confirm with the code Gmail emails to your new address.</li>
+        </ol>
+        <p class="meta">App Passwords may be unavailable on work/school accounts or with Advanced Protection. Don’t disable security to work around it.</p>
+        <p class="done-when"><strong>Done when:</strong> a message sent “from” your address reaches another mailbox, or you skipped this step.</p>
+        <label class="check" for="step-send"><input id="step-send" type="checkbox">Sending works, or I skipped it</label>
+      </div>
+      <div class="visual">
+        <div class="mock" aria-label="Simplified view of Gmail SMTP settings">
+          <div class="mock-bar" aria-hidden="true"><i></i><i></i><i></i><span>Gmail — Add another email address</span></div>
+          <div class="mock-body">
+            <div class="table-wrap"><table>
+              <caption class="meta" style="caption-side:bottom;text-align:left;padding-top:.5rem">Replace what Gmail pre-fills. Simplified illustration.</caption>
+              <tbody>
+                <tr><th scope="row">SMTP server</th><td>smtp.gmail.com</td></tr>
+                <tr><th scope="row">Port</th><td>587</td></tr>
+                <tr><th scope="row">Security</th><td>TLS</td></tr>
+                <tr><th scope="row">Username</th><td>you@gmail.com</td></tr>
+                <tr><th scope="row">Password</th><td>App Password, not your Gmail password</td></tr>
+              </tbody>
+            </table></div>
+            <span class="fake-btn">Add account</span>
+          </div>
+        </div>
+      </div>
+    </li>
+  </ol>
+
+  <section class="block" aria-labelledby="stuck">
+    <h2 id="stuck">Stuck?</h2>
+    <div class="grid">
+      <div class="card"><h3>Setup stopped</h3><p>Read the <code>Setup stopped at:</code> line, fix that step, then rerun <code>cmail setup</code>. Finished steps are skipped.</p></div>
+      <div class="card"><h3>Check the state</h3><p><code>cmail status</code> shows zone, routing, destination and rules. <code>cmail doctor</code> checks tools, config and token.</p></div>
+      <div class="card"><h3>Token errors</h3><p>A 403 names the missing permission. Edit the token in Cloudflare, add it, and rerun setup.</p></div>
+    </div>
+    <p class="meta">More in the <a href="docs.html">CLI docs</a> and the <a href="https://github.com/luongnv89/cmail/blob/main/skills/cmail-setup/references/troubleshooting.md">troubleshooting reference</a>. Using GoDaddy? <code>cmail setup --registrar godaddy</code> can switch nameservers for you.</p>
+  </section>
 </main>
-<footer>cmail · Checkmarks never change provider settings. <a href="index.html">Return to introduction</a> · <a href="https://github.com/luongnv89/cmail/issues">Report a documentation issue</a>.</footer>
+<footer><span>Checkmarks are your own record. They never change provider settings.</span><nav aria-label="Footer"><a href="index.html">Home</a><a href="docs.html">Docs</a><a href="changelog.html">Changelog</a><a href="privacy.html">Privacy</a><a href="https://github.com/luongnv89/cmail/issues">Report an issue</a></nav></footer>
 </body>
 </html>

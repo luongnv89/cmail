@@ -1,11 +1,12 @@
 /* Progressive enhancement only: the guide and native checkboxes work without JS. */
 (function () {
   'use strict';
-  const KEY = 'cmail:setup-progress:v1';
+  // v2: the 0.2.0 guide has 8 steps; v1 (14-step guide) progress is not migrated.
+  const KEY = 'cmail:setup-progress:v2';
+  const LEGACY_KEY = 'cmail:setup-progress:v1';
   // Semantic IDs are allowlisted, never inferred from user input or page text.
-  const IDS = Object.freeze(['readiness', 'install', 'dependencies', 'registrar',
-    'zone', 'token', 'config', 'access', 'delegation', 'routing', 'destination',
-    'rules', 'gmail', 'delivery']);
+  const IDS = Object.freeze(['ready', 'install', 'token', 'setup', 'nameservers',
+    'verify', 'test', 'send']);
 
   function parse(raw) {
     if (raw === null) return { steps: {}, corrupt: false };
@@ -38,6 +39,7 @@
       const loaded = parse(storage().getItem(KEY));
       state = loaded.steps;
       if (loaded.corrupt) message = 'Saved progress was invalid and has been ignored. Check steps again; the next change replaces it.';
+      storage().removeItem(LEGACY_KEY); // only this site's own retired key
     } catch (_) {
       message = 'Browser storage is unavailable. Checkboxes work for this visit; progress may not survive reload.';
     }
