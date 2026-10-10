@@ -21,8 +21,9 @@ if [ "$local_mode" = 1 ]; then
   [ -z "${CMAIL_REF:-}" ] || fail 'CMAIL_REF applies to remote installation; unset it for --local'
   # A piped script has no file path, so there is no checkout to copy from.
   script_path="${BASH_SOURCE[0]:-}"
-  [ -n "$script_path" ] && [ -f "$script_path" ] \
-    || fail '--local needs a cloned checkout: run bash install.sh --local inside it'
+  if [ -z "$script_path" ] || [ ! -f "$script_path" ]; then
+    fail '--local needs a cloned checkout: run bash install.sh --local inside it'
+  fi
   SOURCE_DIR="$(cd "$(dirname "$script_path")" && pwd)"
 fi
 [ -n "${HOME:-}" ] || fail 'HOME must be set'
