@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fix plain-text `cmail status` failing with "could not format routing state"
+  when a rule has no forward destinations (drop, worker, catch-all, or no
+  action). Rules now show `drop`, `worker NAME`, `no action`, and `catch-all`;
+  JSON output is unchanged. Adds an offline regression.
 - Add read-only `cmail list [--domain DOMAIN]`: every address on a domain, sorted,
   with its forward destinations (marked verified, unverified or unregistered),
   drop/worker actions, disabled rules, and the catch-all rule. Text and

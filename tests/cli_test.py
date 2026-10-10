@@ -216,6 +216,27 @@ esac''')
             self.assertNotIn('synthetic-token',result.stdout+result.stderr)
         self.assertNotIn('POST',self.calls.read_text())
 
+    def test_status_text_handles_non_forward_rules(self):
+        self.cloudflare()
+        self.fixtures['/zones/'+self.zone+'/email/routing/rules?per_page=50&page=1']['result'] = [
+            {'id':'rule-1','enabled':True,'matchers':[{'field':'to','type':'literal','value':'hello@example.com'}],
+             'actions':[{'type':'forward','value':['owner@example.net','second@example.org']}]},
+            {'id':'rule-2','enabled':True,'matchers':[{'field':'to','type':'literal','value':'bot@example.com'}],
+             'actions':[{'type':'worker','value':['parser']}]},
+            {'id':'rule-3','enabled':True,'matchers':[{'field':'to','type':'literal','value':'spam@example.com'}],
+             'actions':[{'type':'drop'}]},
+            {'id':'rule-4','enabled':False,'matchers':[],'actions':[]},
+            {'id':'catch-all','enabled':False,'matchers':[{'type':'all'}],'actions':[{'type':'drop'}]}]
+        self.save_responses()
+        result=self.invoke('status')
+        self.assertEqual(result.returncode,0,result.stderr)
+        for line in ['  hello@example.com -> owner@example.net, second@example.org  enabled=true',
+                     '  bot@example.com -> worker parser  enabled=true',
+                     '  spam@example.com -> drop  enabled=true',
+                     '  custom matcher -> no action  enabled=false',
+                     '  catch-all -> drop  enabled=false']:
+            self.assertIn(line,result.stdout.splitlines())
+
     def test_status_late_failure_has_no_partial_stdout(self):
         self.cloudflare()
         self.fixtures['/zones/'+self.zone+'/email/routing/rules?per_page=50&page=1']={
