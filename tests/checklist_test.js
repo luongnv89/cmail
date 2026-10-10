@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { KEY, IDS, parse, init } = require('../docs/assets/checklist.js');
 
-function fixture(storage = memory()) {
+function fixture(storage = memory(), { card = true } = {}) {
   const nodes = new Map();
   function node() {
     return { checked: false, hidden: true, textContent: '', listeners: {},
@@ -12,11 +12,17 @@ function fixture(storage = memory()) {
   }
   for (const id of IDS) nodes.set('#step-' + id, node());
   for (const id of ['progress-panel', 'setup-progress', 'progress-count', 'storage-notice', 'reset-progress']) nodes.set('#' + id, node());
+  if (card) nodes.set('#setup-complete', node());
   const root = { querySelector: id => nodes.get(id) };
   init(root, typeof storage === 'function' ? storage : () => storage);
   return { nodes, root, storage, first: nodes.get('#step-' + IDS[0]),
     count: nodes.get('#progress-count'), meter: nodes.get('#setup-progress'),
-    notice: nodes.get('#storage-notice'), reset: nodes.get('#reset-progress') };
+    notice: nodes.get('#storage-notice'), reset: nodes.get('#reset-progress'),
+    card: nodes.get('#setup-complete'),
+    checkAll(checked = true) {
+      for (const id of IDS) nodes.get('#step-' + id).checked = checked;
+      nodes.get('#step-' + IDS[0]).fire('change');
+    } };
 }
 function memory() {
   const items = new Map();
@@ -125,4 +131,56 @@ test('retired v1 progress key is removed; unrelated keys are kept', () => {
   fixture(storage);
   assert.equal(storage.getItem('cmail:setup-progress:v1'), null);
   assert.equal(storage.getItem('unrelated'), 'retained');
+});
+test('steps follow the guide order: the Cloudflare domain step comes before setup', () => {
+  assert.deepEqual(IDS, ['ready', 'install', 'token', 'nameservers', 'setup', 'verify', 'test', 'send']);
+});
+test('saved progress from the previous step order still loads by step ID', () => {
+  const storage = memory();
+  storage.setItem(KEY, JSON.stringify({ version: 1, steps: { ready: true, install: true, token: true,
+    setup: true, nameservers: false, verify: false, test: false, send: false } }));
+  const f = fixture(storage);
+  assert.equal(f.nodes.get('#step-setup').checked, true);
+  assert.equal(f.nodes.get('#step-nameservers').checked, false);
+  assert.equal(f.meter.value, 4);
+  assert.doesNotMatch(f.notice.textContent, /invalid/);
+});
+test('congratulations card stays hidden until every step is checked', () => {
+  const f = fixture();
+  assert.equal(f.card.hidden, true);
+  for (const id of IDS.slice(0, -1)) f.nodes.get('#step-' + id).checked = true;
+  f.first.fire('change');
+  assert.equal(f.meter.value, IDS.length - 1);
+  assert.equal(f.card.hidden, true);
+});
+test('checking every step shows the congratulations card', () => {
+  const f = fixture(); f.checkAll();
+  assert.equal(f.meter.value, 8);
+  assert.equal(f.card.hidden, false);
+});
+test('unchecking any step hides the congratulations card again', () => {
+  for (const id of IDS) {
+    const f = fixture(); f.checkAll();
+    const input = f.nodes.get('#step-' + id);
+    input.checked = false; input.fire('change');
+    assert.equal(f.card.hidden, true, id);
+  }
+});
+test('reset hides the congratulations card', () => {
+  const f = fixture(); f.checkAll();
+  f.reset.fire('click');
+  assert.equal(f.card.hidden, true);
+});
+test('congratulations card state is correct after reload', () => {
+  const storage = memory(); const f = fixture(storage); f.checkAll();
+  assert.equal(fixture(storage).card.hidden, false);
+  f.first.checked = false; f.first.fire('change');
+  assert.equal(fixture(storage).card.hidden, true);
+});
+test('progress still works on a page without the congratulations card', () => {
+  const f = fixture(memory(), { card: false });
+  assert.equal(f.card, undefined);
+  assert.equal(f.nodes.get('#progress-panel').hidden, false);
+  assert.doesNotThrow(() => f.checkAll());
+  assert.equal(f.meter.value, 8);
 });

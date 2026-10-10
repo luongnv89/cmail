@@ -142,6 +142,32 @@ test('all checked steps retain visible safety details; completion is not verific
     assert.equal(await page.locator('#send .callout').isVisible(), true);
   } finally { await ctx.close(); }
 });
+test('congratulations card appears when every step is checked and survives reload', async () => {
+  const ctx = await context();
+  try {
+    const { page, errors } = await pageFor(ctx);
+    const card = page.locator('#setup-complete');
+    assert.equal(await card.isVisible(), false);
+    const inputs = await page.getByRole('checkbox').all();
+    for (const input of inputs) await input.check();
+    assert.equal(await card.isVisible(), true);
+    assert.equal(await card.getByRole('link', { name: 'Star cmail on GitHub' }).getAttribute('href'),
+      'https://github.com/luongnv89/cmail');
+    await page.reload(); assert.equal(await card.isVisible(), true);
+    await page.getByRole('checkbox', { name: 'My domain is on Cloudflare', exact: true }).uncheck();
+    assert.equal(await card.isVisible(), false);
+    await page.reload(); assert.equal(await card.isVisible(), false);
+    assert.deepEqual(errors, []);
+  } finally { await ctx.close(); }
+});
+test('no-JS guide never shows the congratulations card', async () => {
+  const ctx = await context({ javaScriptEnabled: false });
+  try {
+    const { page } = await pageFor(ctx);
+    for (const input of await page.getByRole('checkbox').all()) await input.check();
+    assert.equal(await page.locator('#setup-complete').isVisible(), false);
+  } finally { await ctx.close(); }
+});
 for (const width of [375, 768, 1280]) {
   test(`offline static site at ${width}px has no overflow or broken assets`, async () => {
     const ctx = await context({ viewport: { width, height: 900 } });

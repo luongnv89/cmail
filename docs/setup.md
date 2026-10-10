@@ -7,7 +7,7 @@ Do them in order and tick each one when its **Done when** check passes.
 `cmail setup` can be rerun at any time; finished steps are skipped.
 
 ```text
-1 Prepare → 2 Install → 3 Token → 4 Run setup → 5 Nameservers → 6 Verify inbox → 7 Test → 8 Send (optional)
+1 Prepare → 2 Install → 3 Token → 4 Add domain (if needed) → 5 Run setup → 6 Verify inbox → 7 Test → 8 Send (optional)
 ```
 
 ### 1. Check you have everything
@@ -18,7 +18,7 @@ Do them in order and tick each one when its **Done when** check passes.
 - A second mailbox to send a test from
 - macOS or Linux with `bash`, `curl`, `jq` and `git`
 
-Already use the domain for a website or email? Note its DNS records now (step 5).
+Already use the domain for a website or email? Note its DNS records now (step 4).
 
 **Done when:** you can log in to your registrar, Cloudflare and both mailboxes.
 
@@ -59,33 +59,36 @@ Copy the token. Never paste it into chat, a web page or a screenshot.
 
 - [ ] I created the token
 
-### 4. Run `cmail setup`
+### 4. If needed: add your domain to Cloudflare
+
+**Only needed if your domain is not on Cloudflare yet.** Already listed as **Active** under Domains in Cloudflare?
+Tick this step and go on: `cmail setup` will say `zone already active on Cloudflare`.
+
+1. Open the [Cloudflare dashboard](https://dash.cloudflare.com/) → **Domains** → **Add a domain**. Enter your domain and choose the Free plan.
+2. Check the DNS records Cloudflare found. Add any you still need (website, MX, TXT).
+3. Follow Cloudflare's instructions to switch nameservers at your current registrar: turn off DNSSEC (remove DS records)
+   first, then replace **all** nameservers with the two Cloudflare shows.
+
+Propagation can take 24–48 hours. You do not have to wait here: `cmail setup` (step 5) waits up to 20 minutes, and you can rerun it any time.
+
+**Done when:** your domain is listed in Cloudflare and your registrar uses Cloudflare's two nameservers (it may still show Pending).
+
+- [ ] My domain is on Cloudflare
+
+### 5. Run `cmail setup`
 
 ```bash
 cmail setup
 ```
 
 Answer two questions (receiving inbox, your domain), then paste the token.
-cmail creates the zone, enables Email Routing and adds a rule per address.
+cmail finds your domain on Cloudflare (or adds it, if it is not there yet), waits until it is active,
+enables Email Routing and adds a rule per address. If the nameservers are still switching, it prints them (step 4) and waits.
 Want a preview first? `cmail setup --dry-run` changes nothing.
 
 **Done when:** setup is running past the token step.
 
 - [ ] Setup is running
-
-### 5. Point your domain at Cloudflare
-
-Skip if setup says `zone already active on Cloudflare`. Otherwise, at your registrar:
-
-1. Copy the DNS records you still need (website, MX, TXT) into Cloudflare DNS.
-2. Turn off DNSSEC (remove DS records).
-3. Replace **all** nameservers with the two cmail printed.
-
-cmail waits up to 20 minutes. Propagation can take 24–48 hours; if the wait ends, rerun `cmail setup`.
-
-**Done when:** cmail prints `✓ zone active`.
-
-- [ ] The zone is active
 
 ### 6. Click the verification email
 
@@ -117,6 +120,11 @@ App Passwords may be unavailable on work/school accounts or with Advanced Protec
 **Done when:** mail sent "from" your address reaches another mailbox, or you skipped this step.
 
 - [ ] Sending works, or I skipped it
+
+## All done
+
+Congratulations, you are all set! If cmail saved you some time, please
+[star the project on GitHub](https://github.com/luongnv89/cmail). It helps other people find it.
 
 ## Stuck?
 

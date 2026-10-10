@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, unquote
 
 ROOT = Path(__file__).resolve().parents[1]
-IDS = ['ready', 'install', 'token', 'setup', 'nameservers', 'verify', 'test', 'send']
+IDS = ['ready', 'install', 'token', 'nameservers', 'setup', 'verify', 'test', 'send']
 PAGES = ['index.html', 'setup.html', 'docs.html', 'changelog.html', 'privacy.html']
 
 
@@ -90,6 +90,57 @@ class SiteTests(unittest.TestCase):
         css = (ROOT / 'docs/assets/styles.css').read_text()
         for step in IDS:
             self.assertIn('#step-%s:checked) .stepper a[href="#%s"]' % (step, step), css)
+
+    def test_issue26_cloudflare_domain_step_comes_before_setup_and_is_conditional(self):
+        html = (ROOT / 'docs/setup.html').read_text()
+        self.assertLess(html.index('id="nameservers"'), html.index('class="step" id="setup"'))
+        step = re.search(r'<li class="step" id="nameservers">(.*?)</li>\s*<!-- 5 -->', html, re.S).group(1)
+        self.assertIn('<span class="num">4</span>', step)
+        text = ' '.join(unescape(re.sub(r'<[^>]+>', '', step)).split())
+        for value in ['If needed: add your domain to Cloudflare',
+                      'Only needed if your domain is not on Cloudflare yet.',
+                      'Cloudflare dashboard → Domains → Add a domain',
+                      'Follow Cloudflare’s instructions to switch nameservers at your current registrar']:
+            self.assertIn(value, text)
+        self.assertIn('href="https://dash.cloudflare.com/"', step)
+        js = (ROOT / 'docs/assets/checklist.js').read_text()
+        allowlist = re.search(r'const IDS = Object\.freeze\(\[(.*?)\]\)', js, re.S).group(1)
+        self.assertEqual(re.findall(r"'([a-z]+)'", allowlist), IDS)
+        setup = re.search(r'<li class="step" id="setup">(.*?)<!-- 6 -->', html, re.S).group(1)
+        self.assertIn('<span class="num">5</span>', setup)
+        stepper = re.search(r'<ol class="stepper">(.*?)</ol>', html, re.S).group(1)
+        self.assertIn('<span class="num">4</span><span class="opt">Add domain (if needed)</span>', stepper)
+        self.assertIn('<span class="num">5</span>Run setup', stepper)
+        # Cross-references follow the new numbering: the nameserver step is 4, setup is 5.
+        flat = unescape(re.sub(r'<[^>]+>', '', html))
+        self.assertIn('copy them into Cloudflare in step 4', flat)
+        self.assertIn('… see step 4 …', flat)
+        self.assertNotIn('steps 5 and 6', flat)
+        self.assertNotIn('see step 5', flat)
+        md = (ROOT / 'docs/setup.md').read_text()
+        self.assertIn('4 Add domain (if needed) → 5 Run setup', md)
+        self.assertLess(md.index('### 4. If needed: add your domain to Cloudflare'),
+                        md.index('### 5. Run `cmail setup`'))
+        for value in ['**Only needed if your domain is not on Cloudflare yet.**',
+                      '**Domains** → **Add a domain**',
+                      "Follow Cloudflare's instructions to switch nameservers at your current registrar",
+                      'DNS records now (step 4)']:
+            self.assertIn(value, md)
+
+    def test_issue27_completion_card_asks_for_a_github_star(self):
+        page = Page(ROOT / 'docs/setup.html')
+        card = next(a for _, a in page.elements if a.get('id') == 'setup-complete')
+        self.assertIn('hidden', card)  # shown only by checklist.js once every step is ticked
+        html = (ROOT / 'docs/setup.html').read_text()
+        self.assertLess(html.index('class="step" id="send"'), html.index('id="setup-complete"'))
+        section = re.search(r'<section id="setup-complete"(.*?)</section>', html, re.S).group(1)
+        self.assertIn('href="https://github.com/luongnv89/cmail"', section)
+        text = unescape(re.sub(r'<[^>]+>', '', section))
+        self.assertIn('Congratulations', text)
+        self.assertIn('Star cmail on GitHub', text)
+        self.assertIn("'#setup-complete'", (ROOT / 'docs/assets/checklist.js').read_text())
+        md = (ROOT / 'docs/setup.md').read_text()
+        self.assertIn('[star the project on GitHub](https://github.com/luongnv89/cmail)', md)
 
     def test_every_page_links_every_page(self):
         for name in PAGES:

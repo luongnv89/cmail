@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Set up hello@your-domain in 8 short steps: install cmail, create a Cloudflare token, run cmail setup, switch nameservers, verify and test.">
+  <meta name="description" content="Set up hello@your-domain in 8 short steps: install cmail, create a Cloudflare token, add your domain to Cloudflare if needed, run cmail setup, verify and test.">
   <title>Setup guide — cmail</title>
   <link rel="stylesheet" href="assets/styles.css">
   <script src="assets/checklist.js" defer></script>
@@ -18,7 +18,7 @@
     <h1>From domain to inbox in 8 steps.</h1>
     <p class="lead">A few simple steps, in order. Tick each one when its <strong>Done when</strong> check passes. Your ticks are saved in this browser only.</p>
     <div class="overview">
-      <div><b>8 steps</b>7 required, 1 optional (sending)</div>
+      <div><b>8 steps</b>Step 4 only if your domain is not on Cloudflare yet · step 8 optional (sending)</div>
       <div><b>3 tags</b><span class="tag you">You</span> hands-on · <span class="tag auto">cmail</span> automatic · <span class="tag">Wait</span> DNS time</div>
       <div><b>Rerun anytime</b><code>cmail setup</code> skips what is already done</div>
     </div>
@@ -30,8 +30,8 @@
         <li><a href="#ready"><span class="num">1</span>Prepare</a></li>
         <li><a href="#install"><span class="num">2</span>Install</a></li>
         <li><a href="#token"><span class="num">3</span>Token</a></li>
-        <li><a href="#setup"><span class="num">4</span>Run setup</a></li>
-        <li><a href="#nameservers"><span class="num">5</span>Nameservers</a></li>
+        <li><a href="#nameservers"><span class="num">4</span><span class="opt">Add domain (if needed)</span></a></li>
+        <li><a href="#setup"><span class="num">5</span>Run setup</a></li>
         <li><a href="#verify"><span class="num">6</span>Verify inbox</a></li>
         <li><a href="#test"><span class="num">7</span>Test</a></li>
         <li><a href="#send"><span class="num">8</span><span class="opt">Send (optional)</span></a></li>
@@ -58,7 +58,7 @@
           <li>A <strong>second mailbox</strong> to send a test from.</li>
           <li>macOS or Linux with <code>bash</code>, <code>curl</code>, <code>jq</code> and <code>git</code>.</li>
         </ul>
-        <p class="callout warn">Already use this domain for a website or email? Note its DNS records now. You will copy them into Cloudflare in step 5.</p>
+        <p class="callout warn">Already use this domain for a website or email? Note its DNS records now. You will copy them into Cloudflare in step 4.</p>
         <p class="done-when"><strong>Done when:</strong> you can log in to your registrar, Cloudflare and both mailboxes.</p>
         <label class="check" for="step-ready"><input id="step-ready" type="checkbox">I have everything I need</label>
       </div>
@@ -144,16 +144,56 @@ Next: cmail setup
     </li>
 
     <!-- 4 -->
+    <li class="step" id="nameservers">
+      <div>
+        <div class="step-head"><span class="num">4</span><div class="step-meta"><span class="tag">If needed</span><span class="tag you">You</span><span class="tag">Wait</span><span class="tag">5 min + DNS time</span></div><h2>If needed: add your domain to Cloudflare</h2></div>
+        <p><strong>Only needed if your domain is not on Cloudflare yet.</strong> Already listed as <strong>Active</strong> under Domains in Cloudflare? Tick this step and go on: <code>cmail setup</code> will say <code>zone already active on Cloudflare</code>.</p>
+        <ol>
+          <li>Open the <a href="https://dash.cloudflare.com/">Cloudflare dashboard</a> → <strong>Domains</strong> → <strong>Add a domain</strong>. Enter your domain and choose the Free plan.</li>
+          <li><strong>Check the DNS records</strong> Cloudflare found. Add any you still need (website, MX, TXT).</li>
+          <li><strong>Follow Cloudflare’s instructions</strong> to switch nameservers at your current registrar: turn off <strong>DNSSEC</strong> (remove DS records) first, then <strong>replace all nameservers</strong> with the two Cloudflare shows. Save.</li>
+        </ol>
+        <p>Propagation can take up to 24–48 hours. You do not have to wait here: in step 5, <code>cmail setup</code> checks every 20 seconds for up to 20 minutes, and you can rerun it any time.</p>
+        <p class="done-when"><strong>Done when:</strong> your domain is listed in Cloudflare and your registrar uses Cloudflare’s two nameservers (Cloudflare may still show <strong>Pending</strong> for a while).</p>
+        <label class="check" for="step-nameservers"><input id="step-nameservers" type="checkbox">My domain is on Cloudflare</label>
+      </div>
+      <div class="visual">
+        <div class="swap" role="img" aria-label="At your registrar, replace the old nameservers with the two Cloudflare nameservers">
+          <div class="old"><small>Before</small>ns1.old-host.com<br>ns2.old-host.com</div>
+          <div class="arrow" aria-hidden="true">→</div>
+          <div class="new"><small>After (yours will differ)</small>ada.ns.cloudflare.com<br>bob.ns.cloudflare.com</div>
+        </div>
+        <div class="term" aria-label="What cmail setup prints when the zone is still pending">
+          <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i><span>cmail setup</span></div>
+          <pre>Cloudflare assigned these nameservers to example.com:
+  ada.ns.cloudflare.com
+  bob.ns.cloudflare.com
+
+Before switching (services still using the old DNS
+host stop resolving otherwise):
+  1. Copy every DNS record you still need ...
+  2. Turn off DNSSEC at your registrar ...
+Then:
+  3. ... replace ALL nameservers with exactly
+     the ones listed above.
+  4. Save. cmail now checks Cloudflare activation
+     for up to 1200s.</pre>
+        </div>
+        <p class="term-caption">If the switch is not finished when you run setup, cmail prints the same nameservers and waits.</p>
+      </div>
+    </li>
+
+    <!-- 5 -->
     <li class="step" id="setup">
       <div>
-        <div class="step-head"><span class="num">4</span><div class="step-meta"><span class="tag auto">cmail</span><span class="tag you">You</span><span class="tag">2 min + waits</span></div><h2>Run <code>cmail setup</code></h2></div>
+        <div class="step-head"><span class="num">5</span><div class="step-meta"><span class="tag auto">cmail</span><span class="tag you">You</span><span class="tag">2 min + waits</span></div><h2>Run <code>cmail setup</code></h2></div>
         <pre><code>cmail setup</code></pre>
         <p>Answer two questions, then paste your token:</p>
         <ol>
           <li><strong>Receiving inbox</strong>, e.g. <code>you@gmail.com</code></li>
           <li><strong>Your domain</strong>, e.g. <code>example.com</code></li>
         </ol>
-        <p>cmail then creates the Cloudflare zone, enables Email Routing and adds a forwarding rule per address. It stops only when it needs you (steps 5 and 6).</p>
+        <p>cmail then finds your domain on Cloudflare (or adds it, if it is not there yet), waits until it is active, enables Email Routing and adds a forwarding rule per address. It stops only when it needs you: nameservers still switching (step 4) or the verification email (step 6).</p>
         <details><summary>Want a preview first?</summary><p><code>cmail setup --dry-run</code> shows the full plan and any blockers. It changes nothing. It needs the token saved in your config first.</p></details>
         <p class="done-when"><strong>Done when:</strong> setup is running past the token step. Keep the terminal open.</p>
         <label class="check" for="step-setup"><input id="step-setup" type="checkbox">Setup is running</label>
@@ -182,7 +222,7 @@ Next: cmail setup
 
 <span class="s">── Registrar nameservers: example.com ──</span>
 <span class="w"> !</span> zone is 'pending' — update the nameservers at your domain registrar yourself
-<span class="d">   … see step 5 …</span>
+<span class="d">   … see step 4 …</span>
 
 <span class="s">── Waiting for zone activation (nameserver propagation) ──</span>
 <span class="d">    status: pending — retrying in 20s</span>
@@ -207,45 +247,6 @@ Next: cmail setup
 Elapsed time: 6m 41s (401 seconds)</pre>
         </div>
         <p class="term-caption">Illustrative session, shortened. Your values and timing will differ.</p>
-      </div>
-    </li>
-
-    <!-- 5 -->
-    <li class="step" id="nameservers">
-      <div>
-        <div class="step-head"><span class="num">5</span><div class="step-meta"><span class="tag you">You</span><span class="tag">Wait</span><span class="tag">5 min + DNS time</span></div><h2>Point your domain at Cloudflare</h2></div>
-        <p><strong>Skip this</strong> if setup says <code>zone already active on Cloudflare</code>. Otherwise, at your registrar:</p>
-        <ol>
-          <li><strong>Copy DNS records</strong> you still need (website, MX, TXT) into Cloudflare → your domain → DNS.</li>
-          <li><strong>Turn off DNSSEC</strong> (remove DS records). Re-enable it from Cloudflare later.</li>
-          <li><strong>Replace all nameservers</strong> with the two that cmail printed. Save.</li>
-        </ol>
-        <p>cmail checks every 20 seconds for up to 20 minutes. Propagation can take up to 24–48 hours. If the wait ends first, just run <code>cmail setup</code> again.</p>
-        <p class="done-when"><strong>Done when:</strong> cmail prints <code>✓ zone active</code>.</p>
-        <label class="check" for="step-nameservers"><input id="step-nameservers" type="checkbox">The zone is active</label>
-      </div>
-      <div class="visual">
-        <div class="swap" role="img" aria-label="At your registrar, replace the old nameservers with the two Cloudflare nameservers">
-          <div class="old"><small>Before</small>ns1.old-host.com<br>ns2.old-host.com</div>
-          <div class="arrow" aria-hidden="true">→</div>
-          <div class="new"><small>After (yours will differ)</small>ada.ns.cloudflare.com<br>bob.ns.cloudflare.com</div>
-        </div>
-        <div class="term" aria-label="What cmail prints when the zone is pending">
-          <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i><span>cmail setup</span></div>
-          <pre>Cloudflare assigned these nameservers to example.com:
-  ada.ns.cloudflare.com
-  bob.ns.cloudflare.com
-
-Before switching (services still using the old DNS
-host stop resolving otherwise):
-  1. Copy every DNS record you still need ...
-  2. Turn off DNSSEC at your registrar ...
-Then:
-  3. ... replace ALL nameservers with exactly
-     the ones listed above.
-  4. Save. cmail now checks Cloudflare activation
-     for up to 1200s.</pre>
-        </div>
       </div>
     </li>
 
@@ -343,6 +344,13 @@ Catch-all (any other address): disabled -&gt; drop</pre>
       </div>
     </li>
   </ol>
+
+  <section id="setup-complete" class="complete-card" aria-labelledby="complete-title" hidden>
+    <p class="kicker">All 8 steps checked</p>
+    <h2 id="complete-title">Congratulations, you are all set!</h2>
+    <p>You ticked every step. Enjoy your custom address! If cmail saved you some time, please star the project on GitHub. It helps other people find it.</p>
+    <p class="actions"><a class="button primary" href="https://github.com/luongnv89/cmail"><span aria-hidden="true">★&nbsp;</span>Star cmail on GitHub</a></p>
+  </section>
 
   <section class="block" aria-labelledby="stuck">
     <h2 id="stuck">Stuck?</h2>
