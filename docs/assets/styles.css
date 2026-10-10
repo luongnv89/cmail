@@ -184,6 +184,10 @@ body:has(#step-send:checked) .stepper a[href="#send"] .num { background: var(--i
 /* Completion is non-destructive: instructions stay readable when checked. */
 .step:has(input:checked) .step-head .num { background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 3px var(--accent); }
 .visual > :last-child { margin-bottom: 0; }
+.complete-card { border: 2px solid var(--ink); border-top: 6px solid var(--accent); padding: 1.8rem 2rem; margin: -1rem 0 3rem; background: var(--soft); }
+.complete-card h2 { margin: .4rem 0 .8rem; }
+.complete-card p { max-width: 60ch; }
+.complete-card .actions { margin: 1.2rem 0 0; }
 
 /* Docs page */
 .docs-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 3rem; margin: 1rem 0 4rem; }
@@ -223,6 +227,7 @@ body:has(#step-send:checked) .stepper a[href="#send"] .num { background: var(--i
   .steps-row { grid-template-columns: minmax(0, 1fr); }
   .term pre { font-size: .74rem; }
   th, td { padding: .45rem; }
+  .complete-card { padding: 1.3rem; }
 }
 @media print {
   header, .guide-top, .actions, footer, .term-bar button { display: none; }

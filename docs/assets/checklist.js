@@ -5,7 +5,8 @@
   const KEY = 'cmail:setup-progress:v2';
   const LEGACY_KEY = 'cmail:setup-progress:v1';
   // Semantic IDs are allowlisted, never inferred from user input or page text.
-  const IDS = Object.freeze(['ready', 'install', 'token', 'setup', 'nameservers',
+  // Saved progress is keyed by ID, not position, so reordering steps keeps old ticks valid.
+  const IDS = Object.freeze(['ready', 'install', 'token', 'nameservers', 'setup',
     'verify', 'test', 'send']);
 
   function parse(raw) {
@@ -32,6 +33,8 @@
     const notice = root.querySelector('#storage-notice');
     const reset = root.querySelector('#reset-progress');
     if (inputs.some(input => !input) || !panel || !meter || !count || !notice || !reset) return;
+    // Optional: progress still works on pages without the congratulations card.
+    const complete = root.querySelector('#setup-complete');
     const saved = 'Progress is saved in this browser only. Only step IDs and booleans are stored.';
     let message = saved;
     let state = {};
@@ -51,6 +54,7 @@
       count.textContent = done + ' of ' + IDS.length + ' steps checked' +
         (done === IDS.length ? ' — review complete, not automatic provider verification.' : '.');
       notice.textContent = message;
+      if (complete) complete.hidden = done !== IDS.length;
     }
     function snapshot() {
       return { version: 1, steps: Object.fromEntries(inputs.map((input, i) => [IDS[i], input.checked])) };

@@ -13,6 +13,14 @@
   pages. Checklist progress moves to the `cmail:setup-progress:v2` key (older
   14-step progress is not carried over). The site no longer documents the old
   pinned source snapshot; the README keeps that history.
+- Setup guide: move "add your domain to Cloudflare" before `cmail setup` (now
+  step 4, setup is step 5) and mark it as needed only when the domain is not on
+  Cloudflare yet. The step now points to Cloudflare's own "Add a domain" flow
+  and nameserver instructions. Saved checklist progress is keyed by step ID, so
+  existing ticks still load (#26).
+- Setup guide: show a congratulations card asking for a GitHub star once all 8
+  steps are checked. It hides again when a step is unchecked or progress is
+  reset, and its state is restored on reload (#27).
 
 ## v0.2.0 — 2026-10-10
 
