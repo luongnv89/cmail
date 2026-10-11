@@ -36,7 +36,7 @@ cmail config set ADDRESSES hello,contact   # optional; default is hello
 
 The installer puts the pinned cmail 0.2.0 release in `~/.local/bin` without sudo.
 Add the `export PATH` line to your shell profile to keep it.
-Prefer to review the code first? Clone it and install that checkout, with no downloads:
+Prefer to review the code first? Clone it and install that checkout, with no downloads (a `--local` install reports the checkout's version, for example `cmail 0.3.0`; the commands are the same):
 
 ```bash
 git clone https://github.com/luongnv89/cmail

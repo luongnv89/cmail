@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.3.0 — 2026-10-11
+
 - Move the installer's default pinned runtime from the v0.1.0 release commit to
   the v0.2.0 release commit (`21b3a08`), so unflagged `bash install.sh` installs
   the 0.2.0 CLI. Docs, skill guidance and offline regressions now describe the
@@ -29,6 +31,8 @@
   `export PATH` line to add. It still downloads the pinned v0.2.0 runtime;
   `bash install.sh` and `bash install.sh --local` from a checkout keep working.
   The README, setup guide and CLI docs now lead with the one-line command (#25).
+
+**Full Changelog**: https://github.com/luongnv89/cmail/compare/v0.2.0...v0.3.0
 
 ## v0.2.0 — 2026-10-10
 

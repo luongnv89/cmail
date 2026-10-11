@@ -95,7 +95,7 @@ follows the [current CLI guide](docs/cli.md), not this snapshot.
 Inspired by this [Tokifyi thread](https://x.com/tokifyi/status/2025741929997361371):
 $0/month for email — you only pay for the domain itself.
 
-Release: [v0.2.0](https://github.com/luongnv89/cmail/releases/tag/v0.2.0) · [Changelog](CHANGELOG.md).
+Release: [v0.3.0](https://github.com/luongnv89/cmail/releases/tag/v0.3.0) · [Changelog](CHANGELOG.md).
 
 ## Start here
 

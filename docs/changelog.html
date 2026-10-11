@@ -17,14 +17,16 @@
     <p class="lead">The highlights of each release. Full details are in <a href="https://github.com/luongnv89/cmail/blob/main/CHANGELOG.md">CHANGELOG.md</a>.</p>
   </div>
 
-  <article class="release" aria-labelledby="unreleased">
-    <div><h2 id="unreleased">Unreleased</h2><p class="meta">on <code>main</code></p></div>
+  <article class="release" aria-labelledby="v030">
+    <div><h2 id="v030">v0.3.0</h2><p class="meta">11 October 2026 · <a href="https://github.com/luongnv89/cmail/releases/tag/v0.3.0">release</a></p></div>
     <div>
       <ul>
-        <li><span class="badge">Added</span>Install with one command, no clone: <code>curl -fsSL https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh | bash</code>. The installer says whether <code>~/.local/bin</code> is on your PATH and prints the line to add if not.</li>
-        <li><span class="badge">Changed</span>Plain <code>bash install.sh</code> now installs the v0.2.0 runtime instead of v0.1.0.</li>
-        <li><span class="badge">Docs</span>Website rewritten: an 8-step visual setup guide for 0.2.0, plus new Docs, Changelog and Privacy pages.</li>
-        <li><span class="badge">Docs</span>Setup guide: adding your domain to Cloudflare now comes before <code>cmail setup</code> and is only needed if the domain is not on Cloudflare yet. Ticking all 8 steps shows a congratulations card.</li>
+        <li><span class="badge">New</span>Install with one command, no clone: <code>curl -fsSL https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh | bash</code>. The installer says whether <code>~/.local/bin</code> is on your PATH and prints the line to add if not.</li>
+        <li><span class="badge">Changed</span>Plain <code>bash install.sh</code> now installs the v0.2.0 runtime instead of v0.1.0. The cmail commands did not change in this release, so <code>cmail --version</code> still prints <code>cmail 0.2.0</code> after a one-line install.</li>
+        <li><span class="badge">Fixed</span>The installer no longer fails when piped from <code>curl</code>, and does nothing if the download is interrupted.</li>
+        <li><span class="badge">Docs</span>Website rewritten: an 8-step visual setup guide with a progress tracker and a walkthrough of a real <code>cmail setup</code> session, plus new Docs, Changelog and Privacy pages.</li>
+        <li><span class="badge">Docs</span>Setup guide: adding your domain to Cloudflare now comes before <code>cmail setup</code>, with a link to Cloudflare’s instructions, and is only needed if the domain is not on Cloudflare yet. Ticking all 8 steps shows a congratulations card.</li>
+        <li><span class="badge">Action needed</span>Progress from the old 14-step checklist is not carried over. Tick your finished steps again in the new 8-step guide.</li>
       </ul>
     </div>
   </article>

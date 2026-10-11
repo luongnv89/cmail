@@ -2,7 +2,7 @@
 
 ## Current reviewed-checkout installation
 
-`bash install.sh --local` installs the complete `0.2.0` runtime and its
+`bash install.sh --local` installs the complete `0.3.0` runtime and its
 completion files from this reviewed checkout, without downloads, setup, or
 provider access. Config and upgrade/rollback protections are preserved.
 The new CLI is published in the [v0.2.0 release](https://github.com/luongnv89/cmail/releases/tag/v0.2.0); unflagged remote
