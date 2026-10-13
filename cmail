@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # cmail — guided free custom-domain email setup (Cloudflare Email Routing,
 # optional Gmail "Send mail as")
-# Subcommands: setup | send-as | status | list | doctor | config | help
+# Subcommands: setup | send-as | status | list | forward | doctor | config | help
 set -euo pipefail
 trap 'exit 130' INT
 trap 'exit 143' TERM
@@ -172,6 +172,116 @@ cmd_list() {
   printf '%s\n' "$text"
 }
 
+cmd_forward() {
+  ensure_read_tools
+  config_load || return 3
+  if [ -z "${DOMAIN:-}" ] || [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+    config_error 'a domain (DOMAIN or --domain) and CLOUDFLARE_API_TOKEN are required; run cmail setup first'; return 3
+  fi
+  [ -t 0 ] || cli_error 'forward requires terminal input to confirm the change; run it interactively'
+  local input="${CLI_ARGS[0]}" new="$CLI_DESTINATION" local_part="${CLI_ARGS[0]}" input_domain address rerun
+  local zone_id zone account rules state rule old destinations dest
+  if [[ "$input" = *@* ]]; then
+    local_part="${input%%@*}"
+    input_domain=$(printf '%s' "${input#*@}" | tr '[:upper:]' '[:lower:]')
+    [ "$input_domain" = "$DOMAIN" ] || cli_error "$input is not on $DOMAIN; pass --domain for another domain"
+  fi
+  config_local_valid "$local_part" || cli_error "ADDRESS must be a local part such as hello, or hello@$DOMAIN"
+  address="$local_part@$DOMAIN"
+  rerun="cmail forward $address --destination $new${CLI_DOMAIN:+ --domain $DOMAIN}"
+
+  zone_id=$(cf_zone_id_for_domain) || return 1
+  zone=$(cf_routing_request GET "/zones/$zone_id") || return 1
+  account=$(jq -er --arg domain "$DOMAIN" '.result | select(.name == $domain) | .account.id | select(type == "string" and length > 0)' <<<"$zone") \
+    || die "zone $zone_id is not $DOMAIN or returned malformed data — nothing was changed; check CF_ZONE_ID in cmail config and the Cloudflare dashboard"
+  rules=$(cf_rules_list "$zone_id") || return 1
+  # Only one literal "to" rule with a single forward to one destination is edited.
+  state=$(jq -c --arg a "$address" '
+    ($a | ascii_downcase) as $a
+    | [.[] | select(any((.matchers // [])[]; (.value | type == "string") and (.value | ascii_downcase) == $a))] as $m
+    | if ($m | length) == 0 then {status:"missing"}
+      elif ($m | length) > 1 then {status:"unsupported"}
+      else $m[0] as $r
+        | if ($r.matchers | length) == 1 and $r.matchers[0].type == "literal" and $r.matchers[0].field == "to"
+            and ($r.actions | type == "array" and length == 1) and $r.actions[0].type == "forward"
+            and ($r.actions[0].value | type == "array" and length == 1 and (.[0] | type == "string" and length > 0))
+            and ($r.source // "api") == "api"
+          then {status:"ok", rule:$r, current:$r.actions[0].value[0], enabled:($r.enabled == true)}
+          else {status:"unsupported"} end
+      end' <<<"$rules") || die 'could not read the forwarding rules — nothing was changed'
+  case "$(jq -r '.status' <<<"$state")" in
+    missing) die "$address has no forwarding rule on $DOMAIN — nothing was changed. Create it first: add $local_part to ADDRESSES and run cmail setup" ;;
+    unsupported) die "$address has more than one rule, a custom matcher, a Worker-managed rule or an action other than one forward, so cmail will not edit it. Change it in Cloudflare > $DOMAIN > Email > Email Routing > Routing rules. Existing rules were not changed" ;;
+  esac
+  rule=$(jq -c '.rule' <<<"$state")
+  old=$(jq -r '.current' <<<"$state")
+  if jq -e --arg y "$new" '(.current | ascii_downcase) == ($y | ascii_downcase)' >/dev/null <<<"$state"; then
+    printf '%s already forwards to %s; nothing changed.\n' "$address" "$old"
+    return 0
+  fi
+
+  destinations=$(cf_addresses_list "$account") || return 1
+  dest=$(jq -c --arg y "$new" '[.[] | select((.email | ascii_downcase) == ($y | ascii_downcase))][0] // empty' <<<"$destinations")
+  if [ -z "$dest" ]; then
+    warn "$new is not a Cloudflare destination address yet; Cloudflare forwards only to verified destinations"
+    confirm "Register $new and send Cloudflare's verification email to it?" \
+      || die "nothing was changed; $address still forwards to $old"
+    cf_dest_register "$account" "$new" || return 1
+    warn "$new registered — click the Cloudflare verification link in $new's inbox (check Spam), then rerun: $rerun. $address is unchanged and still forwards to $old"
+    exit 1
+  fi
+  if jq -e '.verified == null' >/dev/null <<<"$dest"; then
+    die "$new is registered but not verified yet — click the Cloudflare verification link in $new's inbox (check Spam; resend it from Cloudflare > $DOMAIN > Email > Email Routing > Destination addresses), then rerun: $rerun. $address is unchanged and still forwards to $old"
+  fi
+  new=$(jq -r '.email' <<<"$dest")  # Cloudflare's spelling of the verified destination
+
+  jq -e '.enabled' >/dev/null <<<"$state" \
+    || warn "the rule for $address is disabled and stays disabled; enable it in Cloudflare > $DOMAIN > Email > Email Routing > Routing rules"
+  printf '%s: %s -> %s\n' "$address" "$old" "$new" >&2
+  confirm "Change where $address forwards?" || die "cancelled — nothing was changed; $address still forwards to $old"
+  cf_rule_forward_update "$zone_id" "$rule" "$new"
+  forward_sync_config "$rules" "$rule" "$address" "$new"
+  printf '%s now forwards to %s (was %s)\n' "$address" "$new" "$old"
+  printf 'Test it: from a DIFFERENT mailbox (not %s), send to %s and check delivery (including Spam).\n' "$new" "$address"
+}
+
+# Keep DEST_EMAIL only while it is the one inbox every configured address uses.
+forward_sync_config() { # $1 = rules before the change, $2 = changed rule, $3 = address, $4 = new destination
+  local i file_domain='' file_addresses='' file_dest='' result pending
+  [ -e "$ENV_FILE" ] || return 0
+  config_read || { warn 'could not reread the configuration; DEST_EMAIL was not updated'; return 0; }
+  for ((i=0; i<${#CONFIG_KEYS[@]}; i++)); do
+    case "${CONFIG_KEYS[i]}" in
+      DOMAIN) file_domain=$(printf '%s' "${CONFIG_VALUES[i]}" | tr '[:upper:]' '[:lower:]') ;;
+      ADDRESSES) file_addresses="${CONFIG_VALUES[i]}" ;;
+      DEST_EMAIL) file_dest="${CONFIG_VALUES[i]}" ;;
+    esac
+  done
+  if [ "$file_domain" != "$DOMAIN" ] || [ -z "$file_addresses" ]; then
+    note "configuration not changed: $DOMAIN is not the configured domain with ADDRESSES"; return 0
+  fi
+  result=$(jq -c --argjson changed "$2" --arg address "$3" --arg dest "$4" --arg d "$DOMAIN" --arg list "$file_addresses" '
+    ($changed.id // $changed.tag) as $id
+    | map(if (.id // .tag) == $id then .actions = [{type:"forward", value:[$dest]}] else . end) as $rules
+    | [$list | split(",")[] | gsub("^ +| +$"; "") | select(length > 0) | "\(.)@\($d)" | ascii_downcase] as $configured
+    | {member:any($configured[]; . == ($address | ascii_downcase)),
+       pending:([$configured[] | . as $a
+         | select([$rules[] | select(any((.matchers // [])[]; (.value | type == "string") and (.value | ascii_downcase) == $a))]
+             | (length == 1 and (.[0].actions | type == "array" and length == 1) and .[0].actions[0].type == "forward"
+                and ((.[0].actions[0].value // []) | map(ascii_downcase)) == [$dest | ascii_downcase]) | not)]
+         | join(", "))}' <<<"$1") || { warn 'could not compare configured addresses; DEST_EMAIL was not updated'; return 0; }
+  if ! jq -e '.member' >/dev/null <<<"$result"; then
+    note "configuration not changed: $3 is not in ADDRESSES"; return 0
+  fi
+  pending=$(jq -r '.pending' <<<"$result")
+  if [ -n "$pending" ]; then
+    warn "DEST_EMAIL in the configuration stays ${file_dest:-unset} because these configured addresses forward elsewhere: $pending. cmail setup checks every address against DEST_EMAIL, so it will report them as conflicting until all addresses forward to one inbox (use cmail forward for each)"
+  elif [ "$(printf '%s' "$file_dest" | tr '[:upper:]' '[:lower:]')" != "$(printf '%s' "$4" | tr '[:upper:]' '[:lower:]')" ]; then
+    if env_set DEST_EMAIL "$4"; then ok "saved DEST_EMAIL=$4: every configured address now forwards there"
+    else warn "could not save DEST_EMAIL=$4; set it with cmail config set DEST_EMAIL $4"; fi
+  fi
+}
+
 doctor_tool() {
   if type -P "$1" >/dev/null; then output_check "$1" pass "$1 available"
   else output_check "$1" fail "$1 missing" "${2:-Install $1 and check PATH.}"; DOCTOR_FAILED=1; fi
@@ -216,6 +326,7 @@ case "$CLI_COMMAND" in
   send-as) cmd_send_as ;;
   status) cmd_status ;;
   list) cmd_list ;;
+  forward) cmd_forward ;;
   doctor) cmd_doctor ;;
   config) cmd_config ;;
   completion) cat "$CMAIL_DIR/completions/cmail.${CLI_ARGS[0]}" ;;

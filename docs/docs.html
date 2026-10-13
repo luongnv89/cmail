@@ -62,6 +62,7 @@ bash install.sh --local</code></pre>
             <tr><td><code>cmail setup --dry-run</code></td><td>Full plan and blockers</td><td>No</td></tr>
             <tr><td><code>cmail status</code></td><td>Zone, routing, destinations and rules</td><td>No</td></tr>
             <tr><td><code>cmail list [--domain D]</code></td><td>Every address and where it forwards</td><td>No</td></tr>
+            <tr><td><code>cmail forward ADDRESS --destination EMAIL</code></td><td>Change where an existing address forwards</td><td>Yes, asks first</td></tr>
             <tr><td><code>cmail doctor</code></td><td>Check tools, config and token</td><td>No</td></tr>
             <tr><td><code>cmail doctor --offline</code></td><td>Same, without network requests</td><td>No</td></tr>
             <tr><td><code>cmail send-as</code></td><td>Optional Gmail sending guide</td><td>No (manual)</td></tr>
@@ -88,6 +89,7 @@ PASS  curl available
 PASS  jq available</pre>
         </div>
         <p class="meta">Destinations are marked <code>verified</code>, <code>unverified</code> (click the Cloudflare link) or <code>unregistered</code>.</p>
+        <p class="meta">To move an existing address to a new inbox, run <code>cmail forward hello --destination new@example.org</code> in a terminal. The address and its rule stay; only the destination changes. If Cloudflare has not verified the new inbox, nothing changes: cmail offers to send the verification email, and you rerun the command after clicking the link. <code>DEST_EMAIL</code> is updated only when every configured address then forwards to the new inbox.</p>
       </section>
 
       <section id="config" aria-labelledby="config-h">
