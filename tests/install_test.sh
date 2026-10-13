@@ -31,18 +31,25 @@ done
 for file in "$RELEASE"/*.tar.gz; do printf '%s  %s\n' "$(sum "$file")" "${file##*/}" >> "$RELEASE/SHA256SUMS"; done
 
 PORT_FILE="$TMP/port"
+# A plain socketserver skips HTTPServer.server_bind's getfqdn() reverse lookup,
+# which can stall for many seconds on macOS runners; the port file is renamed in.
 python3 - "$RELEASE" "$PORT_FILE" <<'EOF' &
-import functools, http.server, sys
+import functools, http.server, os, socketserver, sys
 class Quiet(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):
         pass
+class Server(socketserver.ThreadingTCPServer):
+    daemon_threads = True
 handler = functools.partial(Quiet, directory=sys.argv[1])
-server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), handler)
-open(sys.argv[2], 'w').write(str(server.server_port))
+server = Server(('127.0.0.1', 0), handler)
+with open(sys.argv[2] + '.tmp', 'w') as port_file:
+    port_file.write(str(server.server_address[1]))
+os.replace(sys.argv[2] + '.tmp', sys.argv[2])
 server.serve_forever()
 EOF
 SERVER_PID=$!
-for _ in $(seq 50); do [ -s "$PORT_FILE" ] && break; sleep 0.1; done
+for _ in $(seq 300); do [ -s "$PORT_FILE" ] && break; sleep 0.1; done
+[ -s "$PORT_FILE" ] || { printf 'FAIL: loopback release server did not start within 30s\n' >&2; exit 1; }
 URL="http://127.0.0.1:$(cat "$PORT_FILE")"
 
 passed=0
