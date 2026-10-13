@@ -9,6 +9,8 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+# The binary under test; scripts/test.sh builds it and exports CMAIL_BIN.
+BIN = Path(os.environ.get('CMAIL_BIN', ROOT / 'target' / 'debug' / 'cmail'))
 KEYS = ('DOMAIN', 'DEST_EMAIL', 'ADDRESSES', 'CLOUDFLARE_API_TOKEN', 'REGISTRAR', 'GDDY_ENV', 'GDDY_PAT',
         'CF_ZONE_ID', 'CF_ACCOUNT_ID', 'DRY_RUN', 'ENV_FILE', 'NO_COLOR')
 FIXTURE = "DOMAIN=example.com\nDEST_EMAIL=owner@example.net\nADDRESSES=hello,contact\nCLOUDFLARE_API_TOKEN=synthetic-token\nGDDY_ENV=ote\n"
@@ -40,7 +42,7 @@ class CLI(unittest.TestCase):
     def invoke(self, *args, env=None, input=None):
         settings = dict(self.env)
         settings.update(env or {})
-        return subprocess.run([self.shell, str(ROOT / 'cmail'), *args], text=True,
+        return subprocess.run([str(BIN), *args], text=True,
                               input=input, capture_output=True, env=settings, timeout=5)
 
     def cloudflare(self):

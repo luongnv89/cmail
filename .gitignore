@@ -3,3 +3,4 @@
 *.local
 /_site/
 __pycache__/
+/target/
