@@ -323,6 +323,15 @@ cf_dest_ensure() { # $1 = zone_id — waits for user to click verification email
   ok "$DEST_EMAIL verified"
 }
 
+cf_dest_register() { # $1 = account_id, $2 = email — register and send verification; never waits
+  local resp
+  resp=$(cf_routing_request POST "/accounts/$1/email/routing/addresses" \
+    -d "$(jq -nc --arg e "$2" '{email:$e}')") || return 1
+  jq -e --arg e "$2" '.result.email | type == "string" and ascii_downcase == ($e | ascii_downcase)' \
+    >/dev/null 2>&1 <<<"$resp" \
+    || die "Cloudflare did not confirm registering $2 — check Email Routing > Destination addresses before retrying"
+}
+
 cf_rules_ensure() { # $1 = zone_id — create forwarding rules for $ADDRESSES
   step "Forwarding addresses ($ADDRESSES -> $DEST_EMAIL)"
   local rules prio=0 a addr payload list=()
@@ -357,6 +366,24 @@ cf_rules_ensure() { # $1 = zone_id — create forwarding rules for $ADDRESSES
     ok "$addr -> $DEST_EMAIL"
     prio=$((prio+1))
   done
+}
+
+# Replace only the forward destination of one existing rule, then read it back.
+# PUT replaces the whole rule, so name, matchers, priority and enabled are resent
+# as they are: https://developers.cloudflare.com/api/resources/email_routing/subresources/rules/methods/update/
+cf_rule_forward_update() { # $1 = zone_id, $2 = rule JSON, $3 = verified destination email
+  local id payload resp
+  id=$(jq -er '(.id // .tag) | select(type == "string" and test("^[A-Za-z0-9_-]{1,64}$"))' <<<"$2") \
+    || die "forwarding rule has no usable ID — nothing was changed"
+  payload=$(jq -c --arg dest "$3" '
+    {name, matchers, priority, enabled} | with_entries(select(.value != null))
+    | . + {actions:[{type:"forward", value:[$dest]}]}' <<<"$2") \
+    || die "could not build the updated forwarding rule — no request sent"
+  cf_routing_request PUT "/zones/$1/email/routing/rules/$id" -d "$payload" >/dev/null || return 1
+  resp=$(cf_routing_request GET "/zones/$1/email/routing/rules/$id") || return 1
+  jq -e --argjson want "$payload" '.result | .actions == $want.actions and .matchers == $want.matchers' \
+    >/dev/null 2>&1 <<<"$resp" \
+    || die "Cloudflare accepted the change but the rule does not read back as forwarding to $3 — open Cloudflare > ${DOMAIN:-your domain} > Email > Email Routing > Routing rules and check where the address forwards"
 }
 
 cf_status() { # $1 = zone_id — print current routing state

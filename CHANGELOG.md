@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Add `cmail forward ADDRESS --destination EMAIL` to change where an existing
+  address forwards without deleting or recreating it (#31). It shows the old
+  and new destination and asks before writing. The Cloudflare rule is updated
+  in place, keeping its name, matcher, priority and enabled state, and read
+  back. If the new inbox is not verified yet, nothing changes: cmail offers to
+  send Cloudflare's verification email and tells you to rerun the command after
+  clicking the link. `DEST_EMAIL` is updated only when every configured address
+  then forwards to the new inbox; otherwise cmail names the addresses that still
+  forward elsewhere.
+
 ## v0.3.0 — 2026-10-11
 
 - Move the installer's default pinned runtime from the v0.1.0 release commit to

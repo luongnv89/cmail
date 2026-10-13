@@ -36,7 +36,7 @@ then rerun the original check (usually setup pass 1, which skips finished work).
 | `Waiting for zone activation` | `zone still` after `nameservers set`: PENDING, wait and rerun pass 1 later. No `nameservers set` line: check DRY_RUN and registrar nameservers. `needs attention`: stop with the zone status | Zone `active` in `status` |
 | `Enable Cloudflare Email Routing` | Permission → hands-on token edit; DNS conflict → stop with a migration plan; never delete records | Routing ready and Cloudflare MX |
 | `Destination address:` | Hands-on: user clicks or resends the link in the correct destination mailbox; keep the pending entry | `status` shows `verified=<timestamp>` |
-| `Forwarding addresses` | Stop: show the conflicting rule; correct only the intended rule after approval | Every alias `[true]` to DEST_EMAIL |
+| `Forwarding addresses` | Stop: show the conflicting rule; correct only the intended rule after approval. To move an existing address to a new inbox, the user runs `cmail forward ADDRESS --destination EMAIL` in a terminal (the new inbox must be verified first) | Every alias `[true]` to DEST_EMAIL |
 | Inbound missing | **auto:** recheck gates 5–8 with `status` and `dig`; the resend is hands-on | Inbound arrival |
 | `cmail send-as` (sending requested) ends with `paused without input` | Not a failure: the guide printed; relay its steps | Gate 9 sending checks |
 | `Send FROM` + `paused without input` (older runtime without `send-as`) | Not a failure: every receiving stage passed; Gmail steps apply only when sending was requested | Gates 3–8 checks, then Gate 9 |
