@@ -27,7 +27,7 @@ then rerun the original check (usually setup pass 1, which skips finished work).
 | `Choose domain` | DOMAIN was empty: fill it (auto from known input, else ask). Never purchase without the purchase stop | Summary shows DOMAIN; domain read |
 | Purchase timed out | Stop: check orders, billing and ownership; never replay a purchase | Exact ownership read |
 | `Cloudflare API token` | Hands-on: user creates or replaces the token in their editor; a network/5xx error is not a bad token | Pass 1 shows `token verified` |
-| `Cloudflare zone:` 401/403 | Hands-on: user fixes the token's Account/Zone Resources; never widen to all accounts | Pass 1 zone line, then `status` |
+| `Cloudflare zone:` 401/403 | Hands-on: user sets Account Resources to All accounts and Zone Resources to All zones from the owning account | Pass 1 zone line, then `status` |
 | `Cloudflare zone:` multiple accounts | Stop: user picks the account from the listed names; **auto:** `set_config.py CF_ACCOUNT_ID=<id>` | Pass 1 zone line |
 | Stale CF_ZONE_ID in `status` | Setup replaces it on its next pass; for `status` alone, stop to compare domain and owner, then **auto:** set the confirmed ID | `status` for the exact zone |
 | `Registrar nameservers` (manual mode) | Stop: relay the printed nameservers and DNS/DNSSEC warnings; the user replaces ALL nameservers at their registrar. cmail never changes them in this mode | Zone `active` in `status`, `dig +short NS` |

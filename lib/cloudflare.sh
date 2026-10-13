@@ -34,15 +34,15 @@ Cloudflare has no self-service OAuth for scripts — a scoped API token is
 needed once. Create it now (browser will open):
 
   1. "Create token" -> "Custom token" -> "Get started"
+     Token name: any label you will recognise (e.g. cmail <your domain>)
   2. Permissions (five rows):
        Zone  | Zone                 | Edit
        Zone  | Zone Settings        | Edit
        Zone  | DNS                  | Edit
        Zone  | Email Routing Rules  | Edit
        Account | Email Routing Addresses | Edit
-  3. Zone Resources: Include -> All zones from an account -> <your account>
-     (or "All zones" if you only have one account)
-     Account Resources: Include -> <the account that owns your domain>
+  3. Account Resources: Include -> All accounts
+     Zone Resources: Include -> All zones from an account -> <your account>
   4. Create token, copy it, paste below (input hidden).
 
 EOF
@@ -164,8 +164,8 @@ cf_account_recovery() {
 To unlock account discovery:
   1. Open https://dash.cloudflare.com/profile/api-tokens and edit your token.
      An active token is not proof of account/zone access. Under Account Resources,
-     include the account that owns $DOMAIN; under Zone Resources, include that
-     account's zones (including $DOMAIN if it already exists).
+     choose Include -> All accounts; under Zone Resources, choose Include ->
+     All zones from an account -> the account that owns $DOMAIN.
      Zone creation needs Zone > Zone > Edit. Destination registration needs
      Account > Email Routing Addresses > Edit.
   2. Open https://dash.cloudflare.com/ and select the intended account/domain.

@@ -76,7 +76,8 @@ is BLOCKED. Do not call internal Bash helpers as a public API.
 - Failure: 401/403, no visible account, multiple accounts, invalid ID or wrong zone.
 - Repair/recheck: multiple accounts → stop to choose, then `set_config.py
   CF_ACCOUNT_ID=<id>`; scope errors → the user edits the token's resources
-  (hands-on; never "all accounts"); rerun pass 1. Never create a duplicate zone.
+  (hands-on: Account Resources → All accounts, Zone Resources → All zones
+  from the owning account); rerun pass 1. Never create a duplicate zone.
 
 ## Gate 5 — Delegation and active zone
 

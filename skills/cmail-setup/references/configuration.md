@@ -73,9 +73,9 @@ whoever launches it; this skill cannot change that runtime transport.
    | Zone | Email Routing Rules | Edit |
    | Account | Email Routing Addresses | Edit |
 
-   Include the intended owning account in Account Resources and the intended zone
-   (or that account's zones for zone creation) in Zone Resources. Do not default to
-   all accounts. Then open the config in an **unrecorded local editor** for the
+   Name the token anything recognisable. Set Account Resources to Include → All
+   accounts, and Zone Resources to Include → All zones from an account → the
+   account that owns the domain. Then open the config in an **unrecorded local editor** for the
    user (`open -t <file>` on macOS, `xdg-open <file>` on Linux) and ask them to
    paste the token right after `CLOUDFLARE_API_TOKEN=` with no quotes or spaces,
    then save. Ask only whether it is saved; then run `chmod 600 <file>` (editors

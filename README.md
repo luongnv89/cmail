@@ -332,9 +332,9 @@ can list accounts, read your domain, or create a zone. This failure happens
 before this run creates a zone or attempts a GoDaddy nameserver change.
 
 1. Open [Cloudflare API tokens](https://dash.cloudflare.com/profile/api-tokens)
-   and edit the token. Under **Account Resources**, include the intended
-   account; under **Zone Resources**, include its zones (or your existing
-   domain). Zone creation needs **Zone → Zone → Edit**; destination
+   and edit the token. Under **Account Resources**, choose Include → All
+   accounts; under **Zone Resources**, choose Include → All zones from an
+   account → the account that owns your domain. Zone creation needs **Zone → Zone → Edit**; destination
    registration needs **Account → Email Routing Addresses → Edit**.
 2. If listing still exposes no account, open the
    [Cloudflare dashboard](https://dash.cloudflare.com/), select the account/domain,
@@ -381,8 +381,8 @@ If you create a replacement token, update `CLOUDFLARE_API_TOKEN` in `.env`.
 Destination addresses use the account-scoped endpoint
 `/accounts/{account_id}/email/routing/addresses`
 ([Cloudflare API documentation](https://developers.cloudflare.com/api/resources/email_routing/subresources/addresses/methods/create/)).
-Add **Account → Email Routing Addresses → Edit** to your token and include
-the account that owns your domain under **Account Resources**. The script
+Add **Account → Email Routing Addresses → Edit** to your token and set
+**Account Resources** to Include → All accounts. The script
 reads that account ID from the selected zone; no manual account ID is needed.
 Existing verified or pending destinations are reused rather than recreated.
 

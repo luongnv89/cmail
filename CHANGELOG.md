@@ -11,6 +11,10 @@
   clicking the link. `DEST_EMAIL` is updated only when every configured address
   then forwards to the new inbox; otherwise cmail names the addresses that still
   forward elsewhere.
+- Update the Cloudflare API token guide (setup prompt, setup page, README,
+  `.env.example` and the cmail-setup skill): name the token, set Account
+  Resources to Include → All accounts, and Zone Resources to Include → All
+  zones from an account → your account. The five permissions are unchanged.
 
 ## v0.3.0 — 2026-10-11
 

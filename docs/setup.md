@@ -50,7 +50,7 @@ bash install.sh --local
 
 ### 3. Create a Cloudflare API token
 
-Open [My Profile → API Tokens](https://dash.cloudflare.com/profile/api-tokens) → Create Token → Custom token, and add:
+Open [My Profile → API Tokens](https://dash.cloudflare.com/profile/api-tokens) → Create Token → Custom token. Give the token any name you will recognise (for example `cmail yourdomain.com`), then add:
 
 | Scope | Permission | Access |
 |---|---|---|
@@ -60,7 +60,13 @@ Open [My Profile → API Tokens](https://dash.cloudflare.com/profile/api-tokens)
 | Zone | Email Routing Rules | Edit |
 | Account | Email Routing Addresses | Edit |
 
-Zone Resources: All zones from an account → your account. Account Resources: the account that owns your domain.
+Then set the resources:
+
+| Section | Include | Value |
+|---|---|---|
+| Account Resources | Include | All accounts |
+| Zone Resources | Include | All zones from an account → your account |
+
 Copy the token. Never paste it into chat, a web page or a screenshot.
 
 **Done when:** the token has all five permissions and is copied somewhere private.
