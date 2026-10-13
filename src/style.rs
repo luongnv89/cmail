@@ -227,7 +227,9 @@ fn truncate(text: &str, max: usize, ellipsis: &str) -> String {
     if width(text) <= max {
         return text.to_string();
     }
-    let room = max.saturating_sub(width(ellipsis));
+    // Never return more than `max` cells: drop the ellipsis when it cannot fit.
+    let ellipsis = if width(ellipsis) > max { "" } else { ellipsis };
+    let room = max - width(ellipsis);
     let mut out = String::new();
     let mut used = 0;
     for ch in text.chars() {
@@ -325,7 +327,7 @@ pub fn boxed(mode: &Mode, title: &str, footer: Option<&str>, sections: &[Vec<Lin
     let border = |s: &str| mode.paint(Role::Border, s);
     let notch_line = |left: &str, open: &str, text: &str, close: &str, right: &str| {
         let text = truncate(text, total - 6, g.ellipsis);
-        let fill = total - 5 - width(&text);
+        let fill = (total - 5).saturating_sub(width(&text));
         format!(
             "{}{}{}{}\n",
             border(&format!("{left}{}{open}", g.h)),
@@ -342,7 +344,13 @@ pub fn boxed(mode: &Mode, title: &str, footer: Option<&str>, sections: &[Vec<Lin
         }
         for line in section {
             let (text, used) = render_line(mode, line, inner);
-            out.push_str(&format!("{} {}{} {}\n", border(g.v), text, " ".repeat(inner - used), border(g.v)));
+            out.push_str(&format!(
+                "{} {}{} {}\n",
+                border(g.v),
+                text,
+                " ".repeat(inner.saturating_sub(used)),
+                border(g.v)
+            ));
         }
     }
     match footer {
@@ -379,6 +387,34 @@ mod tests {
         let m = mode(Tier::C16, Glyphs::Ascii);
         let out = boxed(&m, "status", Some("2 rules"), &[vec![status(&m, Level::Bad, "down")], vec![]]);
         assert!(out.chars().all(|c| (c as u32) < 0x80), "{out}");
+    }
+
+    #[test]
+    fn narrow_boxes_never_overflow_or_panic() {
+        let sections = [
+            vec![
+                vec![
+                    span(Role::Text, "DOMAIN"),
+                    span(Role::Text, "  "),
+                    span(Role::Dim, "example-long-domain-name.com"),
+                ],
+                vec![span(Role::Text, "ADDRESSES  "), span(Role::Dim, "hello,support,billing")],
+            ],
+            vec![vec![span(Role::Text, "DEST_EMAIL  "), span(Role::Dim, "someone@example.com")]],
+        ];
+        for glyphs in [Glyphs::Ascii, Glyphs::Unicode] {
+            for width_limit in 1..=40 {
+                let m = Mode { styled: true, tier: Tier::None, glyphs, width: width_limit };
+                let out = boxed(&m, "configuration", Some("2 sections"), &sections);
+                let limit = width_limit.max(12);
+                let rows: Vec<usize> = out.lines().map(width).collect();
+                assert!(rows.iter().all(|w| *w <= limit && *w == rows[0]), "width {width_limit}:\n{out}");
+            }
+        }
+        for max in 0..4 {
+            assert!(width(&truncate("example", max, "...")) <= max);
+            assert!(width(&truncate("example", max, "…")) <= max);
+        }
     }
 
     #[test]
