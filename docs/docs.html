@@ -137,7 +137,7 @@ cmail status --format json | jq '.data.rules'
 cmail doctor --offline --format json</code></pre>
         <p>JSON is available for <code>status</code>, <code>list</code>, <code>doctor</code>, <code>config show/check</code> and previews:</p>
         <pre><code>{"schema_version":1,"command":"status","data":{"zone":{},"routing":{},"destinations":[],"rules":[]}}</code></pre>
-        <p class="meta">Setup and send-as need a real terminal. In scripts, use <code>--dry-run</code>.</p>
+        <p class="meta">Setup, forward and send-as need a real terminal. In scripts, use <code>--dry-run</code>.</p>
       </section>
 
       <section id="options" aria-labelledby="options-h">
