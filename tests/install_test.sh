@@ -89,7 +89,9 @@ pass 'truncated download runs nothing'
 
 fresh
 cp "$RELEASE/SHA256SUMS" "$TMP/sums"
-sed 's/^[0-9a-f]/0/' "$TMP/sums" > "$RELEASE/SHA256SUMS"
+# Change each hash's first digit (0 becomes 1, anything else 0) so it always differs.
+sed -e 's/^0/1/' -e t -e 's/^[0-9a-f]/0/' "$TMP/sums" > "$RELEASE/SHA256SUMS"
+if cmp -s "$TMP/sums" "$RELEASE/SHA256SUMS"; then fail 'checksums corrupted'; fi
 run "$SHELL_UNDER_TEST" "$ROOT/install.sh" && fail 'checksum mismatch must fail'
 cp "$TMP/sums" "$RELEASE/SHA256SUMS"
 grep -q 'checksum mismatch' "$TMP/out" || fail 'mismatch message'
