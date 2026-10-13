@@ -1,108 +1,91 @@
-# Distribution decision and status
+# Distribution
 
-## Current reviewed-checkout installation
+cmail ships as one self-contained binary per platform, built from the Rust crate
+in this repository and published on [GitHub Releases](https://github.com/luongnv89/cmail/releases).
+There are three supported ways to install it; all put a `cmail` command on PATH
+and none of them runs setup, creates configuration, or touches DNS.
 
-`bash install.sh --local` installs the complete `0.3.0` runtime and its
-completion files from this reviewed checkout, without downloads, setup, or
-provider access. Config and upgrade/rollback protections are preserved.
-The new CLI is published in the [v0.2.0 release](https://github.com/luongnv89/cmail/releases/tag/v0.2.0); unflagged remote
-installation now pins the immutable v0.2.0 release commit. See [current CLI usage](https://github.com/luongnv89/cmail/blob/main/docs/cli.md).
-
-## Chosen route: upstream GitHub source distribution
-
-cmail's upstream repository and its GitHub releases are the chosen distribution
-route. This is upstream distribution, **not** Homebrew/core admission or an
-endorsement by Homebrew. The user-local installer is deliberately independent
-of a package manager and does not need sudo. The installation entry point is
-one command, with no clone:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh | bash
-```
-
-From a checkout containing the installer, `bash install.sh` does the same, and
-`bash install.sh --local` installs the checkout itself.
-
-See [README installation](https://github.com/luongnv89/cmail/blob/main/README.md#installation) for verification, paths,
-configuration and upgrades. Remote installation downloads the nine base runtime files
-and additional allowlisted libraries/completions when the selected runtime uses them,
-from the upstream repository at an immutable commit, stages them privately,
-checks Bash syntax and offline help, then replaces a generated launcher by a
-same-directory rename. It does not extract archives. Previous installed
-runtimes remain available on disk; a failed download/validation never changes
-the active launcher. A late activation failure may retain an unused validated
-runtime; retaining it also prevents signal cleanup from deleting a newly active
-runtime. A local lock rejects concurrent installs into the same runtime store. Different runtime stores must not share a launcher destination.
-
-The default runtime commit is `21b3a082172ca4c4ef0c1a3651a9ad80504c1ed1`
-(the v0.2.0 release tree). The v0.2.0 tag's own `install.sh` still pins the
-v0.1.0 commit; use `--local` from a v0.2.0 checkout to install 0.2.0.
-Installation requires Bash 3.2+, curl and standard macOS/Linux utilities.
-HTTPS is required even across redirects. An
-immutable source pin and TLS do **not** constitute signed release verification
-or independent checksums. Only run installers and configurations you trust.
-All destinations and their parent directories must be controlled by your user;
-do not install into shared/untrusted writable directories. Direct symlink
-runtime/config/bin directories and launcher destinations are refused. Existing
-marked destinations are a management convention, not an authentication boundary.
-
-## Homebrew evaluation
-
-Official policy pages consulted on 2026-10-07:
-
-- [Acceptable Formulae](https://docs.brew.sh/Acceptable-Formulae): core requires
-  a DFSG-compatible open-source license, stable versioned/verifiable sources,
-  SHA-256-verified archives, supported-platform build/test coverage, suitable
-  dependency management, and reliable installation behavior. Core admission
-  also depends on the shared [Package Acceptance Policy](https://docs.brew.sh/Package-Acceptance-Policy).
-- [Adding Software to Homebrew](https://docs.brew.sh/Adding-Software-to-Homebrew):
-  CLI software normally uses a formula; author and test the formula, declare
-  dependencies, run build-from-source installation, `brew test`, strict/new
-  online audit and style checks, then submit a PR and respond to review.
-- [How to Create and Maintain a Tap](https://docs.brew.sh/How-to-Create-and-Maintain-a-Tap):
-  a maintainer tap is an external formula repository, not admission to core.
-  It requires an actual maintained/published repository and formula with
-  versioned sources, checksum, dependencies, installation and tests.
-
-A Bash CLI is a plausible formula candidate, but cmail is **not currently
-ready for a core submission**. No LICENSE exists in this repository; public
-source access alone is not an open-source license. The maintainer must decide
-licensing and distribution rights; this change does not select a license.
-The current 0.2.0 CLI checks dependencies without installing them; legacy
-v0.1.0 still has nested installers. A Homebrew package would need to declare
-appropriate dependencies and target a reviewed compatible release. A formula must place the complete runtime in libexec and
-keep mutable user config outside the keg. Provider-dependent setup cannot be
-a formula test; help and private-config behavior can be tested offline.
-
-A maintainer tap could offer familiar `brew install owner/tap/cmail` upgrades,
-but it adds a second publication/maintenance surface and is not an official
-Homebrew/core package. Neither a tap nor core is chosen for this iteration.
-No formula, external repository or Homebrew submission is created here, and
-no `brew install cmail` availability or eventual acceptance is promised.
-
-## Recorded publication/submission outcome
-
-Observed via GitHub on 2026-10-07:
-
-| Item | Actual outcome | Outstanding requirements |
+| Route | Command | What it trusts |
 |---|---|---|
-| Upstream v0.1.0 source release | Published 2026-10-07T08:31:22Z: [release](https://github.com/luongnv89/cmail/releases/tag/v0.1.0). Zero uploaded assets; GitHub supplies source archives. | Existing release does not contain this installer. It is not proof of installer publication. |
-| New user-local installer | Implemented/tested and merged via [PR #7](https://github.com/luongnv89/cmail/pull/7) at `bbd7a135e2794bae840277da361c39d2101357e0`; **not published in a tagged release**. | Maintainer distribution/license decision, then separately authorized release/publication including installer and these docs. |
-| Homebrew/core | **Not submitted; no admission outcome.** | Licensing, stable checksummed release, dependency integration, supported-platform tests, formula/audit, authorized submission and Homebrew review. |
-| Maintainer Homebrew tap | **Not created or published.** | Distribution rights, separately authorized tap creation/publication, tested formula, checksums and maintenance commitment. |
+| One-line installer | `curl -fsSL https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh \| bash` | `install.sh` on `main`, the release archive, and the release's `SHA256SUMS` |
+| Homebrew tap | `brew install luongnv89/tap/cmail` | the formula in the tap and the tag's source archive (pinned by SHA-256); built with Rust by Homebrew |
+| Reviewed checkout | `bash install.sh --local` or `cargo install --path .` | the checkout you reviewed and crates.io (pinned by `Cargo.lock`) |
 
-No release was created or amended, no package was published, and no Homebrew
-submission was made as part of this change. Recording these pending outcomes
-is intentional, not a claim that publication occurred.
+## Release binaries
 
-The one-line command reads `install.sh` from `main`, because the v0.2.0 tag's
-own installer still pins v0.1.0. `main` is a moving URL for the installer
-itself, but the runtime it downloads stays pinned to an immutable release
-commit, and the installer refuses moving refs for `CMAIL_REF`. Bash parses the
-whole installer before running it, so a download cut short runs nothing. Once a
-release ships whose own `install.sh` pins that release, the one-liner can point
-at the release tag instead. To avoid trusting `main`, download `install.sh`,
-review it, then run it, or install a reviewed clone with `--local`. The current
-offline regressions verify the piped, checkout and local installer routes and
-the installed CLI, not public hosting, Homebrew eligibility/admission, provider
-authentication, DNS or mail delivery.
+[`release.yml`](https://github.com/luongnv89/cmail/blob/main/.github/workflows/release.yml)
+runs when a `vX.Y.Z` tag is pushed. It checks the tag against `Cargo.toml` and
+`VERSION`, builds these targets, smoke-tests each binary, and publishes the
+archives plus `SHA256SUMS` on the tag's GitHub release:
+
+| Target | Built on | Notes |
+|---|---|---|
+| `x86_64-unknown-linux-musl` | ubuntu-latest | static; runs on any x86_64 Linux |
+| `aarch64-unknown-linux-musl` | ubuntu-24.04-arm | static; runs on any arm64 Linux |
+| `x86_64-apple-darwin` | macos-latest | Intel Macs |
+| `aarch64-apple-darwin` | macos-latest | Apple silicon |
+
+Each archive is `cmail-<target>.tar.gz` and contains `cmail`, `LICENSE` and
+`README.md`. TLS is built in (rustls with bundled root certificates), so the
+binary needs no OpenSSL or system libraries.
+
+## The installer
+
+[`install.sh`](https://github.com/luongnv89/cmail/blob/main/install.sh) detects
+the OS and CPU (an x86_64 shell under Rosetta still gets the Apple-silicon
+binary), downloads the matching archive from the latest release (or
+`--version vX.Y.Z` / `CMAIL_VERSION`), verifies it against `SHA256SUMS`, checks
+the binary runs, and then renames it into `~/.local/bin/cmail`
+(`CMAIL_BIN_DIR` overrides). Nothing is installed if any step fails, and a
+previous `cmail` keeps working.
+
+- HTTPS only, including redirects. No sudo, no package manager, no shell
+  profile edits; it prints the `PATH` line to add when needed.
+- It replaces only a previous cmail (binary or the 0.3 Bash launcher). It
+  refuses symlinks and unrelated files at the destination.
+- Platforms without a prebuilt binary fall back to `cargo install --git`
+  (`--from-source` forces this).
+- `--local` builds the checkout that contains the script with
+  `cargo build --release --locked`; it needs a clone, so it does not work
+  through `curl | bash`.
+- Bash parses the whole script before running it, so a download cut short
+  runs nothing. It works with macOS's Bash 3.2.
+
+Checksums come from the same release as the archive, so they detect corrupted
+or truncated downloads and mismatched assets; they are not an independent
+signature. To avoid trusting `main`, download `install.sh`, read it, then run
+it, or install a reviewed checkout.
+
+## Homebrew tap
+
+The formula lives in this repository at
+[`packaging/homebrew/cmail.rb`](https://github.com/luongnv89/cmail/blob/main/packaging/homebrew/cmail.rb)
+and is published through the `luongnv89/homebrew-tap` repository, which makes
+`brew install luongnv89/tap/cmail` work. It builds the tagged source with
+Rust (`depends_on "rust" => :build`), installs bash, zsh and fish completions
+generated by `cmail completion`, and its `brew test` runs `--version`,
+`config path` and an offline `doctor` without network access.
+
+Publishing a release to the tap:
+
+1. Push the `vX.Y.Z` tag and wait for the release workflow to publish binaries.
+2. Run `scripts/update-formula.sh vX.Y.Z` to set the formula's `url` and
+   `sha256` from the tag's source archive.
+3. Copy `packaging/homebrew/cmail.rb` to `Formula/cmail.rb` in
+   `luongnv89/homebrew-tap`, then check it with
+   `brew audit --strict --online cmail` and `brew install --build-from-source cmail`
+   followed by `brew test cmail`.
+4. Commit and push the tap.
+
+This is a maintainer tap, not Homebrew/core. A core submission is possible now
+that the project is MIT-licensed and has checksummed releases, but it needs
+Homebrew's own review and notability criteria; none has been made.
+
+## Upgrading from 0.3 and earlier
+
+Earlier releases installed a Bash launcher at `~/.local/bin/cmail` and runtimes
+under `~/.local/share/cmail`. Running the installer again replaces the launcher
+with the binary and points out that the old runtime store can be deleted. The
+configuration at `~/.config/cmail/.env` is the default location for 0.4, so it
+keeps working. A source checkout's `./.env` is no longer read automatically:
+move it there or pass `--config ./.env`.

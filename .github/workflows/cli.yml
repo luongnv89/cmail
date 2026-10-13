@@ -36,3 +36,6 @@ jobs:
         run: make lint
       - name: Run offline tests and completion checks
         run: make test
+      - name: Check the installer under macOS system Bash 3.2
+        if: runner.os == 'macOS'
+        run: INSTALL_TEST_BASH=/bin/bash INSTALL_TEST_LOCAL=0 bash tests/install_test.sh

@@ -9,7 +9,7 @@ test:
 lint:
 	@cargo fmt --check
 	@cargo clippy --all-targets --locked -- -D warnings
-	@shellcheck -x install.sh scripts/*.sh
+	@shellcheck -x install.sh scripts/*.sh tests/install_test.sh
 
 install:
 	@cargo install --path . --locked
