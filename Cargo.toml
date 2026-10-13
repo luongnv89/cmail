@@ -2,7 +2,7 @@
 name = "cmail"
 version = "0.4.0"
 edition = "2021"
-rust-version = "1.74"
+rust-version = "1.82"
 description = "Free custom-domain email with Cloudflare Email Routing"
 license = "MIT"
 repository = "https://github.com/luongnv89/cmail"

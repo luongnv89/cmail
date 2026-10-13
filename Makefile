@@ -1,7 +1,15 @@
-.PHONY: test lint
+.PHONY: build test lint install
+
+build:
+	@cargo build --release --locked
 
 test:
 	@bash scripts/test.sh
 
 lint:
-	@shellcheck -x cmail lib/*.sh install.sh scripts/*.sh completions/cmail.bash
+	@cargo fmt --check
+	@cargo clippy --all-targets --locked -- -D warnings
+	@shellcheck -x install.sh scripts/*.sh
+
+install:
+	@cargo install --path . --locked

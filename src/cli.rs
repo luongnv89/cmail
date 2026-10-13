@@ -3,7 +3,7 @@
 
 use crate::config::KEYS;
 use crate::style::{Mode, Tier};
-use clap::builder::styling::{AnsiColor, Ansi256Color, Color, RgbColor, Style, Styles};
+use clap::builder::styling::{Ansi256Color, AnsiColor, Color, RgbColor, Style, Styles};
 use clap::builder::{NonEmptyStringValueParser, PossibleValuesParser};
 use clap::{Args, ColorChoice, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
 
@@ -106,7 +106,9 @@ pub enum Command {
     #[command(long_about = SETUP_ABOUT)]
     Setup(SetupArgs),
     /// Inspect zone, routing, destinations, and rules
-    #[command(long_about = "Read-only Cloudflare zone, routing, destination, and rule report.\nUse --format json for scripts.")]
+    #[command(
+        long_about = "Read-only Cloudflare zone, routing, destination, and rule report.\nUse --format json for scripts."
+    )]
     Status,
     /// List a domain's addresses and where each forwards
     #[command(
@@ -307,7 +309,8 @@ pub fn parse(args: Vec<std::ffi::OsString>, stdout: &Mode) -> Parsed {
                 return Parsed::Done(0, None);
             }
             let rendered = strip_ansi(&error.render().to_string());
-            let message = rendered.lines().next().unwrap_or("invalid arguments").trim_start_matches("error: ").to_string();
+            let message =
+                rendered.lines().next().unwrap_or("invalid arguments").trim_start_matches("error: ").to_string();
             return Parsed::Done(2, Some((message, usage_path(&rendered))));
         }
     };

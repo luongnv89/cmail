@@ -85,6 +85,11 @@ pub fn step(title: &str) {
     }
 }
 
+/// Record the step for recovery guidance without printing a header.
+pub fn step_silently(title: &str) {
+    *STEP.lock().unwrap() = title.to_string();
+}
+
 pub fn current_step() -> String {
     let step = STEP.lock().unwrap().clone();
     if step.is_empty() {

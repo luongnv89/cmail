@@ -44,11 +44,12 @@ fn show(path: PathBuf) -> Result<()> {
         };
         plain.push(record(&[key, &value]));
         let role = if secret { Role::Dim } else { Role::Text };
-        let shown = if value.is_empty() { "—".to_string() } else { clean(&value, false) };
+        let shown = if value.is_empty() { c.out.g().empty.to_string() } else { clean(&value, false) };
         rows.push(vec![vec![span(Role::Title, key)], vec![span(role, shown)]]);
     }
     if c.json {
-        let data = serde_json::json!({"path": config.path.display().to_string(), "settings": settings, "secrets": secrets});
+        let data =
+            serde_json::json!({"path": config.path.display().to_string(), "settings": settings, "secrets": secrets});
         output::print(&envelope("config show", data));
     } else if c.out.styled {
         let footer = clean(&config.path.display().to_string(), false);
@@ -62,7 +63,9 @@ fn show(path: PathBuf) -> Result<()> {
 fn check_ready(path: PathBuf) -> Result<()> {
     let ready = Config::load(path, &Overrides::default()).and_then(|config| config.ready());
     let checks = match &ready {
-        Ok(()) => vec![check("config", "pass", "configuration ready", "Use cmail setup --dry-run to inspect provider state.")],
+        Ok(()) => {
+            vec![check("config", "pass", "configuration ready", "Use cmail setup --dry-run to inspect provider state.")]
+        }
         Err(error) => {
             if let Error::Config(message) = error {
                 ui::print_config_error(message);

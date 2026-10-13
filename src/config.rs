@@ -242,9 +242,7 @@ pub fn address_list(value: &str) -> Vec<String> {
 pub fn field_valid(key: &str, value: &str) -> bool {
     match key {
         "DOMAIN" => domain_valid(value),
-        "DEST_EMAIL" => value
-            .split_once('@')
-            .is_some_and(|(local, domain)| local_valid(local) && domain_valid(domain)),
+        "DEST_EMAIL" => value.split_once('@').is_some_and(|(local, domain)| local_valid(local) && domain_valid(domain)),
         "ADDRESSES" => {
             if value.starts_with(',') || value.ends_with(',') || value.contains(",,") {
                 return false;
@@ -577,7 +575,10 @@ mod tests {
     #[test]
     fn set_rewrites_one_key_privately() {
         let dir = tempfile::tempdir().unwrap();
-        let path = private(dir.path(), "# keep\nDOMAIN=example.com\nCF_ZONE_ID=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nADDRESSES=hello");
+        let path = private(
+            dir.path(),
+            "# keep\nDOMAIN=example.com\nCF_ZONE_ID=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nADDRESSES=hello",
+        );
         let mut config = Config { path: path.clone(), values: HashMap::new() };
         for key in KEYS {
             config.values.insert(key, None);

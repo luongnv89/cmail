@@ -1,4 +1,4 @@
-//! btop-inspired styling: decisions per stream, theme roles, and components.
+//! btop-inspired styling (help text gets the accent role through clap's styles): decisions per stream, theme roles, and components.
 //!
 //! Commands name a [`Role`]; only this module knows escape codes. Every render
 //! function takes an explicit [`Mode`] so tests can render each path without a
@@ -34,7 +34,6 @@ pub struct Mode {
 pub enum Role {
     Text,
     Title,
-    Accent,
     Dim,
     Border,
     Low,
@@ -95,7 +94,6 @@ impl Mode {
         let code = match role {
             Role::Text => return String::new(),
             Role::Title => "1".to_string(),
-            Role::Accent => format!("{};1", color((0xb5, 0x40, 0x40), 91)),
             Role::Dim => "2".to_string(),
             Role::Border => color((0x55, 0x6d, 0x59), 32),
             Role::Low => color((0x77, 0xca, 0x9b), 92),
@@ -151,9 +149,9 @@ pub struct G {
     pub bad: &'static str,
     pub arrow: &'static str,
     pub ellipsis: &'static str,
+    pub sep: &'static str,
+    pub empty: &'static str,
     pub rule: &'static str,
-    pub meter_full: &'static str,
-    pub meter_empty: &'static str,
 }
 
 pub static UNICODE: G = G {
@@ -174,9 +172,9 @@ pub static UNICODE: G = G {
     bad: "✗",
     arrow: "→",
     ellipsis: "…",
+    sep: " · ",
+    empty: "—",
     rule: "──",
-    meter_full: "■",
-    meter_empty: "■",
 };
 
 pub static ASCII: G = G {
@@ -197,9 +195,9 @@ pub static ASCII: G = G {
     bad: "x",
     arrow: "->",
     ellipsis: "...",
+    sep: ", ",
+    empty: "-",
     rule: "--",
-    meter_full: "#",
-    meter_empty: ".",
 };
 
 /// Make user-supplied text safe to print: controls become visible escapes.
@@ -269,7 +267,8 @@ fn render_line(mode: &Mode, line: &Line, max: usize) -> (String, usize) {
         if room == 0 {
             break;
         }
-        let text = if width(&part.text) > room { truncate(&part.text, room, mode.g().ellipsis) } else { part.text.clone() };
+        let text =
+            if width(&part.text) > room { truncate(&part.text, room, mode.g().ellipsis) } else { part.text.clone() };
         used += width(&text);
         out.push_str(&mode.paint(part.role, &text));
     }
@@ -356,33 +355,6 @@ pub fn boxed(mode: &Mode, title: &str, footer: Option<&str>, sections: &[Vec<Lin
     out
 }
 
-/// Meter of `cells` cells for a 0-100 value, then the right-aligned value.
-pub fn meter(mode: &Mode, value: u32, cells: u32) -> String {
-    let g = mode.g();
-    let mut out = String::new();
-    for i in 1..=cells {
-        let threshold = ((i as f64) * 100.0 / cells as f64 + 0.5).floor() as u32;
-        if value >= threshold {
-            let position = i * 100 / cells;
-            let role = if position <= 33 {
-                Role::Low
-            } else if position <= 66 {
-                Role::Mid
-            } else {
-                Role::High
-            };
-            out.push_str(&mode.paint(role, g.meter_full));
-        } else if mode.colored() {
-            out.push_str(&mode.paint(Role::Dim, g.meter_empty));
-        } else if mode.glyphs == Glyphs::Unicode {
-            out.push('·');
-        } else {
-            out.push_str(g.meter_empty);
-        }
-    }
-    format!("{out} {value:>3}%")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -405,15 +377,8 @@ mod tests {
     #[test]
     fn ascii_glyphs_are_ascii_only() {
         let m = mode(Tier::C16, Glyphs::Ascii);
-        let mut out = boxed(&m, "status", Some("2 rules"), &[vec![status(&m, Level::Bad, "down")], vec![]]);
-        out.push_str(&meter(&m, 40, 10));
+        let out = boxed(&m, "status", Some("2 rules"), &[vec![status(&m, Level::Bad, "down")], vec![]]);
         assert!(out.chars().all(|c| (c as u32) < 0x80), "{out}");
-    }
-
-    #[test]
-    fn meter_half_without_color() {
-        let m = mode(Tier::None, Glyphs::Unicode);
-        assert_eq!(meter(&m, 50, 10), "■■■■■·····  50%");
     }
 
     #[test]

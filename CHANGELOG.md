@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- Rewrite cmail in Rust as one self-contained binary (version 0.4.0). It needs no
+  Bash, curl or jq at runtime; `gddy` is still needed only for
+  `--registrar godaddy`. Commands, options, JSON output, exit codes, safety
+  prompts and setup steps are unchanged. The Bash runtime (`cmail` script and
+  `lib/`) is removed.
+- Run it as `cmail` everywhere: help, recovery hints and docs no longer say
+  `./cmail`.
+- Install a prebuilt binary with the one-line installer (SHA-256 verified), with
+  Homebrew (`brew install luongnv89/tap/cmail`), or from a checkout with
+  `bash install.sh --local` / `cargo install --path .`.
+- Configuration defaults to `${XDG_CONFIG_HOME:-~/.config}/cmail/.env` (the path
+  the installer already used). **Action needed** if you ran cmail from a
+  checkout with `<checkout>/.env`: move that file there or pass `--config ./.env`.
+- Terminal output uses a btop-inspired style: boxed reports with status marks
+  for `status`, `list`, `doctor`, `config show/check` and `setup --dry-run`, and
+  colored progress. **Changed:** when stdout is piped, these commands print
+  tab-separated records (one per line, no header) instead of the old aligned
+  text; `--format json` is unchanged and remains the scripting contract.
+  `NO_COLOR`/`--no-color` disable color, `FORCE_COLOR=1` forces styling.
+- `doctor` no longer checks for bash, curl and jq, which cmail no longer uses.
+- Shell completions are generated from the command tree
+  (`cmail completion bash|zsh|fish`), so they always match the commands.
+- License the project under MIT.
 - Add `cmail forward ADDRESS --destination EMAIL` to change where an existing
   address forwards without deleting or recreating it (#31). It shows the old
   and new destination and asks before writing. The Cloudflare rule is updated
