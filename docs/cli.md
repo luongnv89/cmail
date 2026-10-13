@@ -28,6 +28,8 @@ bash install.sh --local      # or: cargo install --path .
 
 `--local` builds this checkout and installs it to the same place, without provider access or configuration changes. Rerun the installer, `brew upgrade cmail`, or `--local` after pulling to update; existing configuration is preserved.
 
+cmail does not use proxy settings (`HTTPS_PROXY`, `ALL_PROXY`) yet. It connects directly to `api.cloudflare.com` over HTTPS, so it needs direct internet access. The installer's download does follow your proxy settings.
+
 Runtime requirements: none beyond the binary itself; cmail does not need Bash, curl or jq to run. gddy is needed only for opt-in GoDaddy automation (`REGISTRAR=godaddy`). The optional Google sending guide requires browser/account eligibility and separate delivery checks.
 
 Configuration defaults to `~/.config/cmail/.env` (`$XDG_CONFIG_HOME/cmail/.env` when `XDG_CONFIG_HOME` is set); `cmail config path` prints the selected path. Earlier versions run from a checkout defaulted to the checkout's `.env`: pass `--config ./.env` or move that file to the default path.

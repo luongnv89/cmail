@@ -53,6 +53,11 @@ cmail setup
 Upgrade by re-running the same install command (or `brew upgrade cmail`).
 Uninstall by deleting the `cmail` binary (or `brew uninstall cmail`); your
 private configuration in `~/.config/cmail` is kept unless you delete it.
+
+**Proxies:** cmail does not use `HTTPS_PROXY` or `ALL_PROXY` yet. It connects
+directly to `api.cloudflare.com` over HTTPS, so it needs direct internet access.
+The installer's download does follow your proxy settings.
+
 See [distribution](docs/distribution.md) for release and packaging details.
 
 ## Start here
