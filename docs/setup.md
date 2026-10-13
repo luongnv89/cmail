@@ -1,4 +1,4 @@
-# cmail setup guide (0.2.0)
+# cmail setup guide (0.4.0)
 
 [Home](index.html) · [Interactive guide](setup.html) · [CLI docs](docs.html) · [Changelog](changelog.html) · [Privacy](privacy.html)
 
@@ -16,7 +16,7 @@ Do them in order and tick each one when its **Done when** check passes.
 - A free Cloudflare account
 - The inbox that should receive the mail (any provider)
 - A second mailbox to send a test from
-- macOS or Linux with `bash`, `curl` and `jq` (and `git` only if you install from a clone)
+- macOS or Linux (x86_64 or arm64); `curl` to run the installer (or Homebrew), and `git` only if you install from a clone
 
 Already use the domain for a website or email? Note its DNS records now (step 4).
 
@@ -34,9 +34,13 @@ cmail config init
 cmail config set ADDRESSES hello,contact   # optional; default is hello
 ```
 
-The installer puts the pinned cmail 0.2.0 release in `~/.local/bin` without sudo.
+The installer downloads the prebuilt cmail binary for your system, checks its SHA-256 checksum and puts it in
+`~/.local/bin` without sudo (set `CMAIL_BIN_DIR` to choose another directory). It never runs setup.
 Add the `export PATH` line to your shell profile to keep it.
-Prefer to review the code first? Clone it and install that checkout, with no downloads (a `--local` install reports the checkout's version, for example `cmail 0.3.0`; the commands are the same):
+
+Use Homebrew? `brew install luongnv89/tap/cmail` installs cmail and its shell completions instead.
+
+Prefer to review the code first? Clone it and build that checkout (needs Rust and cargo; `cargo install --path .` works too):
 
 ```bash
 git clone https://github.com/luongnv89/cmail
@@ -44,7 +48,7 @@ cd cmail
 bash install.sh --local
 ```
 
-**Done when:** `cmail --version` prints `cmail 0.2.0`.
+**Done when:** `cmail --version` prints `cmail 0.4.0`.
 
 - [ ] cmail is installed
 

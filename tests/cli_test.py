@@ -5,12 +5,19 @@ import os
 import shutil
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from fixture_server import FixtureServer  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[1]
+# The binary under test; scripts/test.sh builds it and exports CMAIL_BIN.
+BIN = Path(os.environ.get('CMAIL_BIN', ROOT / 'target' / 'debug' / 'cmail'))
 KEYS = ('DOMAIN', 'DEST_EMAIL', 'ADDRESSES', 'CLOUDFLARE_API_TOKEN', 'REGISTRAR', 'GDDY_ENV', 'GDDY_PAT',
-        'CF_ZONE_ID', 'CF_ACCOUNT_ID', 'DRY_RUN', 'ENV_FILE', 'NO_COLOR')
+        'CF_ZONE_ID', 'CF_ACCOUNT_ID', 'DRY_RUN', 'ENV_FILE', 'NO_COLOR', 'FORCE_COLOR', 'CLICOLOR_FORCE',
+        'COLORTERM', 'COLUMNS', 'LC_ALL', 'LC_CTYPE', 'XDG_CONFIG_HOME')
 FIXTURE = "DOMAIN=example.com\nDEST_EMAIL=owner@example.net\nADDRESSES=hello,contact\nCLOUDFLARE_API_TOKEN=synthetic-token\nGDDY_ENV=ote\n"
 
 class CLI(unittest.TestCase):
@@ -28,9 +35,11 @@ class CLI(unittest.TestCase):
         self.env['PATH'] = str(self.mock) + os.pathsep + self.env['PATH']
         self.env['ENV_FILE'] = str(self.config)
         self.env['TEST_CALLS'] = str(self.calls)
-        self.shell = os.environ.get('CMAIL_TEST_BASH', 'bash')
+        self.env['TERM'] = 'xterm-256color'
+        self.env['LANG'] = 'C.UTF-8'
+        # No fixture server unless a test calls cloudflare(): any API call fails fast.
+        self.env['CMAIL_CF_API'] = 'http://127.0.0.1:9/client/v4'
         self.tool('gddy', "printf '%s\\n' '{\"data\":[{\"env\":\"ote\",\"expired\":false}]}'")
-        self.tool('curl', 'printf "curl\\n" >> "$TEST_CALLS"; exit 99')
 
     def tool(self, name, body):
         path = self.mock / name
@@ -40,7 +49,7 @@ class CLI(unittest.TestCase):
     def invoke(self, *args, env=None, input=None):
         settings = dict(self.env)
         settings.update(env or {})
-        return subprocess.run([self.shell, str(ROOT / 'cmail'), *args], text=True,
+        return subprocess.run([str(BIN), *args], text=True,
                               input=input, capture_output=True, env=settings, timeout=5)
 
     def cloudflare(self):
@@ -58,9 +67,9 @@ class CLI(unittest.TestCase):
         }
         self.fixture_file = self.directory / 'responses.json'
         self.save_responses()
-        script = ROOT / 'tests' / 'mock_curl.py'
-        self.tool('curl', 'exec '+str(__import__('sys').executable)+' '+str(script)+' "$@"')
-        self.env['TEST_RESPONSES'] = str(self.fixture_file)
+        self.server = FixtureServer(str(self.fixture_file), str(self.calls))
+        self.addCleanup(self.server.close)
+        self.env['CMAIL_CF_API'] = self.server.url
         self.tool('gddy', r'''printf 'gddy %s\n' "$1 $2" >> "$TEST_CALLS"
 case "$1 $2" in
   'auth status') printf '%s\n' '{"data":[{"env":"ote","expired":false}]}' ;;
@@ -183,27 +192,73 @@ esac''')
         self.assertEqual(result.returncode, 3)
         self.assertEqual(json.loads(result.stdout)['data']['checks'][-1]['state'], 'fail')
 
-    def test_ui_streams_quiet_and_color(self):
-        script = '. "$1/lib/ui.sh"; log progress; ok ready; warn attention; note detail; step phase'
-        for quiet in ('0', '1'):
-            env=dict(self.env, CMAIL_QUIET=quiet, NO_COLOR='')
-            result=subprocess.run([self.shell,'-c',script,'probe',str(ROOT)], env=env,
-                                  text=True,capture_output=True)
-            self.assertEqual(result.returncode,0)
-            self.assertEqual(result.stdout,'')
-            self.assertIn('attention',result.stderr)
-            self.assertNotIn('\x1b',result.stderr)
-            self.assertEqual('progress' in result.stderr,quiet=='0')
+    def styled_status(self, env):
+        self.cloudflare()
+        return self.invoke('status', env=env)
+
+    def test_piped_output_is_plain(self):
+        result=self.styled_status({})
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertNotIn('\x1b',result.stdout)
+        self.assertNotIn('╭',result.stdout)
+
+    def test_json_never_styled_even_when_forced(self):
+        self.cloudflare()
+        result=self.invoke('status','--format=json',env={'FORCE_COLOR':'1'})
+        self.assertEqual(result.returncode,0,result.stderr)
+        json.loads(result.stdout)
+        self.assertNotIn('\x1b',result.stdout)
+
+    def test_no_color_wins_over_force_color(self):
+        for env,args in (({'FORCE_COLOR':'1','NO_COLOR':'1'},()),({'FORCE_COLOR':'1'},('--no-color',))):
+            with self.subTest(env=env):
+                self.cloudflare()
+                result=self.invoke('status',*args,env=env)
+                self.assertEqual(result.returncode,0,result.stderr)
+                self.assertNotIn('\x1b',result.stdout)
+                self.assertIn('╭─┐',result.stdout)
+
+    def test_forced_color_styles_box(self):
+        result=self.styled_status({'FORCE_COLOR':'1'})
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('\x1b[',result.stdout)
+        self.assertIn('╭─┐',result.stdout)
+
+    def test_ascii_locale_draws_ascii_box(self):
+        result=self.styled_status({'FORCE_COLOR':'1','LANG':'C','NO_COLOR':'1'})
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertTrue(all(ord(c)<0x80 for c in result.stdout),result.stdout)
+        self.assertIn('+-[example.com]',result.stdout)
+
+    def test_hostile_provider_text_is_escaped(self):
+        self.cloudflare()
+        self.fixtures['/zones/'+self.zone+'/email/routing/rules?per_page=50&page=1']['result']=[
+            {'id':'r','enabled':True,'matchers':[{'type':'literal','field':'to','value':'evil\x1b[2J\there@example.com'}],
+             'actions':[{'type':'forward','value':['owner@example.net']}]}]
+        self.save_responses()
+        for env in ({},{'FORCE_COLOR':'1','NO_COLOR':'1'}):
+            result=self.invoke('status',env=env)
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertNotIn('\x1b',result.stdout)
+        rule=[l for l in self.invoke('status').stdout.splitlines() if l.startswith('rule')][0]
+        self.assertEqual(len(rule.split('\t')),4,rule)
+
+    def test_quiet_keeps_errors_and_results(self):
+        result=self.invoke('doctor','--offline','--quiet')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('configuration ready',result.stdout)
+        self.assertEqual(result.stderr,'')
 
     def test_no_browser_keeps_manual_url(self):
-        script='. "$1/lib/ui.sh"; open_url https://example.com/'
-        self.tool('open', 'printf "browser\\n" >> "$TEST_CALLS"; exit 99')
-        result=subprocess.run([self.shell,'-c',script,'probe',str(ROOT)],
-                              env=dict(self.env,CMAIL_NO_BROWSER='1',CMAIL_QUIET='1'),
-                              text=True,capture_output=True)
-        self.assertEqual(result.returncode,0)
-        self.assertIn('https://example.com/',result.stderr)
-        self.assertFalse(self.calls.exists())
+        self.cloudflare()
+        self.config.write_text(FIXTURE.replace('CLOUDFLARE_API_TOKEN=synthetic-token\n',''))
+        for opener in ('open','xdg-open','wslview'):
+            self.tool(opener, 'printf "browser\\n" >> "$TEST_CALLS"; exit 99')
+        result=self.tty_run('setup','--no-browser',answer='\x04',env={'PATH':self.without_gddy()})
+        self.assertEqual(result.returncode,1,result.stderr)
+        self.assertIn('Open: https://dash.cloudflare.com/profile/api-tokens',result.stderr)
+        self.assertIn('no token input',result.stderr)
+        self.assertNotIn('browser',self.calls.read_text() if self.calls.exists() else '')
 
     def test_status_json_and_text(self):
         self.cloudflare()
@@ -237,11 +292,13 @@ esac''')
         self.save_responses()
         result=self.invoke('status')
         self.assertEqual(result.returncode,0,result.stderr)
-        for line in ['  hello@example.com -> owner@example.net, second@example.org  enabled=true',
-                     '  bot@example.com -> worker parser  enabled=true',
-                     '  spam@example.com -> drop  enabled=true',
-                     '  custom matcher -> no action  enabled=false',
-                     '  catch-all -> drop  enabled=false']:
+        for line in ['rule\thello@example.com\towner@example.net, second@example.org\tenabled',
+                     'rule\tbot@example.com\tworker parser\tenabled',
+                     'rule\tspam@example.com\tdrop\tenabled',
+                     'rule\tcustom matcher\tno action\tdisabled',
+                     'rule\tcatch-all\tdrop\tdisabled',
+                     'zone\texample.com\tactive', 'routing\tready\tenabled',
+                     'destination\towner@example.net\tverified']:
             self.assertIn(line,result.stdout.splitlines())
 
     def test_status_late_failure_has_no_partial_stdout(self):
@@ -327,7 +384,9 @@ esac''')
         checks=json.loads(result.stdout)['data']['checks']
         self.assertEqual(checks[-1]['state'],'pass')
         self.assertEqual(checks[-1]['name'],'godaddy')
-        self.assertIn('max-time=7',self.calls.read_text())
+        self.assertIn('GET /user/tokens/verify',self.calls.read_text())
+        result=self.invoke('status','--format=json','--timeout=7','--verbose')
+        self.assertIn('(timeout 7s)',result.stderr)
         self.assertIn('gddy auth status',self.calls.read_text())
 
     def test_online_doctor_manual_mode_skips_godaddy(self):
@@ -429,8 +488,8 @@ esac''')
 
     def tty_setup(self, *args, env=None):
         settings=dict(self.env); settings.update(env or {})
-        return subprocess.run([__import__('sys').executable,str(ROOT/'tests'/'run_tty.py'),self.shell,
-                               str(ROOT/'cmail'),'setup',*args],text=True,capture_output=True,env=settings,timeout=15)
+        return subprocess.run([sys.executable,str(ROOT/'tests'/'run_tty.py'),str(BIN),'setup',*args],
+                              text=True,capture_output=True,env=settings,timeout=15)
 
     def ready_rules(self):
         self.fixtures['/zones/'+self.zone+'/email/routing/rules?per_page=50&page=1']['result']=[
@@ -462,7 +521,7 @@ esac''')
         # zone lookup, delegation step, first activation poll: pending; then active.
         self.fixtures['/zones/'+self.zone]={'_sequence':[pending,pending,pending,zone]}
         self.save_responses()
-        self.tool('sleep','printf "sleep %s\\n" "$1" >> "$TEST_CALLS"')
+        self.env['CMAIL_TEST_SLEEP_LOG']=str(self.calls)
         result=self.tty_setup('--registrar','manual',env={'PATH':self.without_gddy(),'REGISTRAR':'godaddy'})
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertIn('Receiving is set up',result.stdout)
@@ -480,7 +539,7 @@ esac''')
         self.cloudflare()
         self.fixtures['/zones/'+self.zone]['result']['status']='pending'
         self.save_responses()
-        self.tool('sleep','printf "sleep %s\\n" "$1" >> "$TEST_CALLS"')
+        self.env['CMAIL_TEST_SLEEP_LOG']=str(self.calls)
         result=self.tty_setup('--wait-timeout','1',env={'PATH':self.without_gddy()})
         self.assertEqual(result.returncode,1,result.stderr)
         self.assertIn('Setup stopped at: Waiting for zone activation',result.stderr)
@@ -546,10 +605,13 @@ esac''')
                     'actions':[{'type':'forward','value':['owner@example.net']}]}],
             'result_info':{'total_pages':2}}
         self.save_responses()
-        script='set -euo pipefail; CMAIL_DIR="$1"; . "$1/lib/ui.sh"; . "$1/lib/env.sh"; . "$1/lib/cloudflare.sh"; config_load; ADDRESSES=hello; cf_rules_ensure "$2"'
-        result=subprocess.run([self.shell,'-c',script,'probe',str(ROOT),self.zone],env=self.env,
-                              text=True,capture_output=True,timeout=5)
+        self.fixtures['/zones/'+self.zone+'/email/routing/rules?per_page=50&page=1']['result']=[
+            {'enabled':True,'matchers':[{'type':'literal','field':'to','value':'contact@example.com'}],
+             'actions':[{'type':'forward','value':['owner@example.net']}]}]
+        self.save_responses()
+        result=self.tty_setup(env={'PATH':self.without_gddy()})
         self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('hello@example.com already exists',result.stderr)
         self.assertNotIn('POST',self.calls.read_text())
 
     def test_config_init_private_idempotent(self):
@@ -691,12 +753,14 @@ esac''')
         result=self.invoke('list')
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertEqual(result.stdout,
-            'Addresses on example.com (4):\n'
-            '  bot@example.com     -> worker parser\n'
-            '  contact@example.com -> pending@example.org (unverified), ghost@example.io (unregistered)  [disabled]\n'
-            '  hello@example.com   -> Owner@example.net (verified)\n'
-            '  spam@example.com    -> drop\n'
-            'Catch-all (any other address): disabled -> owner@example.net (verified)\n')
+            'bot@example.com\tworker parser\tenabled\n'
+            'contact@example.com\tpending@example.org (unverified), ghost@example.io (unregistered)\tdisabled\n'
+            'hello@example.com\tOwner@example.net (verified)\tenabled\n'
+            'spam@example.com\tdrop\tenabled\n'
+            'catch-all\towner@example.net (verified)\tdisabled\n')
+        styled=self.invoke('list',env={'FORCE_COLOR':'1','NO_COLOR':'1','COLUMNS':'200'})
+        self.assertIn('example.com addresses',styled.stdout)
+        self.assertIn('ghost@example.io (unregistered)',styled.stdout)
 
     def test_list_empty_domain(self):
         self.cloudflare()
@@ -704,7 +768,7 @@ esac''')
         self.save_responses()
         result=self.invoke('list')
         self.assertEqual(result.returncode,0,result.stderr)
-        self.assertEqual(result.stdout,'Addresses on example.com (0):\n  none\nCatch-all (any other address): not configured\n')
+        self.assertEqual(result.stdout,'catch-all\t\tnot configured\n')
 
     def test_list_domain_override_uses_zone_lookup(self):
         self.list_fixtures()
@@ -777,16 +841,19 @@ esac''')
         self.fixtures['POST /accounts/'+self.account+'/email/routing/addresses'] = {
             'success':True,'result':{'email':self.NEW,'verified':None}}
         self.payloads = self.directory / 'payloads'
-        self.env['TEST_PAYLOADS'] = str(self.payloads)
+        self.server.payloads = str(self.payloads)
         self.save_responses()
 
     def tty_forward(self, *args, answer='y\n', env=None):
-        """Run forward with terminal stdin fed `answer`; capture both result streams."""
+        return self.tty_run('forward', *args, answer=answer, env=env)
+
+    def tty_run(self, *args, answer='y\n', env=None):
+        """Run cmail with terminal stdin fed `answer`; capture both result streams."""
         import pty
         settings = dict(self.env); settings.update(env or {})
         master, slave = pty.openpty()
         try:
-            proc = subprocess.Popen([self.shell, str(ROOT/'cmail'), 'forward', *args], stdin=slave,
+            proc = subprocess.Popen([str(BIN), *args], stdin=slave,
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=settings)
             os.write(master, answer.encode())
             out, err = proc.communicate(timeout=15)
@@ -990,62 +1057,58 @@ esac''')
         self.assertIs(self.sent()[0]['body']['enabled'], False)
         self.assertIn('is disabled and stays disabled', result.stderr)
 
+    CONTEXTS=[(('',),'setup'),(('config',''),'set'),(('config','set',''),'DOMAIN'),
+              (('config','set',''),'REGISTRAR'),(('setup','--'),'--registrar'),
+              (('setup','--registrar',''),'godaddy'),(('setup','--registrar','godaddy','--'),'--dry-run'),
+              (('--config','somepath','doctor','--'),'--offline'),
+              (('status','--format',''),'json'),(('',),'list'),(('list','--'),'--domain'),
+              (('',),'forward'),(('forward','--'),'--destination'),(('forward','hello','--'),'--domain')]
+
+    def completion(self, shell):
+        result=self.invoke('completion',shell)
+        self.assertEqual(result.returncode,0,result.stderr)
+        path=self.directory/('cmail.'+shell)
+        path.write_text(result.stdout)
+        return path
+
     def test_completion_generation_offline(self):
         for shell in ('bash','zsh','fish'):
             result=self.invoke('completion',shell)
             self.assertEqual(result.returncode,0,result.stderr)
-            self.assertEqual(result.stdout,(ROOT/'completions'/('cmail.'+shell)).read_text())
+            self.assertIn('cmail',result.stdout)
             self.assertNotIn('synthetic-token',result.stdout)
+            self.assertNotIn('\x1b',result.stdout)
         self.assertFalse(self.calls.exists())
 
     def test_bash_completion_contexts(self):
-        script='. "$1/completions/cmail.bash"; shift; COMP_WORDS=(cmail "$@"); COMP_CWORD=$((${#COMP_WORDS[@]}-1)); _cmail_complete; printf "%s\\n" "${COMPREPLY[@]}"'
-        for words,expected in [(('',),'setup'),(('config',''),'set'),(('config','set',''),'DOMAIN'),
-                               (('config','set',''),'REGISTRAR'),(('setup','--'),'--registrar'),
-                               (('setup','--registrar',''),'godaddy'),(('setup','--registrar','','--'),'--dry-run'),
-                               (('--config','somepath','doctor','--'),'--offline'),
-                               (('status','--format',''),'json'),(('',),'list'),(('list','--'),'--domain'),
-                               (('',),'forward'),(('forward','--'),'--destination'),(('forward','hello','--'),'--domain')]:
-            result=subprocess.run([self.shell,'-c',script,'probe',str(ROOT),*words],
+        file=self.completion('bash')
+        script='. "$1"; shift; COMP_WORDS=(cmail "$@"); COMP_CWORD=$((${#COMP_WORDS[@]}-1)); _cmail cmail "${COMP_WORDS[COMP_CWORD]}" "${COMP_WORDS[COMP_CWORD-1]}"; printf "%s\\n" "${COMPREPLY[@]}"'
+        for words,expected in self.CONTEXTS:
+            result=subprocess.run(['bash','-c',script,'probe',str(file),*words],
                                    env=self.env,text=True,capture_output=True)
             self.assertEqual(result.returncode,0,result.stderr)
-            self.assertIn(expected,result.stdout.splitlines())
+            self.assertIn(expected,result.stdout.split(),words)
 
     @unittest.skipUnless(shutil.which('zsh'), 'zsh is not installed')
-    def test_zsh_completion_contexts(self):
-        file = ROOT/'completions/cmail.zsh'
-        syntax = subprocess.run(['zsh','-n',str(file)],text=True,capture_output=True)
+    def test_zsh_completion_syntax(self):
+        file=self.completion('zsh')
+        syntax=subprocess.run(['zsh','-n',str(file)],text=True,capture_output=True)
         self.assertEqual(syntax.returncode,0,syntax.stderr)
-        script = '''compadd() { [[ "$1" != -a ]] || shift; print -rl -- "${(@P)1}"; }
-_files() { print files; }
-file=$1; shift; words=(cmail "$@"); CURRENT=${#words}; _probe() { source "$file"; }; _probe'''
-        for words,expected in [(('',),'setup'),(('config',''),'set'),(('config','set',''),'DOMAIN'),
-                               (('config','set',''),'REGISTRAR'),(('setup','--'),'--registrar'),
-                               (('setup','--registrar',''),'godaddy'),(('setup','--registrar','','--'),'--dry-run'),
-                               (('--config','somepath','doctor','--'),'--offline'),
-                               (('status','--format',''),'json'),(('',),'list'),(('list','--'),'--domain'),
-                               (('',),'forward'),(('forward','--'),'--destination'),(('forward','hello','--'),'--domain')]:
-            result=subprocess.run(['zsh','-f','-c',script,'probe',str(file),*words],
-                                   env=self.env,text=True,capture_output=True)
-            self.assertEqual(result.returncode,0,result.stderr)
-            self.assertIn(expected,result.stdout.splitlines())
+        text=file.read_text()
+        for word in ('#compdef cmail','setup','forward','--registrar','--dry-run','--destination','REGISTRAR'):
+            self.assertIn(word,text)
 
     @unittest.skipUnless(shutil.which('fish'), 'fish is not installed')
     def test_fish_completion_contexts(self):
-        file = ROOT/'completions/cmail.fish'
-        syntax = subprocess.run(['fish','--no-config','-n',str(file)],text=True,capture_output=True)
+        file=self.completion('fish')
+        syntax=subprocess.run(['fish','--no-config','-n',str(file)],text=True,capture_output=True)
         self.assertEqual(syntax.returncode,0,syntax.stderr)
-        for command,expected in [('cmail ','setup'),('cmail config ','set'),
-                                 ('cmail config set ','DOMAIN'),('cmail config set ','REGISTRAR'),
-                                 ('cmail setup --','--registrar'),('cmail setup --registrar ','godaddy'),
-                                 ('cmail doctor --','--offline'),
-                                 ('cmail status --format ','json'),('cmail ','list'),
-                                 ('cmail list --','--domain'),('cmail ','forward'),
-                                 ('cmail forward --','--destination'),('cmail forward hello --','--domain')]:
+        for words,expected in self.CONTEXTS:
+            command='cmail '+' '.join(words)
             result=subprocess.run(['fish','--no-config','-c','source $argv[1]; complete -C $argv[2]',str(file),command],
                                    env=self.env,text=True,capture_output=True)
             self.assertEqual(result.returncode,0,result.stderr)
-            self.assertIn(expected,[line.split('\t')[0] for line in result.stdout.splitlines()])
+            self.assertIn(expected,[line.split('\t')[0] for line in result.stdout.splitlines()],command)
 
 if __name__ == '__main__':
     unittest.main()

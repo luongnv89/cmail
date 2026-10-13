@@ -1,16 +1,19 @@
 # Running `cmail setup` autonomously
 
-## Current CLI capability gate (0.2.0)
+## Current CLI capability gate (0.4.0)
 
-After Gate 1 provenance, check trusted help/version. If help advertises the full
-`setup --dry-run` plan and `config` commands, use this section for the new runtime;
-the closed/piped-stdin passes below apply only to the previous reviewed snapshot
-and legacy v0.1.0. Never infer runtime behavior from the installer's location.
+After Gate 1 provenance, check trusted `--version` and `help`. If `--version`
+prints `cmail 0.2.0` or later and help advertises the full `setup --dry-run`
+plan and `config` commands, use this section; the closed/piped-stdin passes
+below apply only to the previous reviewed snapshot and legacy v0.1.0. Never
+infer runtime behavior from the install location. Current cmail is the Rust
+binary installed by Homebrew, the release installer or `cargo install`; the
+bash-era 0.2.0 script behaves the same for this section.
 
-Install a reviewed new checkout with `bash install.sh --local`, then use the
-same selected configuration for every command (`--config` or `ENV_FILE`). Run
-`doctor --offline`, `config check`, and `setup --dry-run --format json` before
-writes. Preview blockers need attention; a preview exit 0 alone is not readiness.
+Use the same selected configuration for every command (`--config` or
+`ENV_FILE`). Run `doctor --offline`, `config check`, and
+`setup --dry-run --format json` before writes; all three are read-only. Preview
+blockers need attention; a preview exit 0 alone is not readiness.
 The preview's `data.registrar` is `manual` by default: no gddy, no GoDaddy
 blocker, and its `nameservers` action is `ready` (zone active) or `manual` (set
 the listed nameservers at the registrar). With `REGISTRAR=godaddy`, the GoDaddy
@@ -18,26 +21,34 @@ delegation read needs an existing PAT to prevent automatic OAuth; without one,
 inspect delegation independently under the existing gate rules.
 The full preview performs no provider/config writes, purchases, or authentication.
 
-Actual setup requires terminal stdin. Use the tool's pseudo-terminal option,
-run in the background, and relay prompts while monitoring output. Send a
-nameserver/purchase confirmation only after the applicable evidence and user
+Actual setup requires terminal stdin: with closed or piped stdin it exits 2
+with `requires terminal` before any write. Use the tool's pseudo-terminal
+option, run in the background, and relay prompts while monitoring output. Send
+a nameserver/purchase confirmation only after the applicable evidence and user
 approval are recorded. In manual mode, `Registrar nameservers` prints the
 assigned set and DNS/DNSSEC warnings without prompting; relay them as the
 nameserver stop. The user changes them at their registrar while setup polls;
-if the wait ends, rerun setup after the change. Do not pipe blanket `y` or apply the historical closed-
-stdin recipe to this runtime. Browser approval and destination verification
-remain hands-on. Missing tools produce installation instructions; install them
-under the existing skill authorization before rerunning. In GoDaddy mode,
-`--no-browser` setup requires a PAT; guided setup supports OAuth.
+if the wait ends, rerun setup after the change. Do not pipe blanket `y` or apply
+the historical closed-stdin recipe to this runtime. Browser approval and
+destination verification remain hands-on. The binary needs no external tools in
+manual mode; in GoDaddy mode a missing gddy stops at `Dependencies` with
+installation instructions, so install it under the existing skill authorization
+before rerunning. In GoDaddy mode, `--no-browser` setup requires a PAT; guided
+setup supports OAuth. Ctrl-C (SIGINT) exits 130 and still prints the recovery
+step and elapsed time.
 
 The summary includes elapsed wall time and configured receiving addresses.
 This includes user/provider waits, and does not replace Gate 9's delivery test.
-Recovery still names the failed step; use its next action and rerun through a
-terminal after repair. Use this capability gate for current-runtime recovery.
+Recovery still names the failed step (`Setup stopped at: <step>`) and its next
+action; errors print as an `error:` line. Use this capability gate for
+current-runtime recovery. Piped `status`, `list`, `doctor` and `config show`
+text is tab-separated records (for example
+`rule<TAB>hello@example.com<TAB>me@example.net<TAB>enabled`); parse
+`--format json`, the stable contract, for verification.
 
 ## Previous snapshot / legacy runtime recipes
 
-Reviewed current-source `./cmail setup` runs these stages in order, saving
+The reviewed snapshot's `./cmail setup` (and current cmail) runs these stages in order, saving
 progress in config, and skips work already done: dependencies → configuration prompts (DEST_EMAIL, ADDRESSES)
 → GoDaddy auth → domain choice → Cloudflare token → zone create/reuse →
 nameserver replacement (confirmation prompt) → wait for Active (polls ~20 min)
@@ -60,14 +71,16 @@ destination and rules; the preflight decides whether that is acceptable.
 
 ```bash
 cfg="<selected config>"             # from Gate 2; always pass it as ENV_FILE
-launcher="<trusted absolute path>"  # installed launcher or checkout ./cmail
+launcher="<trusted absolute path>"  # trusted cmail binary (legacy: launcher or checkout ./cmail)
 skill="<this skill's directory>"
 log="$(mktemp "${TMPDIR:-/tmp}/cmail-setup.XXXXXX")"   # mode 600, new per pass
 ```
 
-Always run as `DRY_RUN=0 ENV_FILE="$cfg" "$launcher" setup`: a checkout defaults
-to its own `.env`, the installed launcher to its baked path, and an exported
-`DRY_RUN` would otherwise leak in. The helpers, the checker and the run must touch
+Always run as `DRY_RUN=0 ENV_FILE="$cfg" "$launcher" setup`: current cmail
+defaults to `${XDG_CONFIG_HOME:-~/.config}/cmail/.env` (and honors a stray
+`CMAIL_CONFIG`, which wins over `ENV_FILE`: unset it or pass `--config "$cfg"`),
+legacy checkouts default to their own `.env`, legacy launchers to their baked
+path, and an exported `DRY_RUN` would otherwise leak in. The helpers, the checker and the run must touch
 the same file.
 
 ## Preflight (read-only, before every pass)
@@ -77,8 +90,8 @@ the same file.
    setup prompt). DRY_RUN must be absent or `0`: with `1`, setup previews, skips
    the confirmation and waits on a zone that cannot activate. Fix it with
    `set_config.py --replace "$cfg" DRY_RUN=0`.
-2. Tools: `command -v curl jq gddy dig` all found (Gate 1), so setup's own
-   installer path never runs.
+2. Tools: `command -v dig` found (Gate 1); in GoDaddy mode also `gddy` and `jq`.
+   Legacy bash runtimes also need `curl` and `jq`, so their installer path never runs.
 3. GoDaddy auth (skip when the summary shows GDDY_PAT set: setup exports it, and
    its nameserver step performs the domain read):
    `gddy auth status --json 2>/dev/null | jq -c '[.data[]? | {env, expired}]'`.
@@ -113,6 +126,11 @@ re-asking about them is a defect.
 
 ## Running a pass
 
+On current cmail, run each pass through a pseudo-terminal instead of the
+closed/piped stdin shown below (that stdin exits 2 `requires terminal`): pass 1
+answers no prompt, and the nameserver confirmation is typed only after approval.
+The closed/piped commands below are the legacy snapshot / v0.1.0 recipe.
+
 Run every pass in the background — pass 2 includes the ~20-minute activation and
 ~10-minute destination polls, and a foreground timeout would kill it before its
 recovery message. While it runs, read the log tail and relay hands-on steps at
@@ -138,10 +156,11 @@ Check rows in order; the first match wins.
 | Exact `Setup stopped at: Send FROM your custom address (manual, ~5 min)` with `Gmail guide paused without input` after all receiving stages in the same pass | Trusted legacy runtime whose offline `help` lacks `send-as`: receiving API stages succeeded, then it showed the Gmail guide; nonzero exit is expected at this pause, not before it | Verify gates 3–8, then Gate 9; Gmail steps still apply only when sending was requested |
 | `zone still` and the log shows `nameservers set` or `already point at Cloudflare` | Delegation PENDING | Wait; rerun pass 1 later (matching nameservers skip the write) |
 | `zone status` … `needs attention` | Zone moved, deleted or blocked | Stop (wrong): show the status |
-| `not verified after about 10 minutes` | Destination link not clicked | Stop (hands-on): user clicks the link; rerun pass 1 |
+| `not verified after` (current: `after <N>s`; legacy: `after about 10 minutes`) | Destination link not clicked | Stop (hands-on): user clicks the link; rerun pass 1 |
 | Any other `Setup stopped at: <step>` | Failure at that step | `troubleshooting.md` row for the step |
 
-Report only the step, the `ERROR:` line and sanitized values; never paste the log.
+Report only the step, the `error:` line (`ERROR:` on legacy runtimes) and
+sanitized values; never paste the log.
 
 ## Nameserver stop and pass 2
 
@@ -173,8 +192,10 @@ config, a plain `cmail status` reads a different file. Then drive Gate 9: the
 inbound test for every alias.
 
 Only when the user asked to **send** from the custom address (and DEST_EMAIL is a
-Gmail/Google account), print the guide with
-`ENV_FILE="$cfg" "$launcher" send-as </dev/null`. It ends with
+Gmail/Google account), print the guide. On current cmail run `send-as` through a
+pseudo-terminal and end its input (Ctrl-D) after relaying the guide; closed stdin
+exits 2 `requires terminal`. On the reviewed snapshot use
+`ENV_FILE="$cfg" "$launcher" send-as </dev/null`. Either way it ends with
 `Gmail guide paused without input`, which is expected, not a failure. Relay its
 steps, open `https://mail.google.com/mail/u/0/#settings/accounts` and
 `https://myaccount.google.com/apppasswords` for the user, and add the sending

@@ -7,11 +7,11 @@ locates or lists; none executes cmail, reads config contents or changes state.
 |---|---|---|
 | Request cues | The user's message: resume/failure wording, named gate, error text, domain or alias | user-reported |
 | OS | `uname -s` | `Darwin` is macOS; anything other than macOS/Linux is out of scope |
-| Source checkout | `git rev-parse --show-toplevel`, then `test -f` for `cmail`, `install.sh` and `lib/env.sh` at that root | checkout path, or none in cwd |
-| Installed launcher | `command -v cmail`; `type -t cmail` in bash or `whence -w cmail` in zsh; `ls -ld ~/.local/bin/cmail ~/.local/share/cmail` | path and type; located, not executed |
+| Source checkout | `git rev-parse --show-toplevel`, then `test -f` for `Cargo.toml`, `src/main.rs` and `install.sh` at that root; `ls -l target/release/cmail` | checkout path, or none in cwd |
+| Installed binary | `command -v cmail`; `type -t cmail` in bash or `whence -w cmail` in zsh; `ls -l ~/.local/bin/cmail ~/.cargo/bin/cmail`; `brew list --versions cmail` when brew exists | path and type; located, not executed |
 | Path overrides | Labelled per-variable loop below | `NAME=path`; empty means unset in the agent shell |
-| Config presence | `ls -l ~/.config/cmail/.env`; `ls -l "$ENV_FILE"` when set; checkout `.env` only when `cmail`, `install.sh` and `lib/env.sh` all exist at the git root | owner, mode, size only; see config selection |
-| Tools | `command -v bash curl jq gddy brew apt-get dnf pacman dig python3` | found / missing |
+| Config presence | `ls -l "${XDG_CONFIG_HOME:-$HOME/.config}/cmail/.env"`; `ls -l "$CMAIL_CONFIG"` / `ls -l "$ENV_FILE"` when set | owner, mode, size only; see config selection |
+| Tools | `command -v cmail gddy jq dig brew cargo python3` | found / missing |
 
 A non-interactive agent shell cannot see the user's interactive aliases or shell
 functions, so whether `cmail` is an alias or function in the user's terminal is
@@ -21,7 +21,7 @@ Path overrides use one labelled line per variable, because `printenv` with sever
 names prints only the first on BSD/macOS and drops names on GNU:
 
 ```bash
-for v in ENV_FILE CMAIL_BIN_DIR CMAIL_DATA_DIR CMAIL_CONFIG_DIR; do
+for v in CMAIL_CONFIG ENV_FILE XDG_CONFIG_HOME CMAIL_BIN_DIR; do
   printf '%s=%s\n' "$v" "$(printenv "$v")"
 done
 ```
@@ -38,20 +38,19 @@ result.
 
 ## Config selection
 
-- **ENV_FILE:** an `ENV_FILE` seen in the agent env is an agent-shell observation.
-  Record its `ls -l` metadata, but confirm it at Gate 2 before selecting that
-  config. An `ENV_FILE` set only in the user's interactive profile is invisible to
-  the agent, which is another reason Gate 2 confirms the path.
-- **Launcher-baked path:** the installed launcher sets `default_config=` from its
-  install-time CMAIL_CONFIG_DIR, then exports
-  `ENV_FILE="${ENV_FILE:-$default_config}"`. Discovery cannot see that path. When
-  a launcher is found and `ENV_FILE` is not set, record Config as
-  `unknown (launcher-baked path; resolved after Gate 1 provenance)`, whether or not
-  `~/.config/cmail/.env` exists.
-- **After Gate 1 provenance:** read only the trusted launcher's `default_config=`
-  line as metadata (`grep '^default_config=' "<trusted launcher path>"`). Never
-  execute the launcher for this and never read `.env`. Without a trusted launcher
-  line, ask at Gate 2 which file the user's invocation actually uses.
+- **Precedence:** cmail selects `--config` > `CMAIL_CONFIG` > `ENV_FILE` >
+  `${XDG_CONFIG_HOME:-~/.config}/cmail/.env` (normally `~/.config/cmail/.env`).
+- **CMAIL_CONFIG / ENV_FILE:** a value seen in the agent env is an agent-shell
+  observation. Record its `ls -l` metadata, but confirm it at Gate 2 before
+  selecting that config. A value set only in the user's interactive profile is
+  invisible to the agent, which is another reason Gate 2 confirms the path.
+- **After Gate 1 provenance:** run the trusted binary's `cmail config path`; it
+  prints the selected path without creating or reading the file.
+  Never run it before provenance and never read `.env`. If the user's own terminal may set
+  other overrides, ask at Gate 2 which file their invocation actually uses.
+- **Legacy bash launchers** (pre-0.4.0 installer) baked a `default_config=` path
+  from CMAIL_CONFIG_DIR into `~/.local/bin/cmail`; when such a launcher is found,
+  record Config as `unknown (legacy launcher; resolved after Gate 1 provenance)`.
 
 ## Target machine
 
@@ -81,11 +80,10 @@ Agent shell: <present | none (advice-only)>
 Target machine: agent shell | unknown (<reason>)
 OS: <Darwin | Linux | unknown> (<probe>)
 Browser access: unknown (asked when a gate needs it)
-cmail: <launcher path | checkout path | not found | unknown> (not executed)
-       | both: <launcher>, <checkout> (selected at Gate 1)
+cmail: <binary path | checkout path | not found | unknown> (not executed)
+       | both: <binary>, <checkout> (selected at Gate 1)
 Config: <path, owner, mode | absent | unknown (<reason>)> (contents not read)
-        | unknown (launcher-baked path; resolved after Gate 1 provenance)
-        | both: <launcher config>, <checkout .env> (selected at Gate 2)
+        | both: <default config>, <CMAIL_CONFIG/ENV_FILE path> (selected at Gate 2)
 Tools: <found> / missing: <missing>
 Mode: new setup | resume at gate <n> (<cue>)
       | resume, locating earliest unverified gate (<cue>)

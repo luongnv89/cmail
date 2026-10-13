@@ -38,7 +38,7 @@ Author: Luong NGUYEN <luongnv89@gmail.com>
 graph TD
     A[Auto-discover context, install CLI and tools] --> B[Fill config; user adds token]
     B --> C[Read-only preflight]
-    C --> D[Run cmail setup, stdin closed]
+    C --> D[Run cmail setup in a pseudo-terminal]
     D --> G{Stop?}
     G -->|nameserver approval| H[Approved pass 2]
     H --> I
@@ -69,8 +69,8 @@ as required by that agent. For agents supporting slash skills:
 ```
 
 Otherwise ask “Use cmail-setup to help configure my custom email.” This directory
-is portable; the cmail runtime installer does not install agent skills. This
-skill is included in the v0.2.0 release. Python 3 runs its config helpers;
+is portable; the cmail installers (Homebrew, release installer, cargo) do not
+install agent skills. This skill ships in the repository since v0.2.0. Python 3 runs its config helpers;
 local manual checks are documented as a fallback.
 
 ## Resources

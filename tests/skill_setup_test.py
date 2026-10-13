@@ -2,6 +2,7 @@
 """Offline checks; only synthetic accepted fixtures are sourced for Bash comparison."""
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -16,6 +17,14 @@ sys.dont_write_bytecode = True
 spec = importlib.util.spec_from_file_location("check_config", SCRIPT)
 config = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(config)
+BIN = Path(os.environ.get("CMAIL_BIN", ROOT / "target" / "debug" / "cmail"))
+
+
+def runtime_source():
+    """The Rust CLI sources the skill quotes (step names, stop strings)."""
+    return "\n".join(p.read_text() for p in sorted((ROOT / "src").rglob("*.rs")))
+
+
 FIXTURE = "DOMAIN=example.com\nDEST_EMAIL=user@gmail.com\nADDRESSES=hello,contact\nCLOUDFLARE_API_TOKEN='synthetic fixture only'\nGDDY_ENV=prod\n"
 
 
@@ -328,17 +337,32 @@ class SkillContractTests(unittest.TestCase):
 
     def test_installer_and_config_contract(self):
         body = (SKILL / "SKILL.md").read_text()
-        for text in ("bash install.sh", "v0.1.0 lacks", "ENV_FILE", "CMAIL_CONFIG_DIR", "~/.config/cmail/.env",
-                     "cmail --version", "Run `cmail setup` as the primary path", "references/autonomous-run.md"):
-            self.assertIn(text, body.replace("**", ""))
+        flat = " ".join(body.replace("**", "").split())
+        for text in ("brew install luongnv89/tap/cmail",
+                     "curl -fsSL https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh | bash",
+                     "never piped unread", "verifies its SHA256", "CMAIL_BIN_DIR",
+                     "cargo install --git https://github.com/luongnv89/cmail", "cargo install --path .",
+                     "v0.1.0 lacks", "ENV_FILE", "CMAIL_CONFIG", "${XDG_CONFIG_HOME:-~/.config}/cmail/.env",
+                     "~/.config/cmail/.env", "cmail config path", "cmail --version",
+                     "Run `cmail setup` as the primary path", "references/autonomous-run.md"):
+            self.assertIn(text, flat)
+        # The bash-era launcher model is historical only, never the current install path.
+        self.assertNotIn("no `brew install cmail` exists", flat)
+        for retired in ("CMAIL_DATA_DIR", "CMAIL_CONFIG_DIR", "CMAIL_REF", "bash install.sh --local"):
+            self.assertNotIn(retired, body)
+        self.assertIn("Do not use them for new setups", flat)
         self.assertNotIn("gate orchestrator", body)
         self.assertTrue((ROOT / "install.sh").is_file())
-        self.assertIn('CMAIL_CONFIG_DIR', (ROOT / "install.sh").read_text())
+        self.assertIn('CMAIL_BIN_DIR', (ROOT / "install.sh").read_text())
 
     def test_dependency_and_secret_guidance(self):
         body = (SKILL / "SKILL.md").read_text()
-        for command in ("curl --version", "jq --version", "gddy --version", "command -v bash"):
-            self.assertIn(command, body)
+        flat = " ".join(body.split())
+        for command in ("dig -v", "gddy --version", "jq --version", "the cmail binary needs none"):
+            self.assertIn(command, flat)
+        # Runtime dependencies are gone; bash/curl/jq are only legacy-runtime needs.
+        self.assertIn("no bash/curl/jq needed at runtime", body)
+        self.assertIn("legacy bash runtimes additionally need `command -v bash`, curl and jq", flat)
         instructions = (SKILL / "references/configuration.md").read_text()
         for key in ("DOMAIN", "DEST_EMAIL", "ADDRESSES", "GDDY_ENV", "CLOUDFLARE_API_TOKEN", "GDDY_PAT"):
             self.assertIn(key, instructions)
@@ -355,7 +379,7 @@ class SkillContractTests(unittest.TestCase):
         run = " ".join((SKILL / "references/autonomous-run.md").read_text().split())
         self.assertIn("Registrar nameservers", run)
         self.assertIn("`Registrar nameservers`", (SKILL / "references/troubleshooting.md").read_text())
-        self.assertIn("'Registrar nameservers'", (ROOT / "lib/ui.sh").read_text())
+        self.assertIn('"Registrar nameservers', runtime_source())
         self.assertIn("REGISTRAR", (SKILL / "references/configuration.md").read_text())
         for value in ("manual", "godaddy"):
             config.validate(config.parse(FIXTURE + "REGISTRAR=" + value + "\n"))
@@ -399,14 +423,17 @@ class SkillContractTests(unittest.TestCase):
             self.assertIn(rule, section.replace("\n", " "))
         probes = (SKILL / "references/discovery.md").read_text()
         for text in ("uname -s", "git rev-parse --show-toplevel", "command -v cmail",
-                     "type -t cmail", "~/.config/cmail/.env", "command -v bash curl jq gddy",
+                     "type -t cmail", "${XDG_CONFIG_HOME:-$HOME/.config}/cmail/.env",
+                     "command -v cmail gddy jq dig brew cargo python3", "Cargo.toml", "src/main.rs",
                      "Browser access: unknown", "contents not read", "Forbidden during discovery",
                      "whence -w cmail", "Target machine", 'ls -l "$ENV_FILE"', "none in cwd",
                      "earliest unverified gate",
-                     "for v in ENV_FILE CMAIL_BIN_DIR CMAIL_DATA_DIR CMAIL_CONFIG_DIR; do",
+                     "for v in CMAIL_CONFIG ENV_FILE XDG_CONFIG_HOME CMAIL_BIN_DIR; do",
                      'printf \'%s=%s\\n\' "$v" "$(printenv "$v")"',
-                     "unknown (launcher-baked path; resolved after Gate 1 provenance)",
-                     "grep '^default_config='"):
+                     "`--config` > `CMAIL_CONFIG` > `ENV_FILE`",
+                     "run the trusted binary's `cmail config path`",
+                     "without creating or reading the file", "Never run it before provenance",
+                     "unknown (legacy launcher; resolved after Gate 1 provenance)"):
             self.assertIn(text, probes)
         flat = " ".join(probes.split())
         # Target-machine rule: probes describe the agent shell; a mismatch stays unknown.
@@ -416,7 +443,8 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("confirm it at Gate 2 before selecting that config", flat)
         self.assertNotIn("printenv ENV_FILE CMAIL_BIN_DIR", probes)
         configuration = " ".join((SKILL / "references/configuration.md").read_text().split())
-        self.assertIn("trusted launcher's `default_config=` line", configuration)
+        self.assertIn("trusted binary's `cmail config path` prints after Gate 1 provenance", configuration)
+        self.assertIn("cmail config init --config <file>", configuration)
         self.assertIn("which file their invocation actually uses", configuration)
         self.assertIn("whence -w cmail", body)
         self.assertIn("whence -w cmail", (SKILL / "references/verification.md").read_text())
@@ -479,21 +507,23 @@ class SkillContractTests(unittest.TestCase):
                      "`Waiting for zone activation`", "`Enable Cloudflare Email Routing`",
                      "`Destination address:`", "`Forwarding addresses`", "`cmail send-as`"):
             self.assertIn(step, recovery)
-        steps = (ROOT / "lib/ui.sh").read_text()
-        for step in ("Dependencies", "Configuration", "'GoDaddy authentication'", "'Choose domain'",
-                     "'Cloudflare API token'", "'Cloudflare zone:'", "'GoDaddy: point'",
-                     "'Waiting for zone activation'", "'Enable Cloudflare Email Routing'",
-                     "'Destination address:'", "'Forwarding addresses'"):
-            self.assertIn(step, steps)
-        for text in ("aborted before nameserver change", "paused without input"):
-            self.assertIn(text, (ROOT / "lib/godaddy.sh").read_text() + (ROOT / "lib/gmail.sh").read_text())
-        self.assertIn("Receiving is set up", (ROOT / "cmail").read_text())
+        # Recovery names each step by the prefix the binary's step header starts with.
+        steps = (ROOT / "src/commands/setup.rs").read_text()
+        for step in ("Dependencies", "Configuration", "GoDaddy authentication", "Choose domain",
+                     "Cloudflare API token", "Cloudflare zone:", "GoDaddy: point",
+                     "Waiting for zone activation", "Enable Cloudflare Email Routing",
+                     "Destination address:", "Forwarding addresses"):
+            self.assertIn('step.starts_with("%s")' % step, steps)
+        self.assertIn("aborted before nameserver change", (ROOT / "src/godaddy.rs").read_text())
+        self.assertIn("Gmail guide paused without input", steps)
+        self.assertIn("Receiving is set up", steps)
 
     def test_sending_is_optional(self):
-        cli = (ROOT / "cmail").read_text()
-        setup = cli.split("cmd_setup() {", 1)[1].split("\n}\n", 1)[0]
-        self.assertNotIn("gmail_sendas_guide", setup)
-        self.assertIn("send-as) cmd_send_as", cli)
+        source = (ROOT / "src/commands/setup.rs").read_text()
+        setup = source.split("\nfn run(", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("summary(&config);", setup)
+        self.assertNotIn("send_as", setup)
+        self.assertIn("Command::SendAs => setup::send_as(path)", (ROOT / "src/commands/mod.rs").read_text())
         body = " ".join((SKILL / "SKILL.md").read_text().split())
         self.assertIn("include it only when the user asks to send", body)
         gate9 = (SKILL / "references/verification.md").read_text().split("## Gate 9", 1)[1]
@@ -504,18 +534,29 @@ class SkillContractTests(unittest.TestCase):
             self.assertRegex(text, r"Sending is optional", name)
             self.assertIn("cmail send-as", text, name)
 
+    @unittest.skipUnless(BIN.is_file(), "cmail binary not built (cargo build)")
     def test_setup_prompts_fail_closed_on_stdin(self):
-        # Pass 1 relies on closed stdin declining prompts; pass 2 on "y" alone.
-        # The pause only belongs to the optional send-as guide.
-        script = '. "$1/lib/ui.sh"; if confirm "apply nameserver change"; then echo YES; else echo NO; fi; pause && echo PAUSED || echo NOPAUSE'
-        def run(stdin):
-            return subprocess.run(["bash", "-c", script, "probe", str(ROOT)], input=stdin, text=True,
-                                  capture_output=True, timeout=5).stdout
-        self.assertIn("NO", run(""))
-        self.assertIn("NOPAUSE", run(""))
-        self.assertIn("YES", run("y\n"))
-        self.assertIn("PAUSED", run("y\n\n"))
-        self.assertIn("NO", run("\n"))
+        # Closed or piped stdin never answers a prompt: setup, forward and the
+        # optional send-as guide refuse before any provider call or config write.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.env"
+            path.write_text(FIXTURE)
+            path.chmod(0o600)
+            env = {k: v for k, v in os.environ.items() if not k.startswith("CMAIL_") and k not in (
+                "DOMAIN", "DEST_EMAIL", "ADDRESSES", "CLOUDFLARE_API_TOKEN", "REGISTRAR", "GDDY_ENV",
+                "GDDY_PAT", "CF_ZONE_ID", "CF_ACCOUNT_ID", "DRY_RUN", "ENV_FILE")}
+            # Any provider call would fail against a closed loopback port.
+            env.update(ENV_FILE=str(path), CMAIL_CF_API="http://127.0.0.1:9/client/v4")
+            before = path.read_bytes()
+            for args in (["setup"], ["forward", "hello", "--destination", "new@example.org"], ["send-as"]):
+                for stdin in ("", "y\n", "y\n\n"):
+                    with self.subTest(args=args, stdin=stdin):
+                        result = subprocess.run([str(BIN), *args], input=stdin, text=True, env=env,
+                                                capture_output=True, timeout=10)
+                        self.assertEqual(result.returncode, 2, result.stderr)
+                        self.assertIn("requires terminal", result.stderr)
+                        self.assertEqual(result.stdout, "")
+            self.assertEqual(path.read_bytes(), before)
 
     def test_eval_floor_and_process_assertions(self):
         suite = json.loads((SKILL / "evals/evals.json").read_text())
@@ -555,8 +596,11 @@ class Gate8ContractTests(unittest.TestCase):
                             "and `Gmail guide paused without input` after all receiving stages",
                             "same setup pass", "pause exits nonzero"):
             self.assertIn(requirement, legacy)
-        for requirement in ('ENV_FILE="$cfg" "$launcher" status', "must succeed",
-                            "each requested `<local>@<domain> -> DEST_EMAIL [true]` exactly once",
+        for requirement in ('ENV_FILE="$cfg" "$launcher" status --format json', "must succeed",
+                            "each requested `<local>@<domain>` exactly once in `data.rules`",
+                            "`enabled` true", "only value is the intended DEST_EMAIL",
+                            "`rule<TAB><local>@<domain><TAB>DEST_EMAIL<TAB>enabled`",
+                            "`<local>@<domain> -> DEST_EMAIL [true]`",
                             "intended DEST_EMAIL", "another target or disabled flag still fails",
                             "Unrelated aliases may exist", "incomplete", "duplicate",
                             "any failure before the checkpoint is not success",

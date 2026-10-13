@@ -1,10 +1,10 @@
 ---
 name: "cmail-setup"
 description: "Set up, resume or troubleshoot cmail custom-domain email (domain at any registrar → Cloudflare Email Routing → any inbox; optional GoDaddy automation and Gmail send-as): runs cmail setup itself, asking only for missing input, secrets or risky approvals. Don't use for mail migrations or campaigns."
-compatibility: "macOS/Linux, Bash 3.2+, curl, jq, dig; gddy only for opt-in GoDaddy automation or legacy runtimes; Python 3 for the bundled config helpers."
+compatibility: "macOS/Linux; the cmail 0.4.0+ binary (no bash/curl/jq needed at runtime); dig for verification; gddy (and jq to filter its output) only for opt-in GoDaddy automation or legacy runtimes; Python 3 for the bundled config helpers."
 effort: "high"
 metadata:
-  version: "2.3.0"
+  version: "3.0.0"
   author: "Luong NGUYEN <luongnv89@gmail.com>"
 ---
 
@@ -12,11 +12,15 @@ metadata:
 
 Use this skill when the user asks to set up, resume or troubleshoot cmail
 (a domain at any registrar → Cloudflare Email Routing → any inbox the user owns;
-GoDaddy automation is optional); you run the commands. With reviewed current source, receiving takes a few simple steps and
-needs no Google account: `./cmail setup` sets up receiving only. The default
-installer pins the v0.2.0 runtime. A legacy v0.1.0 runtime's setup still includes
-the Gmail guide and lacks `send-as`; its post-receiving pause is accepted only by
-gate 8's exact checks.
+GoDaddy automation is optional); you run the commands. Receiving takes a few
+simple steps and needs no Google account: `cmail setup` sets up receiving only.
+Current cmail (0.4.0+) is a single Rust binary, always invoked as `cmail ...`
+(never `./cmail`); it needs no bash, curl or jq. Install it with
+`brew install luongnv89/tap/cmail`, the one-line installer, or `cargo install`
+(Gate 1). Historical runtimes differ: the bash v0.2.0 CLI and the reviewed
+snapshot shipped as a `cmail` script plus `lib/`, and a legacy v0.1.0 runtime's
+setup still includes the Gmail guide and lacks `send-as`; its post-receiving
+pause is accepted only by gate 8's exact checks.
 Ignore that guide for receive-only requests. Sending from the custom address
 (`cmail send-as`, Gmail only) is optional and never the default: include it only
 when the user asks to send, and do not ask for DEST_EMAIL to be Gmail otherwise.
@@ -24,17 +28,17 @@ Run `cmail setup` as the primary path: prepare its inputs, run it,
 troubleshoot any failure, then verify the result gate by gate. A setup request is
 consent for every **auto** action below. Ask only at a **stop**.
 
-For the new `0.2.0` CLI, use `bash install.sh --local` on the reviewed
-checkout and follow the capability gate in `references/autonomous-run.md`.
-It requires terminal stdin for setup, uses a full read-only preview, and prints
-elapsed setup time. Its default `REGISTRAR=manual` works at any registrar
-without gddy or GoDaddy login: an already-active Cloudflare zone needs no
-nameserver step; a pending zone prints the assigned nameservers, which the
-user replaces at their registrar (a nameserver stop) while setup polls for
-Active. Use `--registrar godaddy` / `REGISTRAR=godaddy` only when the domain is
-at GoDaddy and the user wants automation; only that mode can offer a purchase.
-The previous snapshot and legacy v0.1.0 always use GoDaddy. Historical closed/piped-stdin recipes below remain scoped
-to their older runtimes. Delivery must still be verified independently.
+Follow the capability gate in `references/autonomous-run.md`. Current cmail
+requires terminal stdin for setup (`requires terminal`, exit 2 otherwise), has a
+full read-only `setup --dry-run` preview, and prints elapsed setup time. Its
+default `REGISTRAR=manual` works at any registrar without gddy or GoDaddy login:
+an already-active Cloudflare zone needs no nameserver step; a pending zone prints
+the assigned nameservers, which the user replaces at their registrar (a
+nameserver stop) while setup polls for Active. Use `--registrar godaddy` /
+`REGISTRAR=godaddy` only when the domain is at GoDaddy and the user wants
+automation; only that mode can offer a purchase. The previous snapshot and
+legacy v0.1.0 always use GoDaddy. Historical closed/piped-stdin recipes remain
+scoped to those older runtimes. Delivery must still be verified independently.
 
 ## Autonomy contract
 
@@ -126,72 +130,71 @@ upstream change.
 **Secrets.** Never ask for raw secrets in chat, logs, screenshots or tool
 arguments; the user types the token into the config in their own editor. Read
 config only with `scripts/check_config.py --summary`; write non-secret keys only
-with `scripts/set_config.py`. You may run `cmail setup` and `cmail status`: they
-load config internally and redact the token. Never trace them (`bash -x`), never
-`cat`, `grep`, `source` or print the config, never collect full API responses. If
+with `scripts/set_config.py`. You may run `cmail setup`, `cmail status`,
+`cmail doctor --offline`, `cmail config check` and `cmail config show`: they load
+config internally and never print secret values. Never trace a legacy bash runtime
+(`bash -x`), never `cat`, `grep`, `source` or print the config, never collect full
+API responses. If
 a secret is pasted, do not repeat it; advise rotation and local replacement.
 
 `cmail setup` is interactive and does not stop at every gate: run the preflight
-in `references/autonomous-run.md` first, keep stdin closed, and pipe an answer only
-by its two-pass rule. `DRY_RUN=1` previews nameservers only, then waits ~20
-minutes; it is not a probe. Avoid `doctor` (it installs tools and prints config
-lines). `status` exit 0 alone is not a verdict.
+in `references/autonomous-run.md` first. Current cmail runs setup through a
+pseudo-terminal; only legacy runtimes use the closed-stdin two-pass rule.
+`setup --dry-run` (or `DRY_RUN=1`) is a full read-only preview on current cmail
+and never writes. `doctor` is read-only on current cmail (it never installs tools);
+legacy bash runtimes' `doctor` could install tools, so avoid it there. Piped
+`status`/`list`/`doctor` text is tab-separated records; parse `--format json`.
+`status` exit 0 alone is not a verdict.
 
 ## Gate 1 — Installation and tools
 
 1. Confirm an `unknown` target machine; rerun stale/`unknown` probes; never ask
    what a target-shell probe answers.
 2. Recheck `command -v cmail`, Bash `type -t cmail` (zsh `whence -w cmail`) and
-   the expected launcher. **Before executing help**, reject aliases/functions or
-   an unexpected executable. Inspect the selected file locally without executing
-   it: require user-controlled file/parents, reviewed source provenance or the
-   known installer-generated launcher and its expected runtime/COMMIT.
+   the expected install location. **Before executing help**,
+   reject aliases/functions or an unexpected executable. Inspect the selected file
+   locally without executing it: require a user-controlled file/parents and a
+   known provenance: the Homebrew keg (`brew --prefix`, `brew list cmail`), the
+   installer's `~/.local/bin/cmail` (or `CMAIL_BIN_DIR`), `~/.cargo/bin/cmail`
+   from `cargo install`, or a reviewed checkout's `target/release/cmail`.
    A marker or familiar help text alone is not authentication.
    If provenance cannot be established, stop BLOCKED; never run an unknown PATH
    match to discover whether it is trusted.
-   Only then use the quoted trusted absolute path with `help` (or trusted
-   `./cmail help`), not `cmail --version` (unsupported by legacy/snapshot
-   runtimes). Confirm
-   setup/status/doctor/help and library load; record whether `send-as` is listed
-   to distinguish current-source and legacy completion evidence. A different
-   binary or broken library load fails this gate.
-3. Select source execution or deliberate installation. For the latter,
-   read and run the reviewed checkout's **`bash install.sh`** (needs Bash 3.2+ and
-   curl; downloads the pinned v0.2.0 runtime; sets up no provider).
-   v0.1.0 lacks the installer; no `brew install cmail` exists. The README's
-   one-line `curl … | bash` runs the same `install.sh` from `main`; as an agent,
-   read that installer (downloaded or in the checkout) before running it, never pipe it unread.
-   For the new receive-only/optional-send workflow, prefer the reviewed source
-   snapshot in README instead of the installer's default. Clone upstream
-   into a user-owned directory and fetch the pin explicitly; it need not be
-   advertised on the default branch. Select the immutable feature revision:
-
-   ```bash
-   git clone https://github.com/luongnv89/cmail
-   cd cmail
-   git fetch origin cda65f0554a870ed8079e93741a331918118acec
-   git checkout --detach cda65f0554a870ed8079e93741a331918118acec
-   # Review cmail and lib/ before execution.
-   ./cmail help
-   ```
-
-   This is a development source snapshot, not v0.1.0, until a compatible
-   release/installer ships. Help must list `send-as` before this source workflow
-   proceeds; stop if missing. Select this checkout's trusted absolute `cmail`
-   path, not PATH `cmail`, and checkout `.env` (or explicitly reused ENV_FILE).
-   For deliberate installation, read the checkout's `install.sh`, then run
-   it; the default pinned runtime does not gain features from the checkout.
-4. Installation defaults: launcher `~/.local/bin/cmail`, runtimes `~/.local/share/cmail/`,
-   config `~/.config/cmail/.env`. Installer overrides are absolute `CMAIL_BIN_DIR`,
-   `CMAIL_DATA_DIR`, `CMAIL_CONFIG_DIR`; runtime override is `ENV_FILE`.
-   Call the launcher by absolute path; report the PATH line for the user's profile instead of editing it.
-5. Check `command -v bash`, `curl --version`, `jq --version` and `dig -v`.
-   Only for GoDaddy mode or a legacy/snapshot runtime, also check `gddy --version`
-   and `gddy auth --help` / `gddy domain --help`. Install missing curl/jq
-   with brew or another no-sudo package manager (sudo is a stop). For gddy,
-   download https://github.com/godaddy/cli/releases/latest/download/install.sh
-   to a file, read it, run it.
-   Recheck each tool. Tools installed first keep setup's sudo installer from running.
+   Only then use the quoted trusted absolute path with `--version` and `help`
+   (`cmail --version` prints `cmail <version>`; a legacy/snapshot bash runtime
+   lacks it, so fall back to its `help`). Confirm help lists
+   setup/status/list/forward/doctor/send-as/config; record whether `send-as` is
+   listed to distinguish current and legacy completion evidence. A different
+   binary or failed help fails this gate.
+3. Select deliberate installation when cmail is missing or untrusted (auto, no
+   sudo). In order of preference:
+   - Homebrew available: `brew install luongnv89/tap/cmail`.
+   - Otherwise the one-line installer, read first, never piped unread: download
+     `https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh` to a
+     file, read it, then run it (the README's
+     `curl -fsSL https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh | bash`
+     runs the same script). It downloads a prebuilt release binary, verifies its
+     SHA256 and installs to `~/.local/bin` (override with absolute
+     `CMAIL_BIN_DIR`); it sets up no provider.
+   - Rust toolchain or unsupported platform:
+     `cargo install --git https://github.com/luongnv89/cmail`, or
+     `cargo install --path .` inside a reviewed checkout.
+   Historical: v0.1.0 lacks an installer; the bash-era `bash install.sh` pinned a
+   v0.2.0 script runtime with a launcher, and the reviewed snapshot was run as
+   `./cmail` from a checkout. Do not use them for new setups.
+4. Config default: `${XDG_CONFIG_HOME:-~/.config}/cmail/.env`, i.e. normally
+   `~/.config/cmail/.env`. Precedence: `--config` > `CMAIL_CONFIG` > `ENV_FILE` >
+   default; the trusted binary's `cmail config path` prints the selected path
+   without creating or reading it. Call cmail by its trusted absolute path; report
+   the PATH line for the user's profile instead of editing it.
+5. Tools: the cmail binary needs none. Check `dig -v` for the verification
+   gates. Only for GoDaddy mode or a legacy/snapshot runtime, also check
+   `gddy --version`, `gddy auth --help` / `gddy domain --help` and `jq --version`
+   (used to filter gddy output); legacy bash runtimes additionally need
+   `command -v bash`, curl and jq. Install missing tools with brew or another
+   no-sudo package manager (sudo is a stop). For gddy, download
+   https://github.com/godaddy/cli/releases/latest/download/install.sh to a file,
+   read it, run it. Recheck each tool.
 
 ## Gate 2 — Inputs and private configuration
 
@@ -200,13 +203,15 @@ the trusted template if absent, and run `scripts/check_config.py --summary`.
 Fill missing or template-default keys from the request with `scripts/set_config.py`;
 ask one batched question only for values still missing. If the token is empty,
 stop: give the token recipe, open the file in the user's editor and wait for
-"done". Then the checker, private `bash -n` and the not-tracked check must pass.
+"done". Then the checker, `cmail config check`, private `bash -n` (where bash
+exists) and the not-tracked check must pass.
 Checker success proves the file, not credentials or provider access.
 
 ## Gates 3–9 — Run `cmail setup`, then verify
 
-Follow the steps in `references/autonomous-run.md`: preflight, pass 1 with stdin
-closed in the background, classify the stop with its table (`Setup stopped at:`), the
+Follow the steps in `references/autonomous-run.md`: preflight, pass 1 in the
+background (through a pseudo-terminal on current cmail; stdin closed only on
+legacy runtimes), classify the stop with its table (`Setup stopped at:`), the
 nameserver stop, pass 2 only after approval. Relay hands-on steps (browser
 approval, verification link) at once. Then verify gates 3–9 per
 `references/verification.md`. Finish an independent inbound delivery test for
@@ -246,7 +251,7 @@ the switch after copying the A record to Cloudflare; then pass 2 runs.
 
 ## Edge cases
 
-- Registrar other than GoDaddy: use the current CLI's default manual mode and
+- Registrar other than GoDaddy: use current cmail's default manual mode and
   relay its printed nameservers; legacy runtimes need GoDaddy, so stop there.
 - Unsupported mail service: stop at the scope boundary.
 - Other MX, SPF or DS records: stop before pass 1, even if nameservers match.

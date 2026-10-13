@@ -6,20 +6,25 @@ Pick the file the run will use, then pass it as `ENV_FILE` on every command.
 Take the first that applies:
 
 1. A config file the user named.
-2. The trusted launcher's `default_config=` line (from install-time
-   CMAIL_CONFIG_DIR, normally `~/.config/cmail/.env`), read as metadata after
-   Gate 1 provenance without executing the launcher or reading `.env`. Use it when
-   it is absent, or its summary shows the same DOMAIN or an empty one.
+2. The path the trusted binary's `cmail config path` prints after Gate 1
+   provenance (`--config` > `CMAIL_CONFIG` > `ENV_FILE` >
+   `${XDG_CONFIG_HOME:-~/.config}/cmail/.env`, normally `~/.config/cmail/.env`).
+   It neither creates nor reads the file. Use it when it is absent, or its summary
+   shows the same DOMAIN or an empty one.
 3. Otherwise a new per-domain file beside it: `<config dir>/<domain>.env`.
+   (Legacy bash launchers baked this path into a trusted launcher's
+   `default_config=` line instead; read that line only as metadata.)
 
 Never select a checkout `.env` or `.env-*` file the user did not name: such files
-may belong to other domains. An `ENV_FILE` seen in the agent shell is an
+may belong to other domains (current cmail never reads a checkout `.env` by default). An `ENV_FILE` seen in the agent shell is an
 agent-shell observation; use it only when the user confirms it. If the user says
 their own terminal invocation uses another file, ask which file their invocation
 actually uses. Do not edit a retained runtime's `.env`.
 
-If the file is absent, copy the trusted `.env.example` from the reviewed source or
-selected installed runtime without overwriting: `umask 077; mkdir -p <parent>;
+If the file is absent, create it with the trusted binary:
+`cmail config init --config <file>` writes the built-in template at mode 600 in a
+mode-700 parent and never overwrites an existing file. On a legacy runtime, copy
+its trusted `.env.example` without overwriting: `umask 077; mkdir -p <parent>;
 cp -n <template> <file>; chmod 600 <file>; chmod 700 <parent>`. Reject
 symlink/shared/unowned paths.
 
@@ -56,8 +61,9 @@ other existing value is a stop.
 ## Secrets stay in the user's browser and editor
 
 Never request CLOUDFLARE_API_TOKEN, GDDY_PAT or a Google App Password in chat.
-cmail passes the token to curl in process arguments, visible to local `ps`
-whoever launches it; this skill cannot change that runtime transport.
+Current cmail sends the token in-process over HTTPS, so it never appears in
+process arguments. Legacy bash runtimes passed it to curl in process arguments,
+visible to local `ps`; prefer current cmail on shared machines.
 
 1. **GoDaddy (GoDaddy mode only):** browser OAuth via `gddy auth login --env prod`, which you start in
    the background. A headless user may instead create a PAT at
@@ -90,7 +96,8 @@ whoever launches it; this skill cannot change that runtime transport.
 
 Use `KEY='literal value'`. Do not put `$()`, backticks, variable expansions,
 commands, multiline values or shell snippets in config. Legacy snapshots load
-Bash assignments twice; the new 0.2.0 CLI uses a literal parser. The portable
+Bash assignments twice; cmail 0.2.0+ (including the 0.4.0 binary) uses a literal
+parser and never evaluates values. The portable
 checker remains intentionally narrower, so syntax validity alone is insufficient. Unknown or
 runtime-control keys such as PATH or BASH_ENV are a stop: the user reviews and
 removes them locally; never delete them silently or call them safe to source.
@@ -99,8 +106,12 @@ removes them locally; never delete them silently or call them safe to source.
 
 ```text
 python3 <skill-directory>/scripts/check_config.py <file>
-bash -n <file> >/dev/null 2>&1
+"$cmail" config check --config <file> >/dev/null 2>&1
+bash -n <file> >/dev/null 2>&1   # where bash exists
 ```
+
+`cmail config check` exits 0 only when the required settings are present and valid
+(3 otherwise); it reports problems by field name, never values.
 
 The checker is read-only and value-free. It accepts a deliberately narrow
 literal-assignment subset (including cmail's `%q` backslash escapes) and rejects
