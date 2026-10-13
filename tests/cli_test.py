@@ -72,7 +72,7 @@ esac''')
         self.fixture_file.write_text(json.dumps(self.fixtures))
 
     def test_help_every_level(self):
-        commands = [(), ('setup',), ('status',), ('list',), ('doctor',), ('send-as',), ('config',),
+        commands = [(), ('setup',), ('status',), ('list',), ('forward',), ('doctor',), ('send-as',), ('config',),
                     ('completion',), ('help',)] + [('config', name) for name in ('init','show','check','set','path')]
         for command in commands:
             with self.subTest(command=command):
@@ -108,7 +108,14 @@ esac''')
                  ('setup','--registrar='), ('setup','--registrar'), ('status','--registrar','manual'),
                  ('doctor','--registrar=godaddy'), ('status','--domain','example.org'), ('list','extra'),
                  ('list','--registrar','manual'), ('list','--destination','a@example.net'), ('list','--dry-run'),
-                 ('list','--domain=')]
+                 ('list','--domain='), ('status','--destination','a@example.net'),
+                 ('forward','hello'), ('forward','--destination','a@example.net'),
+                 ('forward','hello','extra','--destination','a@example.net'),
+                 ('forward','hello','--destination','a@example.net','--format','json'),
+                 ('forward','hello','--destination','a@example.net','--dry-run'),
+                 ('forward','hello','--destination','a@example.net','--addresses','hello'),
+                 ('forward','hello','--destination','a@example.net','--wait-timeout','5'),
+                 ('forward','hello','--destination','a@example.net','--registrar','manual')]
         for args in cases:
             with self.subTest(args=args):
                 result = self.invoke(*args)
@@ -750,6 +757,239 @@ esac''')
         self.assertEqual(result.stdout,'')
         self.assertFalse(self.calls.exists())
 
+    NEW = 'new@example.org'
+
+    def forward_fixtures(self, verified='2026-02-01T00:00:00Z', registered=True):
+        self.cloudflare()
+        self.rules_path = '/zones/'+self.zone+'/email/routing/rules'
+        literal = lambda value: [{'type':'literal','field':'to','value':value}]
+        self.rule = {'id':'r1','name':'fwd hello@example.com','enabled':True,'priority':3,
+                     'matchers':literal('hello@example.com'),'actions':[{'type':'forward','value':['owner@example.net']}]}
+        self.fixtures[self.rules_path+'?per_page=50&page=1']['result'] = [self.rule,
+            {'id':'r2','name':'fwd contact@example.com','enabled':True,'priority':4,
+             'matchers':literal('contact@example.com'),'actions':[{'type':'forward','value':['owner@example.net']}]}]
+        if registered:
+            self.fixtures['/accounts/'+self.account+'/email/routing/addresses?per_page=50&page=1']['result'].append(
+                {'email':self.NEW,'verified':verified})
+        updated = dict(self.rule, actions=[{'type':'forward','value':[self.NEW]}])
+        self.fixtures['PUT '+self.rules_path+'/r1'] = {'success':True,'result':updated}
+        self.fixtures[self.rules_path+'/r1'] = {'success':True,'result':updated}
+        self.fixtures['POST /accounts/'+self.account+'/email/routing/addresses'] = {
+            'success':True,'result':{'email':self.NEW,'verified':None}}
+        self.payloads = self.directory / 'payloads'
+        self.env['TEST_PAYLOADS'] = str(self.payloads)
+        self.save_responses()
+
+    def tty_forward(self, *args, answer='y\n', env=None):
+        """Run forward with terminal stdin fed `answer`; capture both result streams."""
+        import pty
+        settings = dict(self.env); settings.update(env or {})
+        master, slave = pty.openpty()
+        try:
+            proc = subprocess.Popen([self.shell, str(ROOT/'cmail'), 'forward', *args], stdin=slave,
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=settings)
+            os.write(master, answer.encode())
+            out, err = proc.communicate(timeout=15)
+        finally:
+            os.close(slave)
+            os.close(master)
+        return subprocess.CompletedProcess(proc.args, proc.returncode, out, err)
+
+    def writes(self):
+        calls = self.calls.read_text() if self.calls.exists() else ''
+        return [line.split(' ')[0]+' '+line.split(' ')[1] for line in calls.splitlines() if not line.startswith('GET ')]
+
+    def sent(self):
+        if not self.payloads.exists():
+            return []
+        return [json.loads(line) for line in self.payloads.read_text().splitlines()]
+
+    def test_forward_verified_destination_updates_rule_and_config(self):
+        self.forward_fixtures()
+        self.config.write_text(FIXTURE.replace('ADDRESSES=hello,contact', 'ADDRESSES=hello'))
+        result = self.tty_forward('hello', '--destination', self.NEW)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.writes(), ['PUT '+self.rules_path+'/r1'])
+        self.assertEqual(self.sent(), [{'method':'PUT','path':self.rules_path+'/r1','body':{
+            'name':'fwd hello@example.com','enabled':True,'priority':3,
+            'matchers':[{'type':'literal','field':'to','value':'hello@example.com'}],
+            'actions':[{'type':'forward','value':[self.NEW]}]}}])
+        calls = self.calls.read_text()
+        self.assertGreater(calls.index('GET '+self.rules_path+'/r1 '), calls.index('PUT '+self.rules_path+'/r1 '))
+        self.assertIn('hello@example.com: owner@example.net -> new@example.org', result.stderr)
+        self.assertIn('hello@example.com now forwards to new@example.org (was owner@example.net)', result.stdout)
+        self.assertIn('Test it: from a DIFFERENT mailbox (not new@example.org), send to hello@example.com', result.stdout)
+        config = self.config.read_text()
+        self.assertIn("DEST_EMAIL='new@example.org'", config)
+        self.assertNotIn('owner@example.net', config)
+        self.assertIn('ADDRESSES=hello\n', config)
+        self.assertEqual(self.config.stat().st_mode & 0o777, 0o600)
+        self.assertNotIn('synthetic-token', result.stdout+result.stderr)
+
+    def test_forward_full_address_and_case_insensitive_match(self):
+        self.forward_fixtures()
+        self.fixtures['/accounts/'+self.account+'/email/routing/addresses?per_page=50&page=1']['result'][-1]['email'] = 'New@Example.org'
+        self.fixtures[self.rules_path+'?per_page=50&page=1']['result'][0]['matchers'][0]['value'] = 'Hello@Example.com'
+        self.fixtures[self.rules_path+'/r1']['result']['actions'] = [{'type':'forward','value':['New@Example.org']}]
+        self.fixtures[self.rules_path+'/r1']['result']['matchers'][0]['value'] = 'Hello@Example.com'
+        self.save_responses()
+        result = self.tty_forward('hello@EXAMPLE.com', '--destination', self.NEW)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        body = self.sent()[0]['body']
+        self.assertEqual(body['actions'], [{'type':'forward','value':['New@Example.org']}])
+        self.assertEqual(body['matchers'][0]['value'], 'Hello@Example.com')
+
+    def test_forward_keeps_dest_email_when_other_addresses_differ(self):
+        self.forward_fixtures()
+        before = self.config.read_bytes()
+        result = self.tty_forward('hello', '--destination', self.NEW)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.writes(), ['PUT '+self.rules_path+'/r1'])
+        self.assertEqual(self.config.read_bytes(), before)
+        self.assertIn('DEST_EMAIL in the configuration stays owner@example.net because these configured addresses '
+                      'forward elsewhere: contact@example.com.',
+                      result.stderr)
+        self.assertIn('report them as conflicting', result.stderr)
+
+    def test_forward_declined_writes_nothing(self):
+        self.forward_fixtures()
+        before = self.config.read_bytes()
+        result = self.tty_forward('hello', '--destination', self.NEW, answer='n\n')
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(self.writes(), [])
+        self.assertEqual(self.config.read_bytes(), before)
+        self.assertIn('nothing was changed; hello@example.com still forwards to owner@example.net', result.stderr)
+
+    def test_forward_unregistered_destination_registers_and_keeps_rule(self):
+        self.forward_fixtures(registered=False)
+        before = self.config.read_bytes()
+        result = self.tty_forward('hello', '--destination', self.NEW)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(self.writes(), ['POST /accounts/'+self.account+'/email/routing/addresses'])
+        self.assertEqual(self.sent()[0]['body'], {'email':self.NEW})
+        self.assertEqual(self.config.read_bytes(), before)
+        for text in ('Register new@example.org', 'new@example.org registered',
+                     'click the Cloudflare verification link', 'check Spam',
+                     'rerun: cmail forward hello@example.com --destination new@example.org.',
+                     'hello@example.com is unchanged and still forwards to owner@example.net'):
+            self.assertIn(text, result.stderr)
+
+    def test_forward_unregistered_destination_declined(self):
+        self.forward_fixtures(registered=False)
+        result = self.tty_forward('hello', '--destination', self.NEW, answer='n\n')
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(self.writes(), [])
+        self.assertIn('still forwards to owner@example.net', result.stderr)
+
+    def test_forward_pending_destination_gives_next_step(self):
+        self.forward_fixtures(verified=None)
+        before = self.config.read_bytes()
+        result = self.tty_forward('hello', '--destination', self.NEW, '--domain', 'example.com')
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(self.writes(), [])
+        self.assertEqual(self.config.read_bytes(), before)
+        for text in ('new@example.org is registered but not verified yet', 'Destination addresses',
+                     'rerun: cmail forward hello@example.com --destination new@example.org --domain example.com.',
+                     'hello@example.com is unchanged and still forwards to owner@example.net'):
+            self.assertIn(text, result.stderr)
+
+    def test_forward_same_destination_is_noop(self):
+        self.forward_fixtures()
+        result = self.tty_forward('hello', '--destination', 'OWNER@example.net')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.writes(), [])
+        self.assertIn('hello@example.com already forwards to owner@example.net; nothing changed.', result.stdout)
+
+    def test_forward_refuses_missing_or_unsupported_rules(self):
+        literal = lambda value: [{'type':'literal','field':'to','value':value}]
+        cases = {
+            'missing': ([], 'has no forwarding rule'),
+            'two rules': ([{'id':'a','enabled':True,'matchers':literal('hello@example.com'),
+                            'actions':[{'type':'forward','value':['owner@example.net']}]}]*2, 'Existing rules were not changed'),
+            'two destinations': ([{'id':'a','enabled':True,'matchers':literal('hello@example.com'),
+                                   'actions':[{'type':'forward','value':['owner@example.net','x@example.net']}]}], 'Existing rules were not changed'),
+            'drop action': ([{'id':'a','enabled':True,'matchers':literal('hello@example.com'),
+                              'actions':[{'type':'drop'}]}], 'Existing rules were not changed'),
+            'worker managed': ([{'id':'a','enabled':True,'source':'wrangler','matchers':literal('hello@example.com'),
+                                 'actions':[{'type':'forward','value':['owner@example.net']}]}], 'Existing rules were not changed'),
+        }
+        for name, (rules, message) in cases.items():
+            with self.subTest(case=name):
+                self.forward_fixtures()
+                self.fixtures[self.rules_path+'?per_page=50&page=1']['result'] = rules
+                self.save_responses()
+                if self.calls.exists():
+                    self.calls.unlink()
+                result = self.tty_forward('hello', '--destination', self.NEW)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertEqual(self.writes(), [])
+                self.assertIn(message, result.stderr)
+
+    def test_forward_refuses_zone_of_another_domain(self):
+        self.forward_fixtures()
+        self.config.write_text(FIXTURE+'CF_ZONE_ID='+self.zone+'\n')
+        self.fixtures['/zones/'+self.zone]['result']['name'] = 'wrong.example'
+        self.save_responses()
+        result = self.tty_forward('hello', '--destination', self.NEW)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(self.writes(), [])
+        self.assertIn('nothing was changed', result.stderr)
+
+    def test_forward_other_domain_never_writes_config(self):
+        self.forward_fixtures()
+        other = 'c'*32
+        rule = {'id':'o1','enabled':True,'matchers':[{'type':'literal','field':'to','value':'sales@example.org'}],
+                'actions':[{'type':'forward','value':['owner@example.net']}]}
+        self.fixtures['/zones?name=example.org'] = {'success':True,'result':[{'id':other,'name':'example.org'}]}
+        self.fixtures['/zones/'+other] = {'success':True,'result':{'id':other,'name':'example.org','status':'active',
+                                                                 'account':{'id':self.account}}}
+        self.fixtures['/zones/'+other+'/email/routing/rules?per_page=50&page=1'] = {'success':True,'result':[rule]}
+        self.fixtures['PUT /zones/'+other+'/email/routing/rules/o1'] = {'success':True,'result':{}}
+        self.fixtures['/zones/'+other+'/email/routing/rules/o1'] = {'success':True,'result':
+            dict(rule, actions=[{'type':'forward','value':[self.NEW]}])}
+        self.save_responses()
+        self.config.write_text(FIXTURE.replace('ADDRESSES=hello,contact', 'ADDRESSES=sales'))
+        before = self.config.read_bytes()
+        result = self.tty_forward('sales@example.org', '--destination', self.NEW, '--domain', 'example.org')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.writes(), ['PUT /zones/'+other+'/email/routing/rules/o1'])
+        self.assertEqual(self.config.read_bytes(), before)
+        self.assertIn('configuration not changed', result.stderr)
+
+    def test_forward_rejects_address_on_another_domain(self):
+        result = self.tty_forward('hello@example.org', '--destination', self.NEW)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn('not on example.com', result.stderr)
+        self.assertFalse(self.calls.exists())
+
+    def test_forward_requires_terminal(self):
+        self.forward_fixtures()
+        result = self.invoke('forward', 'hello', '--destination', self.NEW)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn('requires terminal input', result.stderr)
+        self.assertFalse(self.calls.exists())
+
+    def test_forward_read_back_mismatch_fails(self):
+        self.forward_fixtures()
+        self.config.write_text(FIXTURE.replace('ADDRESSES=hello,contact', 'ADDRESSES=hello'))
+        self.fixtures[self.rules_path+'/r1'] = {'success':True,'result':self.rule}
+        self.save_responses()
+        before = self.config.read_bytes()
+        result = self.tty_forward('hello', '--destination', self.NEW)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(self.writes(), ['PUT '+self.rules_path+'/r1'])
+        self.assertIn('does not read back as forwarding to new@example.org', result.stderr)
+        self.assertEqual(self.config.read_bytes(), before)
+
+    def test_forward_disabled_rule_stays_disabled(self):
+        self.forward_fixtures()
+        self.fixtures[self.rules_path+'?per_page=50&page=1']['result'][0]['enabled'] = False
+        self.save_responses()
+        result = self.tty_forward('hello', '--destination', self.NEW)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIs(self.sent()[0]['body']['enabled'], False)
+        self.assertIn('is disabled and stays disabled', result.stderr)
+
     def test_completion_generation_offline(self):
         for shell in ('bash','zsh','fish'):
             result=self.invoke('completion',shell)
@@ -764,7 +1004,8 @@ esac''')
                                (('config','set',''),'REGISTRAR'),(('setup','--'),'--registrar'),
                                (('setup','--registrar',''),'godaddy'),(('setup','--registrar','','--'),'--dry-run'),
                                (('--config','somepath','doctor','--'),'--offline'),
-                               (('status','--format',''),'json'),(('',),'list'),(('list','--'),'--domain')]:
+                               (('status','--format',''),'json'),(('',),'list'),(('list','--'),'--domain'),
+                               (('',),'forward'),(('forward','--'),'--destination'),(('forward','hello','--'),'--domain')]:
             result=subprocess.run([self.shell,'-c',script,'probe',str(ROOT),*words],
                                    env=self.env,text=True,capture_output=True)
             self.assertEqual(result.returncode,0,result.stderr)
@@ -782,7 +1023,8 @@ file=$1; shift; words=(cmail "$@"); CURRENT=${#words}; _probe() { source "$file"
                                (('config','set',''),'REGISTRAR'),(('setup','--'),'--registrar'),
                                (('setup','--registrar',''),'godaddy'),(('setup','--registrar','','--'),'--dry-run'),
                                (('--config','somepath','doctor','--'),'--offline'),
-                               (('status','--format',''),'json'),(('',),'list'),(('list','--'),'--domain')]:
+                               (('status','--format',''),'json'),(('',),'list'),(('list','--'),'--domain'),
+                               (('',),'forward'),(('forward','--'),'--destination'),(('forward','hello','--'),'--domain')]:
             result=subprocess.run(['zsh','-f','-c',script,'probe',str(file),*words],
                                    env=self.env,text=True,capture_output=True)
             self.assertEqual(result.returncode,0,result.stderr)
@@ -798,7 +1040,8 @@ file=$1; shift; words=(cmail "$@"); CURRENT=${#words}; _probe() { source "$file"
                                  ('cmail setup --','--registrar'),('cmail setup --registrar ','godaddy'),
                                  ('cmail doctor --','--offline'),
                                  ('cmail status --format ','json'),('cmail ','list'),
-                                 ('cmail list --','--domain')]:
+                                 ('cmail list --','--domain'),('cmail ','forward'),
+                                 ('cmail forward --','--destination'),('cmail forward hello --','--domain')]:
             result=subprocess.run(['fish','--no-config','-c','source $argv[1]; complete -C $argv[2]',str(file),command],
                                    env=self.env,text=True,capture_output=True)
             self.assertEqual(result.returncode,0,result.stderr)
