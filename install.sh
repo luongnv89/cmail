@@ -276,6 +276,12 @@ main() {
       # shellcheck disable=SC2016
       printf '  export PATH=%q:"$PATH"\n' "$bin_dir" ;;
   esac
+  proxy_note="Proxy: cmail does not use HTTPS_PROXY or ALL_PROXY yet; it needs direct HTTPS access to api.cloudflare.com"
+  if [ -n "${HTTPS_PROXY:-}${https_proxy:-}${ALL_PROXY:-}${all_proxy:-}" ]; then
+    warn "$proxy_note"
+  else
+    info "$proxy_note"
+  fi
   info "Installation did not run setup or change DNS. Next: cmail config init, then cmail setup"
   ok "Installation complete!"
 }

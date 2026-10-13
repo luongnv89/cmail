@@ -14,7 +14,7 @@ class Cmail < Formula
   desc "Free custom-domain email with Cloudflare Email Routing"
   homepage "https://github.com/luongnv89/cmail"
   url "https://github.com/luongnv89/cmail/archive/refs/tags/v0.4.0.tar.gz"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  sha256 "2fe75929f8a219aaacc8825fc2e56044e0598f259481ba4655c7813d123e84d4"
   license "MIT"
   head "https://github.com/luongnv89/cmail.git", branch: "main"
 

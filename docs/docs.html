@@ -50,6 +50,7 @@ bash install.sh --local      # or: cargo install --path .</code></pre>
           <li>cmail is one self-contained binary for macOS and Linux (x86_64 and arm64). The one-line command downloads the release build for your system from GitHub and checks its SHA-256 checksum before installing it. <code>--local</code> builds the checkout you cloned.</li>
           <li>The installer says whether <code>~/.local/bin</code> is on your PATH and prints the <code>export PATH</code> line to add to your shell profile if it is not.</li>
           <li>No runtime dependencies: no Bash, <code>curl</code> or <code>jq</code> needed to run cmail. <code>gddy</code> is needed only for GoDaddy mode. No sudo. Installing never runs setup or edits your shell profile.</li>
+          <li>Proxies: cmail does not use <code>HTTPS_PROXY</code> or <code>ALL_PROXY</code> yet. It connects directly to <code>api.cloudflare.com</code> over HTTPS, so it needs direct internet access. The installer's download does follow your proxy settings.</li>
           <li>To update, run the installer again, <code>brew upgrade cmail</code>, or pull and rerun <code>--local</code>. Your config is kept.</li>
         </ul>
       </section>

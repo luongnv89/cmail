@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Say during install and in the docs that cmail does not use proxy settings
+  (`HTTPS_PROXY`, `ALL_PROXY`) yet and needs direct HTTPS access to
+  `api.cloudflare.com`. The installer warns when those variables are set.
+
+## v0.4.0 — 2026-10-13
+
 - Rewrite cmail in Rust as one self-contained binary (version 0.4.0). It needs no
   Bash, curl or jq at runtime; `gddy` is still needed only for
   `--registrar godaddy`. Commands, options, JSON output, exit codes, safety

@@ -70,12 +70,18 @@ run "$SHELL_UNDER_TEST" "$ROOT/install.sh" || fail 'release install'
 [ "$(tail -n 1 "$TMP/out")" = '[ OK ]  Installation complete!' ] || fail 'last line'
 grep -q 'Checksum verified' "$TMP/out" || fail 'checksum reported'
 grep -q 'is not on your PATH' "$TMP/out" || fail 'PATH hint'
+grep -q '^\[INFO\]  Proxy: cmail does not use HTTPS_PROXY' "$TMP/out" || fail 'proxy note'
 [ ! -e "$TMP/home/.config/cmail" ] || fail 'config untouched'
 pass 'release install verifies checksum, installs and reports'
 
 run env PATH="$TMP/home/.local/bin:$PATH" "$SHELL_UNDER_TEST" "$ROOT/install.sh" || fail 'reinstall'
 grep -q 'already on your PATH' "$TMP/out" || fail 'PATH detected'
 pass 'reinstall over an existing cmail'
+
+# The loopback release stays reachable because NO_PROXY exempts it.
+run env HTTPS_PROXY=http://127.0.0.1:9 NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 "$SHELL_UNDER_TEST" "$ROOT/install.sh" || fail 'install with proxy set'
+grep -q '^\[WARN\]  Proxy: cmail does not use HTTPS_PROXY' "$TMP/out" || fail 'proxy warning'
+pass 'proxy settings get a warning'
 
 fresh
 run "$SHELL_UNDER_TEST" -c "cat '$ROOT/install.sh' | $SHELL_UNDER_TEST" || fail 'piped install'
