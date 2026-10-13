@@ -277,6 +277,7 @@ and includes the Gmail guide in setup.
 | `./cmail send-as` | Optional: guided Gmail "Send mail as" for sending from your custom address |
 | `./cmail status` | Show zone, routing, destination, and rule state |
 | `./cmail list [--domain DOMAIN]` | List every address on a domain and where it forwards (with destination verification and catch-all) |
+| `./cmail forward ADDRESS --destination EMAIL` | Change where an existing address forwards; the address is kept. The new inbox must be verified first (cmail offers to send the verification email, then you rerun) |
 | `./cmail doctor` | Check tools + auth; may install missing dependencies |
 
 `status` and `doctor` can create `.env` from the template or secure its permissions. They do not change live DNS or email-routing settings.
@@ -360,7 +361,7 @@ one using `CF_ACCOUNT_ID` rather than silently choosing the first.
 | Network / HTTP 429 / HTTP 5xx | Fix DNS/proxy/connectivity, wait after rate limiting, or check [Cloudflare status](https://www.cloudflarestatus.com/). Inspect the dashboard before retrying an uncertain write. |
 | Email Routing activation fails | Check Email → Email Routing and conflicting MX/TXT records. Do not delete existing mail-provider records without planning migration. |
 | Destination verification times out | Sign into the correct destination mailbox, check Inbox/Spam, click the Cloudflare link. Resend missing/expired links in Email Routing → Destination addresses; pending entries are kept. |
-| Existing forwarding rule conflicts | In Email Routing → Routing rules, enable/correct the address's rule to forward to `DEST_EMAIL`. Setup will not overwrite it or report a wrong/disabled rule as ready. |
+| Existing forwarding rule conflicts | In Email Routing → Routing rules, enable/correct the address's rule to forward to `DEST_EMAIL`. Setup will not overwrite it or report a wrong/disabled rule as ready. To change where an existing address forwards, run `cmail forward ADDRESS --destination EMAIL` instead. |
 | Gmail send-as is blocked (`./cmail send-as`) | Enable 2-Step Verification and use a Google App Password, not the login password. Account policy may prohibit app passwords; use an approved SMTP provider instead. Check username, port 587/TLS, and the confirmation email. Receiving is unaffected. |
 
 After setup, use a **different mailbox** to test inbound forwarding. If you ran
