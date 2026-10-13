@@ -1,5 +1,15 @@
-# Homebrew formula for the luongnv89/tap tap (https://github.com/luongnv89/homebrew-tap).
-# Refresh url and sha256 for a new tag with: scripts/update-formula.sh vX.Y.Z
+# Homebrew formula for cmail. This file is the source of truth; the copy users
+# install from lives in the tap repository luongnv89/homebrew-tap at
+# Formula/cmail.rb, so `brew install luongnv89/tap/cmail` works on macOS and Linux.
+#
+# Publishing a release (keep `version` in Cargo.toml, VERSION and the tag in sync):
+#   1. Tag and push the release: git tag vX.Y.Z && git push origin vX.Y.Z
+#      (.github/workflows/release.yml then publishes the prebuilt binaries).
+#   2. Point `url` and `sha256` at the tag: scripts/update-formula.sh vX.Y.Z
+#   3. Copy this file to Formula/cmail.rb in luongnv89/homebrew-tap, add cmail to
+#      the tap README's formula table, and push it.
+#   4. Check it: brew audit --strict --online luongnv89/tap/cmail
+#                brew install --build-from-source luongnv89/tap/cmail && brew test cmail
 class Cmail < Formula
   desc "Free custom-domain email with Cloudflare Email Routing"
   homepage "https://github.com/luongnv89/cmail"
