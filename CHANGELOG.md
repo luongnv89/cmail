@@ -9,7 +9,9 @@
   Zone Resources is that one domain, or all zones from that account only when
   cmail adds the domain. The setup prompt, recovery hints, setup guides,
   README, `.env.example` and the cmail-setup skill all say the same thing,
-  and the skill again refuses an All accounts token.
+  and the skill again refuses an All accounts token. Step 4 of the setup
+  guide also shows how to add the domain with Cloudflare's `cf` CLI
+  (`cf zones create`), so the token can stay at Zone Read.
 - Say during install and in the docs that cmail does not use proxy settings
   (`HTTPS_PROXY`, `ALL_PROXY`) yet and needs direct HTTPS access to
   `api.cloudflare.com`. The installer warns when those variables are set.

@@ -90,6 +90,19 @@ Copy the token. Never paste it into chat, a web page or a screenshot.
 Tick this step and go on: `cmail setup` will say `zone already active on Cloudflare`.
 
 1. Open the [Cloudflare dashboard](https://dash.cloudflare.com/) → **Domains** → **Add a domain**. Enter your domain and choose the Free plan.
+
+   Prefer the terminal? Cloudflare's own CLI, [`cf`](https://developers.cloudflare.com/cf/get-started/) (beta, needs Node.js 22 or newer),
+   can add the domain instead. Copy your **Account ID** (not Zone ID) from the dashboard first:
+
+   ```bash
+   npm install -g cf
+   cf auth login                     # sign in to Cloudflare in your browser
+   cf zones create --account-id <account ID> --name yourdomain.com
+   cf auth logout                    # cf's sign-in can do far more than cmail's token
+   ```
+
+   Either way, cmail's token can stay at **Zone: Read** (step 3). The `cf` route may not copy your existing DNS records,
+   so check them carefully in the next step.
 2. Check the DNS records Cloudflare found. Add any you still need (website, MX, TXT).
 3. Follow Cloudflare's instructions to switch nameservers at your current registrar: turn off DNSSEC (remove DS records)
    first, then replace **all** nameservers with the two Cloudflare shows.
