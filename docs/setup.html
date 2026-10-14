@@ -196,7 +196,7 @@ Then:
           <li><strong>Receiving inbox</strong>, e.g. <code>you@gmail.com</code></li>
           <li><strong>Your domain</strong>, e.g. <code>example.com</code></li>
         </ol>
-        <p>cmail then finds your domain on Cloudflare (or adds it, if it is not there yet), waits until it is active, enables Email Routing and adds a forwarding rule per address. It stops only when it needs you: nameservers still switching (step 4) or the verification email (step 6).</p>
+        <p>cmail then finds your domain on Cloudflare (or adds it, if it is not there yet and your token has Zone: Edit; see step 3), waits until it is active, enables Email Routing and adds a forwarding rule per address. It stops only when it needs you: nameservers still switching (step 4) or the verification email (step 6).</p>
         <details><summary>Want a preview first?</summary><p><code>cmail setup --dry-run</code> shows the full plan and any blockers. It changes nothing. It needs the token saved in your config first.</p></details>
         <p class="done-when"><strong>Done when:</strong> setup is running past the token step. Keep the terminal open.</p>
         <label class="check" for="step-setup"><input id="step-setup" type="checkbox">Setup is running</label>

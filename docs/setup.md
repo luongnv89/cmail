@@ -107,7 +107,7 @@ cmail setup
 ```
 
 Answer two questions (receiving inbox, your domain), then paste the token.
-cmail finds your domain on Cloudflare (or adds it, if it is not there yet), waits until it is active,
+cmail finds your domain on Cloudflare (or adds it, if it is not there yet and your token has Zone: Edit; see step 3), waits until it is active,
 enables Email Routing and adds a rule per address. If the nameservers are still switching, it prints them (step 4) and waits.
 Want a preview first? `cmail setup --dry-run` changes nothing.
 

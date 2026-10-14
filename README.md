@@ -93,10 +93,10 @@ and not part of it.
    addresses to create (`hello,contact,…`)
 2. **Domain**: a domain you own at any registrar (or, with `--registrar godaddy`,
    pick or register one through `gddy`, with an explicit price confirmation)
-3. **Cloudflare token**: show the five required permissions, open the token page,
+3. **Cloudflare token**: show the four required permissions (no DNS permission), open the token page,
    and verify the token you paste (input hidden). Activity alone does not prove
    resource access; later steps check it.
-4. **Cloudflare zone**: reuse or create the zone and fetch its assigned nameservers.
+4. **Cloudflare zone**: reuse the zone (or create it, if the token has Zone: Edit) and fetch its assigned nameservers.
    Several visible accounts require an explicit `CF_ACCOUNT_ID`.
 5. **Nameservers**: print them for your registrar (or, with GoDaddy, compare and
    replace them after confirmation). Migrate existing DNS records first.
