@@ -14,7 +14,7 @@
 <header><a class="brand" href="index.html">cmail</a><nav aria-label="Main"><a href="index.html">Home</a><a href="setup.html" aria-current="page">Setup guide</a><a href="docs.html">Docs</a><a href="changelog.html">Changelog</a><a href="privacy.html">Privacy</a><a href="https://github.com/luongnv89/cmail">GitHub</a></nav></header>
 <main id="main">
   <div class="page-intro">
-    <p class="kicker">Setup guide · cmail 0.2.0</p>
+    <p class="kicker">Setup guide · cmail 0.4.0</p>
     <h1>From domain to inbox in 8 steps.</h1>
     <p class="lead">A few simple steps, in order. Tick each one when its <strong>Done when</strong> check passes. Your ticks are saved in this browser only.</p>
     <div class="overview">
@@ -56,7 +56,7 @@
           <li>A free <a href="https://dash.cloudflare.com/sign-up">Cloudflare account</a>.</li>
           <li>The <strong>inbox</strong> that should receive the mail (any provider).</li>
           <li>A <strong>second mailbox</strong> to send a test from.</li>
-          <li>macOS or Linux with <code>bash</code>, <code>curl</code> and <code>jq</code> (and <code>git</code> only if you install from a clone).</li>
+          <li>macOS or Linux (x86_64 or arm64), with <code>curl</code> for the installer or Homebrew (and <code>git</code> only if you install from a clone).</li>
         </ul>
         <p class="callout warn">Already use this domain for a website or email? Note its DNS records now. You will copy them into Cloudflare in step 4.</p>
         <p class="done-when"><strong>Done when:</strong> you can log in to your registrar, Cloudflare and both mailboxes.</p>
@@ -69,7 +69,7 @@
           <rect class="flow-box cf" x="220" y="10" width="190" height="66" rx="8"/><text x="238" y="40" font-size="16" font-weight="700">Cloudflare</text><text class="sub" x="238" y="60">free account</text>
           <rect class="flow-box" x="10" y="92" width="190" height="66" rx="8"/><text x="28" y="122" font-size="16" font-weight="700">Receiving inbox</text><text class="sub" x="28" y="142">you@gmail.com</text>
           <rect class="flow-box" x="220" y="92" width="190" height="66" rx="8"/><text x="238" y="122" font-size="16" font-weight="700">Test mailbox</text><text class="sub" x="238" y="142">a different address</text>
-          <rect class="flow-box" x="10" y="174" width="400" height="66" rx="8"/><text x="28" y="204" font-size="16" font-weight="700">Terminal</text><text class="sub" x="28" y="224">macOS / Linux · bash · curl · jq</text>
+          <rect class="flow-box" x="10" y="174" width="400" height="66" rx="8"/><text x="28" y="204" font-size="16" font-weight="700">Terminal</text><text class="sub" x="28" y="224">macOS / Linux · one cmail binary</text>
         </svg>
       </div>
     </li>
@@ -79,7 +79,7 @@
       <div>
         <div class="step-head"><span class="num">2</span><div class="step-meta"><span class="tag you">You</span><span class="tag">2 min</span></div><h2>Install cmail</h2></div>
         <ol>
-          <li>Run the one-line installer. It installs the pinned cmail 0.2.0 release in <code>~/.local/bin</code>. No sudo needed.</li>
+          <li>Run the one-line installer. It downloads the cmail binary for your system, checks its SHA-256 checksum and installs it in <code>~/.local/bin</code>. No sudo needed.</li>
           <li>If it says <code>~/.local/bin</code> is not on your PATH, run the <code>export PATH</code> line it prints.</li>
           <li>Create your private config file and choose your addresses (default: <code>hello</code>).</li>
         </ol>
@@ -88,16 +88,17 @@ export PATH="$HOME/.local/bin:$PATH"
 cmail --version
 cmail config init
 cmail config set ADDRESSES hello,contact</code></pre>
-        <p class="meta">Add the <code>export PATH</code> line to your shell profile to keep it. Config lives in <code>~/.config/cmail/.env</code> (mode 600).</p>
-        <p class="meta">Prefer to review the code first? Clone it and install that checkout, with no downloads: <code>git clone https://github.com/luongnv89/cmail</code>, <code>cd cmail</code>, then <code>bash install.sh --local</code>. A <code>--local</code> install reports the checkout’s version, for example <code>cmail 0.3.0</code>; the commands are the same.</p>
-        <p class="done-when"><strong>Done when:</strong> <code>cmail --version</code> prints <code>cmail 0.2.0</code>.</p>
+        <p class="meta">Add the <code>export PATH</code> line to your shell profile to keep it. Config lives in <code>~/.config/cmail/.env</code> (mode 600); <code>cmail config path</code> prints it.</p>
+        <p class="meta">Use Homebrew? <code>brew install luongnv89/tap/cmail</code> installs cmail and its shell completions instead.</p>
+        <p class="meta">Prefer to review the code first? Clone it and build that checkout (needs Rust and cargo): <code>git clone https://github.com/luongnv89/cmail</code>, <code>cd cmail</code>, then <code>bash install.sh --local</code> (or <code>cargo install --path .</code>).</p>
+        <p class="done-when"><strong>Done when:</strong> <code>cmail --version</code> prints <code>cmail 0.4.0</code>.</p>
         <label class="check" for="step-install"><input id="step-install" type="checkbox">cmail is installed</label>
       </div>
       <div class="visual">
         <div class="term" aria-label="Terminal: installing cmail">
           <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i><span>~</span></div>
           <pre><span class="p">$</span> cmail --version
-cmail 0.2.0
+cmail 0.4.0
 <span class="p">$</span> cmail config init
 Created private configuration: ~/.config/cmail/.env
 Next: cmail setup
@@ -206,8 +207,7 @@ Then:
 <span class="s">==&gt;</span> Setting up RECEIVING: your custom addresses will forward to an inbox you already use.
 
 <span class="s">── Dependencies ──</span>
-<span class="k"> ✓</span> curl present
-<span class="k"> ✓</span> jq present
+<span class="k"> ●</span> no external tools needed in manual registrar mode
 
 <span class="s">── Configuration ──</span>
 <span class="q"> ?</span> email address to receive forwarded mail (any provider): <span class="u">you@gmail.com</span>
@@ -216,30 +216,30 @@ Then:
 <span class="s">── Cloudflare API token ──</span>
 <span class="d">   … token instructions, browser opens …</span>
 <span class="q"> ?</span> paste Cloudflare API token: <span class="d">(hidden)</span>
-<span class="k"> ✓</span> Cloudflare token verified and saved to .env
+<span class="k"> ●</span> Cloudflare token verified and saved to .env
 
 <span class="s">── Cloudflare zone: example.com ──</span>
-<span class="k"> ✓</span> zone 9a7f…e21c — nameservers: ada.ns.cloudflare.com bob.ns.cloudflare.com
+<span class="k"> ●</span> zone 9a7f…e21c — nameservers: ada.ns.cloudflare.com bob.ns.cloudflare.com
 
 <span class="s">── Registrar nameservers: example.com ──</span>
-<span class="w"> !</span> zone is 'pending' — update the nameservers at your domain registrar yourself
+<span class="w"> ▲</span> zone is 'pending' — update the nameservers at your domain registrar yourself
 <span class="d">   … see step 4 …</span>
 
 <span class="s">── Waiting for zone activation (nameserver propagation) ──</span>
 <span class="d">    status: pending — retrying in 20s</span>
-<span class="k"> ✓</span> zone active
+<span class="k"> ●</span> zone active
 
 <span class="s">── Enable Cloudflare Email Routing ──</span>
-<span class="k"> ✓</span> email routing enabled (Cloudflare routing DNS records added and locked)
+<span class="k"> ●</span> email routing enabled (Cloudflare routing DNS records added and locked)
 
 <span class="s">── Destination address: you@gmail.com ──</span>
-<span class="w"> !</span> verification email sent to you@gmail.com — click the Cloudflare link
+<span class="w"> ▲</span> verification email sent to you@gmail.com — click the Cloudflare link
 <span class="d">    still unverified — waiting (click the email link)…</span>
-<span class="k"> ✓</span> you@gmail.com verified
+<span class="k"> ●</span> you@gmail.com verified
 
 <span class="s">── Forwarding addresses (hello,contact -&gt; you@gmail.com) ──</span>
-<span class="k"> ✓</span> hello@example.com -&gt; you@gmail.com
-<span class="k"> ✓</span> contact@example.com -&gt; you@gmail.com
+<span class="k"> ●</span> hello@example.com -&gt; you@gmail.com
+<span class="k"> ●</span> contact@example.com -&gt; you@gmail.com
 
 <span class="u">Receiving is set up</span>
   hello@example.com -&gt; you@gmail.com

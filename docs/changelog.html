@@ -17,6 +17,21 @@
     <p class="lead">The highlights of each release. Full details are in <a href="https://github.com/luongnv89/cmail/blob/main/CHANGELOG.md">CHANGELOG.md</a>.</p>
   </div>
 
+  <article class="release" aria-labelledby="v040">
+    <div><h2 id="v040">v0.4.0</h2><p class="meta">13 October 2026 · <a href="https://github.com/luongnv89/cmail/releases/tag/v0.4.0">release</a></p></div>
+    <div>
+      <ul>
+        <li><span class="badge">New</span>cmail is now one self-contained binary for macOS and Linux (x86_64 and arm64). It no longer needs Bash, <code>curl</code> or <code>jq</code> to run. Commands, options, JSON output, exit codes and safety prompts are unchanged.</li>
+        <li><span class="badge">New</span>Install with Homebrew: <code>brew install luongnv89/tap/cmail</code>. The one-line installer now downloads a prebuilt binary and checks its SHA-256 checksum, with no clone and no sudo.</li>
+        <li><span class="badge">New</span>Boxed, colored terminal reports for <code>status</code>, <code>list</code>, <code>doctor</code>, <code>config</code> and <code>setup --dry-run</code>. <code>NO_COLOR</code> and <code>--no-color</code> are respected.</li>
+        <li><span class="badge">New</span><code>cmail forward ADDRESS --destination EMAIL</code> changes where an existing address forwards, after showing the old and new inbox and asking first.</li>
+        <li><span class="badge">Changed</span>When piped, <code>status</code>, <code>list</code>, <code>doctor</code> and <code>config show</code> print tab-separated lines instead of aligned text. <code>--format json</code> is unchanged.</li>
+        <li><span class="badge">Action needed</span>Configuration defaults to <code>~/.config/cmail/.env</code>. If you ran cmail from a checkout with <code>./.env</code>, move that file there or pass <code>--config ./.env</code>.</li>
+        <li><span class="badge">Known limitation</span>cmail does not use proxy settings (<code>HTTPS_PROXY</code>, <code>ALL_PROXY</code>) yet and needs direct HTTPS access to <code>api.cloudflare.com</code>.</li>
+      </ul>
+    </div>
+  </article>
+
   <article class="release" aria-labelledby="v030">
     <div><h2 id="v030">v0.3.0</h2><p class="meta">11 October 2026 · <a href="https://github.com/luongnv89/cmail/releases/tag/v0.3.0">release</a></p></div>
     <div>

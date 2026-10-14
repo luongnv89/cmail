@@ -1,4 +1,4 @@
-# cmail CLI guide (0.2.0)
+# cmail CLI guide (0.4.0)
 
 Set up custom-domain receiving, inspect forwarding, and diagnose problems. Incoming mail is forwarded by Cloudflare to an inbox you already own. Sending uses a separate optional manual guide.
 
@@ -12,17 +12,27 @@ cmail config init
 cmail setup
 ```
 
-The one-line command downloads the pinned v0.2.0 runtime without a clone or sudo. To install a reviewed checkout instead, run this inside it:
+The one-line command downloads the prebuilt cmail binary for your OS and architecture (macOS or Linux, x86_64 or arm64) from the GitHub release, verifies its SHA-256 checksum, and installs it to `~/.local/bin/cmail` without a clone or sudo. Set `CMAIL_BIN_DIR` to install elsewhere, and put that directory on PATH. The installer never runs setup, contacts no email provider, and does not edit shell profiles.
+
+With Homebrew, which also installs shell completions:
 
 ```bash
-bash install.sh --local
+brew install luongnv89/tap/cmail
 ```
 
-`--local` copies this checkout's runtime without downloads, provider access, or configuration replacement. Installed configuration defaults to `~/.config/cmail/.env`; direct `./cmail` execution defaults to checkout `.env`. `cmail config path` prints the selected path. The launcher path can be overridden at installation with `CMAIL_BIN_DIR`; use that directory in PATH instead when customized.
+To build a reviewed checkout instead (needs Rust and cargo), run this inside it:
 
-From a checkout of `main`, the unflagged installer installs this CLI's pinned v0.2.0 runtime; the v0.2.0 tag's own installer still pins the older v0.1.0 runtime, which has different commands and behavior. This CLI is published as the [v0.2.0 release](https://github.com/luongnv89/cmail/releases/tag/v0.2.0). Reinstall the reviewed checkout with `--local` to update it; existing configuration is preserved.
+```bash
+bash install.sh --local      # or: cargo install --path .
+```
 
-Runtime requirements: Bash 3.2+, curl, and jq on macOS/Linux. gddy is needed only for opt-in GoDaddy automation (`REGISTRAR=godaddy`). Setup checks tools and prints installation instructions. The optional Google sending guide requires browser/account eligibility and separate delivery checks.
+`--local` builds this checkout and installs it to the same place, without provider access or configuration changes. Rerun the installer, `brew upgrade cmail`, or `--local` after pulling to update; existing configuration is preserved.
+
+cmail does not use proxy settings (`HTTPS_PROXY`, `ALL_PROXY`) yet. It connects directly to `api.cloudflare.com` over HTTPS, so it needs direct internet access. The installer's download does follow your proxy settings.
+
+Runtime requirements: none beyond the binary itself; cmail does not need Bash, curl or jq to run. gddy is needed only for opt-in GoDaddy automation (`REGISTRAR=godaddy`). The optional Google sending guide requires browser/account eligibility and separate delivery checks.
+
+Configuration defaults to `~/.config/cmail/.env` (`$XDG_CONFIG_HOME/cmail/.env` when `XDG_CONFIG_HOME` is set); `cmail config path` prints the selected path. Earlier versions run from a checkout defaulted to the checkout's `.env`: pass `--config ./.env` or move that file to the default path.
 
 ## Commands
 
@@ -45,7 +55,7 @@ Runtime requirements: Bash 3.2+, curl, and jq on macOS/Linux. gddy is needed onl
 | `cmail completion bash\|zsh\|fish` | Print shell completions |
 | `cmail help config set` | Help for any command path |
 
-Every command accepts `--help`. `--version` reads this runtime's version. Invalid extra arguments and unknown flags are errors. Long options accept `--option=value` or `--option value`; `--` ends option parsing. Short flags are individual arguments, such as `-v -c /path/config`.
+Every command accepts `--help`. `--version` prints the binary's version. Invalid extra arguments and unknown flags are errors. Long options accept `--option=value` or `--option value`; `--` ends option parsing. Short flags are individual arguments, such as `-v -c /path/config`.
 
 ## Configure and inspect
 
@@ -100,7 +110,7 @@ Configuration contains documented literal `KEY=value` assignments. Single/double
 
 Precedence: explicit command options → environment values → configuration file → defaults. An explicit empty environment value overrides a saved value. Operational environment names are `DOMAIN`, `DEST_EMAIL`, `ADDRESSES`, `REGISTRAR`, `GDDY_ENV`, `GDDY_PAT`, `CLOUDFLARE_API_TOKEN`, `CF_ACCOUNT_ID`, `CF_ZONE_ID`, and `DRY_RUN`.
 
-Select a config with `--config PATH`; otherwise `CMAIL_CONFIG`, legacy `ENV_FILE`, and the checkout/installed default are tried in order. Global environment settings are `CMAIL_FORMAT`, `CMAIL_TIMEOUT`, `CMAIL_VERBOSE`, and `CMAIL_QUIET` (boolean settings use 0 or 1). Explicit global flags override those settings.
+Select a config with `--config PATH`; otherwise `CMAIL_CONFIG`, legacy `ENV_FILE`, and `${XDG_CONFIG_HOME:-~/.config}/cmail/.env` are tried in order. Global environment settings are `CMAIL_FORMAT`, `CMAIL_TIMEOUT`, `CMAIL_VERBOSE`, and `CMAIL_QUIET` (boolean settings use 0 or 1). Explicit global flags override those settings.
 
 Explicit public setup options are saved after validation. Environment-only overrides remain temporary. Changing DOMAIN clears its saved CF_ZONE_ID so another domain's zone cannot be reused. IDs discovered by setup are saved for subsequent runs.
 
@@ -127,7 +137,7 @@ A successfully generated preview exits 0 even when its `data.blockers` array is 
 
 ## Output and timing
 
-Results go to stdout. Progress, prompts, warnings, and errors go to stderr. `--quiet` retains results and errors; `--verbose` adds redacted request context. They are mutually exclusive. Colors are used only on terminal diagnostics, and `NO_COLOR` (including an empty value) or `--no-color` disables them. `--no-browser` prints manual links; with `REGISTRAR=godaddy`, setup also requires an existing PAT in this mode to prevent automatic GoDaddy OAuth.
+Results go to stdout. Progress, prompts, warnings, and errors go to stderr. `--quiet` retains results and errors; `--verbose` adds redacted request context. They are mutually exclusive. On a terminal, status, list, doctor, config show/check and setup previews draw boxes with status marks (`●` ok, `▲` attention, `✗` failed). When stdout is piped, they print plain tab-separated records, one per line with no header, so they work with `cut`, `grep` and `awk`. `--format json` remains the stable scripting contract. A non-empty `NO_COLOR` or `--no-color` disables color; `FORCE_COLOR=1` styles output that is not a terminal (never JSON). Outside a UTF-8 locale, boxes use ASCII characters. `--no-browser` prints manual links; with `REGISTRAR=godaddy`, setup also requires an existing PAT in this mode to prevent automatic GoDaddy OAuth.
 
 JSON is available for status, list, doctor, config show/check, and setup previews:
 
@@ -135,13 +145,23 @@ JSON is available for status, list, doctor, config show/check, and setup preview
 {"schema_version":1,"command":"status","data":{"zone":{},"routing":{},"destinations":[],"rules":[]}}
 ```
 
-`cmail list` answers "which addresses exist and where does each one forward?" for the configured domain, or for any other zone the token can read with `--domain`. Each forward destination is marked `verified`, `unverified` (Cloudflare will not deliver until the verification link is clicked) or `unregistered`. Disabled rules are shown with `[disabled]`, and the catch-all rule is listed separately:
+`cmail list` answers "which addresses exist and where does each one forward?" for the configured domain, or for any other zone the token can read with `--domain`. Each forward destination is marked `verified`, `unverified` (Cloudflare will not deliver until the verification link is clicked) or `unregistered`. Each rule is shown as enabled or disabled, and the catch-all rule is listed separately:
 
 ```text
-Addresses on example.com (2):
-  contact@example.com -> owner@example.net (verified)  [disabled]
-  hello@example.com   -> owner@example.net (verified)
-Catch-all (any other address): disabled -> drop
+╭─┐example.com addresses┌──────────────────────────────────────────╮
+│ contact@example.com  →  owner@example.net (verified)  ✗ disabled │
+│ hello@example.com    →  owner@example.net (verified)  ● enabled  │
+├──────────────────────────────────────────────────────────────────┤
+│ catch-all → drop  ✗ disabled                                     │
+╰─┘2 addresses└────────────────────────────────────────────────────╯
+```
+
+Piped, the same command prints one record per address (address, destinations, state) and a final `catch-all` record:
+
+```text
+contact@example.com	owner@example.net (verified)	disabled
+hello@example.com	owner@example.net (verified)	enabled
+catch-all	drop	disabled
 ```
 
 With `--format json`, `data.addresses[]` holds `address`, `rule_id`, `name`, `enabled`, `priority`, `matchers` and `actions`; forward actions also carry `destinations[]` with `email` and `state`. `data.catch_all` is `null` when the zone has no catch-all rule.
@@ -169,8 +189,11 @@ This is an illustrative example, not a measured live setup. The timer starts whe
 | 2 | Invalid invocation or unavailable required terminal |
 | 3 | Invalid/incomplete input or configuration |
 | 130 | Interrupted with Ctrl+C |
+| 143 | Terminated (SIGTERM) |
 
 ## Shell completions
+
+Homebrew installs completions automatically. The scripts are generated from the command tree, so they always match the installed version.
 
 Bash, for the current shell (save/source the file from your shell profile to persist):
 
@@ -186,9 +209,9 @@ Fish: create `~/.config/fish/completions`, then run `cmail completion fish > ~/.
 ## Development checks
 
 ```bash
-make test
-CMAIL_TEST_BASH=/bin/bash make test
-make lint
+make test    # cargo test, then the Python/Node suites against the built binary
+make lint    # cargo fmt --check, cargo clippy -D warnings, shellcheck install.sh scripts/*.sh
+make build   # release binary in target/release/cmail
 ```
 
-Offline tests use mocked providers, temporary configuration, and temporary installation paths. They require jq, Python 3, Node, Git, and Bash; lint requires ShellCheck. CI runs macOS/Linux checks. See [distribution status](distribution.md) for publication decisions and the [GoDaddy CLI reference](https://developer.godaddy.com/en/docs/api-users/cli/reference) for provider command behavior.
+Offline tests use a loopback Cloudflare API fixture, a fake gddy, temporary configuration, and temporary installation paths; they never contact providers. They require Rust/cargo, Python 3 and Node; lint also requires ShellCheck. CI runs macOS/Linux checks. See [distribution status](distribution.md) for publication decisions and the [GoDaddy CLI reference](https://developer.godaddy.com/en/docs/api-users/cli/reference) for provider command behavior.

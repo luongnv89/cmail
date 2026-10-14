@@ -12,6 +12,11 @@ from pathlib import Path
 from urllib.parse import urlsplit, unquote
 
 ROOT = Path(__file__).resolve().parents[1]
+BIN = Path(os.environ.get('CMAIL_BIN', ROOT / 'target' / 'debug' / 'cmail'))
+
+
+def runtime_source():
+    return '\n'.join(p.read_text() for p in sorted((ROOT / 'src').rglob('*.rs')))
 IDS = ['ready', 'install', 'token', 'nameservers', 'setup', 'verify', 'test', 'send']
 PAGES = ['index.html', 'setup.html', 'docs.html', 'changelog.html', 'privacy.html']
 
@@ -191,7 +196,7 @@ class SiteTests(unittest.TestCase):
         for name in ['setup.html', 'setup.md']:
             text = unescape((ROOT / 'docs' / name).read_text())
             for value in ['bash install.sh --local', 'cmail config init', 'cmail setup',
-                          'cmail setup --dry-run', 'cmail send-as', 'cmail list', 'cmail 0.2.0',
+                          'cmail setup --dry-run', 'cmail send-as', 'cmail list', 'cmail 0.4.0',
                           'Zone Settings', 'DNS', 'Email Routing Rules', 'Email Routing Addresses',
                           'zone already active on Cloudflare', 'DNSSEC', 'Receiving is set up',
                           'January 2027', 'Advanced Protection', '587', 'TLS', 'smtp.gmail.com',
@@ -207,7 +212,7 @@ class SiteTests(unittest.TestCase):
 
     def test_terminal_simulations_quote_real_cli_output(self):
         # Simulated sessions must not invent output: each quoted line exists in the runtime source.
-        source = '\n'.join(p.read_text() for p in [ROOT / 'cmail', *sorted((ROOT / 'lib').glob('*.sh'))])
+        source = runtime_source()
         html = unescape(re.sub(r'<[^>]+>', '', (ROOT / 'docs/setup.html').read_text()))
         for line in ['Setting up RECEIVING: your custom addresses will forward to an inbox you already use.',
                      'Cloudflare token verified and saved to .env',
@@ -223,13 +228,13 @@ class SiteTests(unittest.TestCase):
             fixed = re.split(r'[:(]', header)[0].strip()
             self.assertIn(fixed, source, header)
         self.assertIn('Created private configuration:', source)
-        version = subprocess.run([str(ROOT / 'cmail'), '--version'], cwd=ROOT,
+        version = subprocess.run([str(BIN), '--version'], cwd=ROOT,
                                  text=True, capture_output=True, timeout=5)
         self.assertEqual(version.stdout.strip(), 'cmail ' + (ROOT / 'VERSION').read_text().strip())
         self.assertIn(version.stdout.strip(), html)
 
     def test_cli_docs_cover_every_command_and_setting(self):
-        help_result = subprocess.run([str(ROOT / 'cmail'), 'help'], cwd=ROOT,
+        help_result = subprocess.run([str(BIN), 'help'], cwd=ROOT,
                                      text=True, capture_output=True, timeout=5)
         self.assertEqual(help_result.returncode, 0, help_result.stderr)
         commands = re.findall(r'^  ([a-z-]+)\s', help_result.stdout.split('Start here:')[0], re.M)
@@ -255,89 +260,32 @@ class SiteTests(unittest.TestCase):
         for host in ['api.cloudflare.com', 'raw.githubusercontent.com']:
             self.assertIn(host, privacy)
         # The only API host the runtime calls is the one the privacy page names.
-        source = '\n'.join(p.read_text() for p in [ROOT / 'cmail', *sorted((ROOT / 'lib').glob('*.sh'))])
+        source = runtime_source()
         self.assertEqual(set(re.findall(r'https://(api\.[a-z0-9.-]+)', source)), {'api.cloudflare.com'})
 
-    def test_issue17_quickstarts_select_feature_runtime_not_default_installer(self):
-        # Issue #17: the default installer downloads its own pinned commit (the
-        # v0.2.0 release), not the checkout's revision or the feature snapshot.
-        # Only the README still documents the historical snapshot; the site targets 0.2.0.
-        feature_sha = 'cda65f0554a870ed8079e93741a331918118acec'
-        default_sha = '21b3a082172ca4c4ef0c1a3651a9ad80504c1ed1'
-        installer = (ROOT / 'install.sh').read_text()
-        self.assertIn('ref="${CMAIL_REF:-' + default_sha + '}"', installer)
-        self.assertNotEqual(feature_sha, default_sha)
-        for name in ['README.md']:
-            with self.subTest(name=name):
-                text = (ROOT / name).read_text()
-                blocks = re.findall(r'```bash\n(.*?)```', text, re.S)
-                quickstarts = [block for block in blocks if 'git clone' in block]
-                self.assertTrue(quickstarts, name)
-                for block in quickstarts:
-                    commands = [line.split('#', 1)[0].strip() for line in block.splitlines()]
-                    commands = [line for line in commands if line]
-                    expected = ['git clone https://github.com/luongnv89/cmail', 'cd cmail',
-                                'git fetch origin ' + feature_sha,
-                                'git checkout --detach ' + feature_sha, './cmail help']
-                    self.assertEqual(commands[:5], expected)
-                    self.assertTrue(all(command == './cmail setup' for command in commands[5:]))
-                    self.assertNotIn('bash install.sh', block)
-                    self.assertNotIn('--branch v0.1.0', block)
-                flat = ' '.join(re.sub(r'<[^>]*>', '', text).replace('**', '').split())
-                for required in ['development source snapshot', 'not v0.1.0',
-                                 'compatible release/installer ships', 'config defaults to checkout',
-                                 'pinned v0.2.0 runtime', 'send-as', './cmail setup']:
-                    self.assertIn(required.lower(), flat.lower(), name)
-                self.assertNotIn('pinned v0.1.0', flat.lower(), name)
-                self.assertIn('Must list send-as', flat)
-                self.assertRegex(flat, r'(?:stop if missing|If `?send-as`? is missing, stop)')
-        # Capability check is offline: no config or provider access is needed.
-        help_result = subprocess.run([str(ROOT / 'cmail'), 'help'], cwd=ROOT,
-                                     text=True, capture_output=True, timeout=5)
-        self.assertEqual(help_result.returncode, 0, help_result.stderr)
-        self.assertIn('./cmail send-as', help_result.stdout)
-
-    @unittest.skipUnless(shutil.which('git'), 'Git unavailable; offline SHA-fetch fixture requires Git')
-    def test_issue17_explicit_fetch_makes_nondefault_pr_snapshot_available(self):
-        # file:// avoids local-clone object copying; no network/provider access.
-        env = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
-        env.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull,
-                   GIT_AUTHOR_NAME='Offline Fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
-                   GIT_COMMITTER_NAME='Offline Fixture', GIT_COMMITTER_EMAIL='fixture@example.invalid',
-                   GIT_TERMINAL_PROMPT='0')
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            upstream, clone = root / 'upstream', root / 'clone'
-
-            def git(cwd, *args, check=True):
-                result = subprocess.run(['git', *args], cwd=cwd, env=env,
-                                        capture_output=True, text=True, timeout=10)
-                if check:
-                    self.assertEqual(result.returncode, 0, result.stderr)
-                return result
-
-            git(root, 'init', str(upstream))
-            git(upstream, 'checkout', '-b', 'main')
-            git(upstream, 'commit', '--allow-empty', '-m', 'default snapshot')
-            git(upstream, 'checkout', '-b', 'feature')
-            git(upstream, 'commit', '--allow-empty', '-m', 'feature snapshot')
-            pin = git(upstream, 'rev-parse', 'HEAD').stdout.strip()
-            git(upstream, 'update-ref', 'refs/pull/16/head', pin)
-            git(upstream, 'checkout', 'main')
-            git(upstream, 'branch', '-D', 'feature')
-            git(root, 'clone', '--single-branch', '--branch', 'main',
-                upstream.as_uri(), str(clone))
-            self.assertNotEqual(git(clone, 'cat-file', '-e', pin, check=False).returncode, 0)
-            self.assertNotEqual(git(clone, 'checkout', '--detach', pin, check=False).returncode, 0)
-            git(clone, 'fetch', 'origin', pin)
-            git(clone, 'checkout', '--detach', pin)
-            self.assertEqual(git(clone, 'rev-parse', 'HEAD').stdout.strip(), pin)
-            self.assertEqual(git(clone, 'branch', '--show-current').stdout.strip(), '')
-
-    def test_issue17_readme_uses_checkout_config_or_explicit_reuse(self):
+    def test_readme_install_story_uses_the_installed_command(self):
+        # Installed `cmail` is the only documented invocation; a reviewed checkout
+        # installs itself with --local instead of running ./cmail in place.
         readme = (ROOT / 'README.md').read_text()
-        self.assertIn('ENV_FILE="$HOME/.config/cmail/.env"', readme)
-        self.assertIn('for every `./cmail` invocation', readme)
+        blocks = re.findall(r'```bash\n(.*?)```', readme, re.S)
+        clones = [block for block in blocks if 'git clone' in block]
+        self.assertEqual(len(clones), 1)
+        commands = [line.split('#', 1)[0].strip() for line in clones[0].splitlines()]
+        self.assertEqual([c for c in commands if c][:3],
+                         ['git clone https://github.com/luongnv89/cmail', 'cd cmail', 'bash install.sh --local'])
+        self.assertIn('brew install luongnv89/tap/cmail', readme)
+        self.assertNotIn('./cmail', readme)
+        self.assertIn('Sending is optional', readme)
+        help_result = subprocess.run([str(BIN), 'help'], cwd=ROOT, text=True, capture_output=True, timeout=5)
+        self.assertEqual(help_result.returncode, 0, help_result.stderr)
+        self.assertIn('send-as', help_result.stdout)
+        self.assertNotIn('./cmail', help_result.stdout)
+
+    def test_readme_documents_config_location_and_migration(self):
+        readme = (ROOT / 'README.md').read_text()
+        self.assertIn('`~/.config/cmail/.env`', readme)
+        self.assertIn('--config ./.env', readme)
+        self.assertIn('cmail config path', readme)
 
     def test_no_remote_runtime_assets_or_provider_calls(self):
         for filename in PAGES:

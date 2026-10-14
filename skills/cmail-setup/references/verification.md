@@ -1,31 +1,32 @@
-Current-runtime note: `0.2.0` supports full read-only previews and requires
-terminal stdin for guided setup. Follow the capability gate in
+Current-runtime note: cmail 0.2.0+ (the 0.4.0 Rust binary included) supports
+full read-only previews and requires terminal stdin for guided setup. Follow the capability gate in
 `autonomous-run.md` before choosing execution recipes below. A setup timer
 measures configuration; independent delivery remains Gate 9 evidence.
 
 # Verification matrix
 
-Use the selected trusted launcher (installed, or source `./cmail`) and always pass
-the selected config as `ENV_FILE`. The current installer pins v0.2.0; these
-gates support it, legacy v0.1.0 and the reviewed current source, with different
-setup completion evidence at gate 8. Record trusted offline help capabilities at gate 1.
+Use the selected trusted cmail binary (legacy: launcher or checkout `./cmail`)
+and always pass the selected config as `ENV_FILE`. These gates support current
+cmail (0.4.0 binary, 0.2.0 script), the reviewed snapshot and legacy v0.1.0, with
+different setup completion evidence at gate 8. Record trusted offline help capabilities at gate 1.
 **You run every check below** unless it is marked hands-on.
 Hands-on evidence comes from the user as a sanitized observation (exact
 domain/account, state, time), labelled user-reported. With no evidence, the gate
-is BLOCKED. Do not call internal Bash helpers as a public API.
+is BLOCKED. Do not call internal modules or Bash helpers as a public API; for
+machine-read checks use `--format json` (piped text is tab-separated records).
 
 ## Gate 1 — Installed CLI and dependencies
 
 - Prerequisite: supported macOS/Linux shell on the target machine.
 - Action: discovery and the pre-execution provenance check in SKILL.md (Bash
-  `type -t cmail`, zsh `whence -w cmail`); only then trusted absolute-path help,
-  or read-then-run `bash install.sh`. Read the trusted launcher's
-  `default_config=` line as metadata for gate 2, never by executing it. Install
-  missing curl/jq/gddy per SKILL.md.
-- Verify: provenance and user-controlled path/runtime established before executing
-  help (not just an alias/function or familiar output); help loads without missing
-  libraries and lists setup/status/doctor/help. Bash is 3.2+; curl/jq/gddy/dig
-  version/help succeeds.
+  `type -t cmail`, zsh `whence -w cmail`); only then trusted absolute-path
+  `--version`/`help`, or install per SKILL.md (brew tap, read-then-run release
+  installer, or `cargo install`). Run the trusted binary's `cmail config path` as
+  metadata for gate 2. Install missing dig (and gddy/jq in GoDaddy mode).
+- Verify: provenance and user-controlled path established before executing help
+  (not just an alias/function or familiar output); `--version` prints
+  `cmail <version>` and help lists setup/status/list/forward/doctor/send-as/config.
+  dig (and gddy/jq in GoDaddy mode) version/help succeeds.
 - Failure: command missing differs from corrupt runtime or wrong binary.
 - Repair/recheck: reinstall with the same user-owned paths or install the tool;
   repeat discovery/help and every missing-tool check.
@@ -35,8 +36,8 @@ is BLOCKED. Do not call internal Bash helpers as a public API.
 - Prerequisite: gate 1 and a selected config path.
 - Action: create/complete the config per `configuration.md`; non-secret keys via
   `set_config.py`, the token by the user in their editor (hands-on).
-- Verify: summary prints READY; checker exits 0; `bash -n` privately exits 0;
-  config is not tracked by git. Secret presence is not credential validity.
+- Verify: summary prints READY; checker and `cmail config check` exit 0; `bash -n`
+  privately exits 0 where bash exists; config is not tracked by git. Secret presence is not credential validity.
 - Failure: absent field, syntax error, insecure permissions or executable expansion.
 - Repair/recheck: `set_config.py` for non-secret keys, `chmod 600` for mode, the
   user's editor for the token or complex lines; repeat summary and both checks.
@@ -99,9 +100,10 @@ is BLOCKED. Do not call internal Bash helpers as a public API.
 
 - Prerequisite: gates 1–5; no unresolved non-Cloudflare MX (preflight stop).
 - Action: setup enables routing, which adds and locks Cloudflare MX/TXT records.
-- Verify: `status` email routing reports enabled/ready for the exact zone and
-  `dig +short MX` returns Cloudflare's `route*.mx.cloudflare.net` hosts.
-  `email routing: ?` or `status` exit 0 alone is not readiness.
+- Verify: `status --format json` reports `data.routing.enabled` true and
+  `data.routing.status` `ready` for the exact zone, and `dig +short MX` returns
+  Cloudflare's `route*.mx.cloudflare.net` hosts. An `unknown` routing status
+  (legacy `email routing: ?`) or `status` exit 0 alone is not readiness.
 - Failure: permission error, disabled/unknown status, DNS conflicts.
 - Repair/recheck: Zone Settings permission (hands-on token edit) or a record
   migration plan (stop); never auto-delete MX/TXT. Rerun pass 1, repeat both checks.
@@ -111,7 +113,9 @@ is BLOCKED. Do not call internal Bash helpers as a public API.
 - Prerequisite: gates 1–6 and access to DEST_EMAIL.
 - Action: setup registers DEST_EMAIL (Cloudflare emails a link) or reuses it.
   Hands-on: the user clicks the link in that mailbox (any provider).
-- Verify: `status` lists DEST_EMAIL with a `verified=<timestamp>`, not `verified=no`.
+- Verify: `status --format json` lists DEST_EMAIL with `verified: true` and a
+  `verified_at` timestamp (piped text: `destination<TAB>DEST_EMAIL<TAB>verified`;
+  legacy: `verified=<timestamp>`, not `verified=no`).
 - Failure: wrong mailbox/account, missing/expired link, timeout or unverified state.
 - Repair/recheck: Inbox/Spam in the correct account; resend from Cloudflare →
   Email Routing → Destination addresses (hands-on); rerun pass 1. Never duplicate.
@@ -128,10 +132,14 @@ is BLOCKED. Do not call internal Bash helpers as a public API.
     `Setup stopped at: Send FROM your custom address (manual, ~5 min)` **and**
     `Gmail guide paused without input` **after all receiving stages** in that
     same setup pass. The legacy pause exits nonzero; it is not a receiving failure.
-  - In **both cases**, `ENV_FILE="$cfg" "$launcher" status` must succeed and list
-    each requested `<local>@<domain> -> DEST_EMAIL [true]` exactly once, to the
-    intended DEST_EMAIL. Inspect all entries for each requested alias: a duplicate
-    with another target or disabled flag still fails. Unrelated aliases may exist.
+  - In **both cases**, `ENV_FILE="$cfg" "$launcher" status --format json` must
+    succeed and list each requested `<local>@<domain>` exactly once in
+    `data.rules`: one literal `to` matcher for the alias, `enabled` true, and a
+    single forward action whose only value is the intended DEST_EMAIL (piped
+    text: `rule<TAB><local>@<domain><TAB>DEST_EMAIL<TAB>enabled`; a legacy
+    runtime without `--format json` prints `<local>@<domain> -> DEST_EMAIL [true]`).
+    Inspect all entries for each requested alias: a duplicate with another target
+    or disabled flag still fails. Unrelated aliases may exist.
 - Failure: missing, incomplete, conflicting, disabled, duplicate or wrong-target
   rule; untrusted runtime, missing completion evidence, or any failure before
   the checkpoint is not success. A Gmail mention or missing `send-as` alone is

@@ -40,7 +40,7 @@
     <h2 id="cli">The command-line tool</h2>
     <div class="grid">
       <div class="card"><h3>Stored locally</h3><p>Settings and your Cloudflare token are kept in one config file with mode 600. Secrets are redacted in <code>config show</code> and <code>--verbose</code> output.</p></div>
-      <div class="card"><h3>Services contacted</h3><p><code>api.cloudflare.com</code> with your token. GoDaddy only if <code>REGISTRAR=godaddy</code>. The installer (without <code>--local</code>) downloads from <code>raw.githubusercontent.com</code>.</p></div>
+      <div class="card"><h3>Services contacted</h3><p><code>api.cloudflare.com</code> with your token. GoDaddy only if <code>REGISTRAR=godaddy</code>. The installer script comes from <code>raw.githubusercontent.com</code>; without <code>--local</code> it downloads the release binary and its checksum from GitHub Releases (<code>github.com</code>). Homebrew installs also download from GitHub.</p></div>
       <div class="card"><h3>Browser links</h3><p>Setup may open Cloudflare, Gmail or Google Account pages in your browser. Use <code>--no-browser</code> to print the links instead.</p></div>
     </div>
     <p>The forwarded mail itself is handled by Cloudflare and your inbox provider under their own privacy policies. cmail never sees your messages.</p>
@@ -58,7 +58,7 @@
 
   <section class="block" aria-labelledby="contact">
     <h2 id="contact">Questions</h2>
-    <p>Open an issue on <a href="https://github.com/luongnv89/cmail/issues">GitHub</a>. The source is public, so you can check every network call yourself in <a href="https://github.com/luongnv89/cmail/blob/main/lib/cloudflare.sh">lib/cloudflare.sh</a>.</p>
+    <p>Open an issue on <a href="https://github.com/luongnv89/cmail/issues">GitHub</a>. The source is public, so you can check every network call yourself in <a href="https://github.com/luongnv89/cmail/blob/main/src/cloudflare.rs">src/cloudflare.rs</a>.</p>
   </section>
 </main>
 <footer><span>Last updated 10 October 2026</span><nav aria-label="Footer"><a href="index.html">Home</a><a href="setup.html">Setup</a><a href="docs.html">Docs</a><a href="changelog.html">Changelog</a><a href="https://github.com/luongnv89/cmail/issues">Report an issue</a></nav></footer>

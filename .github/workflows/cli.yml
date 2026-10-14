@@ -24,14 +24,18 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq shellcheck zsh fish
+          sudo apt-get install -y shellcheck zsh fish
       - name: Install macOS check tools
         if: runner.os == 'macOS'
-        run: brew install jq shellcheck fish
-      - name: Lint runtime and Bash completion
+        run: brew install shellcheck fish
+      - name: Show Rust toolchain
+        run: |
+          rustup component add rustfmt clippy
+          cargo --version
+      - name: Lint Rust and shell scripts
         run: make lint
       - name: Run offline tests and completion checks
         run: make test
-      - name: Check macOS system Bash compatibility
+      - name: Check the installer under macOS system Bash 3.2
         if: runner.os == 'macOS'
-        run: CMAIL_TEST_BASH=/bin/bash make test
+        run: INSTALL_TEST_BASH=/bin/bash INSTALL_TEST_LOCAL=0 bash tests/install_test.sh

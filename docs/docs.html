@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="cmail 0.2.0 command-line reference: install, commands, configuration, registrar modes, previews, JSON output, exit codes and shell completions.">
+  <meta name="description" content="cmail 0.4.0 command-line reference: install, commands, configuration, registrar modes, previews, JSON output, exit codes and shell completions.">
   <title>CLI docs — cmail</title>
   <link rel="stylesheet" href="assets/styles.css">
 </head>
@@ -12,7 +12,7 @@
 <header><a class="brand" href="index.html">cmail</a><nav aria-label="Main"><a href="index.html">Home</a><a href="setup.html">Setup guide</a><a href="docs.html" aria-current="page">Docs</a><a href="changelog.html">Changelog</a><a href="privacy.html">Privacy</a><a href="https://github.com/luongnv89/cmail">GitHub</a></nav></header>
 <main id="main">
   <div class="page-intro">
-    <p class="kicker">Reference · cmail 0.2.0</p>
+    <p class="kicker">Reference · cmail 0.4.0</p>
     <h1>Command-line docs</h1>
     <p class="lead">Every command, setting and output format. New here? Start with the <a href="setup.html">setup guide</a>.</p>
   </div>
@@ -33,23 +33,25 @@
         <pre><code>curl -fsSL https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh | bash
 export PATH="$HOME/.local/bin:$PATH"
 cmail --version</code></pre>
-        <p>To install a clone you reviewed instead, with no downloads:</p>
+        <p>With Homebrew (also installs shell completions):</p>
+        <pre><code>brew install luongnv89/tap/cmail</code></pre>
+        <p>To build a clone you reviewed instead (needs Rust and cargo):</p>
         <pre><code>git clone https://github.com/luongnv89/cmail
 cd cmail
-bash install.sh --local</code></pre>
+bash install.sh --local      # or: cargo install --path .</code></pre>
         <div class="table-wrap"><table>
-          <thead><tr><th scope="col">What</th><th scope="col">Where</th><th scope="col">Override at install</th></tr></thead>
+          <thead><tr><th scope="col">What</th><th scope="col">Where</th><th scope="col">Override</th></tr></thead>
           <tbody>
-            <tr><td>Launcher</td><td><code>~/.local/bin/cmail</code></td><td><code>CMAIL_BIN_DIR</code></td></tr>
-            <tr><td>Runtime</td><td><code>~/.local/share/cmail/</code></td><td><code>CMAIL_DATA_DIR</code></td></tr>
-            <tr><td>Config</td><td><code>~/.config/cmail/.env</code></td><td><code>CMAIL_CONFIG_DIR</code></td></tr>
+            <tr><td>Binary</td><td><code>~/.local/bin/cmail</code></td><td><code>CMAIL_BIN_DIR</code> at install</td></tr>
+            <tr><td>Config</td><td><code>~/.config/cmail/.env</code> (or <code>$XDG_CONFIG_HOME/cmail/.env</code>)</td><td><code>--config</code>, <code>CMAIL_CONFIG</code> or <code>ENV_FILE</code></td></tr>
           </tbody>
         </table></div>
         <ul>
-          <li>The one-line command and plain <code>bash install.sh</code> download the pinned v0.2.0 runtime from GitHub. <code>--local</code> installs the checkout you cloned, with no downloads.</li>
+          <li>cmail is one self-contained binary for macOS and Linux (x86_64 and arm64). The one-line command downloads the release build for your system from GitHub and checks its SHA-256 checksum before installing it. <code>--local</code> builds the checkout you cloned.</li>
           <li>The installer says whether <code>~/.local/bin</code> is on your PATH and prints the <code>export PATH</code> line to add to your shell profile if it is not.</li>
-          <li>Needs Bash 3.2+, <code>curl</code> and <code>jq</code>. No sudo. Installing never runs setup or edits your shell profile.</li>
-          <li>To update, run the installer again (for a clone, pull it first). Your config is kept.</li>
+          <li>No runtime dependencies: no Bash, <code>curl</code> or <code>jq</code> needed to run cmail. <code>gddy</code> is needed only for GoDaddy mode. No sudo. Installing never runs setup or edits your shell profile.</li>
+          <li>Proxies: cmail does not use <code>HTTPS_PROXY</code> or <code>ALL_PROXY</code> yet. It connects directly to <code>api.cloudflare.com</code> over HTTPS, so it needs direct internet access. The installer's download does follow your proxy settings.</li>
+          <li>To update, run the installer again, <code>brew upgrade cmail</code>, or pull and rerun <code>--local</code>. Your config is kept.</li>
         </ul>
       </section>
 
@@ -63,7 +65,7 @@ bash install.sh --local</code></pre>
             <tr><td><code>cmail status</code></td><td>Zone, routing, destinations and rules</td><td>No</td></tr>
             <tr><td><code>cmail list [--domain D]</code></td><td>Every address and where it forwards</td><td>No</td></tr>
             <tr><td><code>cmail forward ADDRESS --destination EMAIL</code></td><td>Change where an existing address forwards</td><td>Yes, asks first</td></tr>
-            <tr><td><code>cmail doctor</code></td><td>Check tools, config and token</td><td>No</td></tr>
+            <tr><td><code>cmail doctor</code></td><td>Check config, gddy (GoDaddy mode) and token</td><td>No</td></tr>
             <tr><td><code>cmail doctor --offline</code></td><td>Same, without network requests</td><td>No</td></tr>
             <tr><td><code>cmail send-as</code></td><td>Optional Gmail sending guide</td><td>No (manual)</td></tr>
             <tr><td><code>cmail config init</code></td><td>Create a private config file</td><td>Local file</td></tr>
@@ -78,17 +80,21 @@ bash install.sh --local</code></pre>
         <div class="term" aria-label="Example: cmail status and cmail doctor">
           <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i><span>example</span></div>
           <pre><span class="p">$</span> cmail list
-Addresses on example.com (2):
-  contact@example.com -&gt; owner@example.net (verified)  [disabled]
-  hello@example.com   -&gt; owner@example.net (verified)
-Catch-all (any other address): disabled -&gt; drop
+╭─┐example.com addresses┌──────────────────────────────────────────╮
+│ contact@example.com  →  owner@example.net (verified)  ✗ disabled │
+│ hello@example.com    →  owner@example.net (verified)  ● enabled  │
+├──────────────────────────────────────────────────────────────────┤
+│ catch-all → drop  ✗ disabled                                     │
+╰─┘2 addresses└────────────────────────────────────────────────────╯
 
 <span class="p">$</span> cmail doctor --offline
-PASS  bash available
-PASS  curl available
-PASS  jq available</pre>
+╭─┐cmail doctor┌──────────────────────────────────────────────╮
+│ ● pass  config     configuration ready                      │
+│ ● pass  registrar  manual registrar mode; gddy not required │
+╰─┘2 checks · 2 ok└───────────────────────────────────────────╯</pre>
         </div>
         <p class="meta">Destinations are marked <code>verified</code>, <code>unverified</code> (click the Cloudflare link) or <code>unregistered</code>.</p>
+        <p class="meta">On a terminal, reports are drawn as boxes. Piped into another program they become plain tab-separated records, one per line with no header (for example <code>hello@example.com→owner@example.net (verified)→enabled</code>, where → is a tab). For scripts, prefer <code>--format json</code>.</p>
         <p class="meta">To move an existing address to a new inbox, run <code>cmail forward hello --destination new@example.org</code> in a terminal. The address and its rule stay; only the destination changes. If Cloudflare has not verified the new inbox, nothing changes: cmail offers to send the verification email, and you rerun the command after clicking the link. <code>DEST_EMAIL</code> is updated only when every configured address then forwards to the new inbox.</p>
       </section>
 
@@ -147,7 +153,7 @@ cmail doctor --offline --format json</code></pre>
             <tr><td><code>-c, --config PATH</code></td><td>Use a specific config file</td></tr>
             <tr><td><code>-f, --format text|json</code></td><td>Report format</td></tr>
             <tr><td><code>-v, --verbose</code> / <code>-q, --quiet</code></td><td>More (redacted) detail / less progress</td></tr>
-            <tr><td><code>--no-color</code></td><td>Plain output (also <code>NO_COLOR</code>)</td></tr>
+            <tr><td><code>--no-color</code></td><td>No color (also <code>NO_COLOR</code>); <code>FORCE_COLOR=1</code> styles output that is not a terminal</td></tr>
             <tr><td><code>--no-browser</code></td><td>Print links instead of opening them</td></tr>
             <tr><td><code>--timeout SECONDS</code></td><td>HTTP timeout, default 30</td></tr>
             <tr><td><code>setup --wait-timeout SECONDS</code></td><td>Each activation/verification wait, default 1200</td></tr>
@@ -167,12 +173,14 @@ cmail doctor --offline --format json</code></pre>
             <tr><td>2</td><td>Invalid arguments, or no terminal available</td></tr>
             <tr><td>3</td><td>Invalid or incomplete input/config</td></tr>
             <tr><td>130</td><td>Interrupted (<kbd>Ctrl</kbd>+<kbd>C</kbd>)</td></tr>
+            <tr><td>143</td><td>Terminated (<code>SIGTERM</code>)</td></tr>
           </tbody>
         </table></div>
       </section>
 
       <section id="completion" aria-labelledby="completion-h">
         <h2 id="completion-h">Shell completions</h2>
+        <p>Homebrew installs completions automatically. Otherwise:</p>
         <pre><code># bash
 cmail completion bash &gt; ~/.cmail-completion.bash
 echo 'source ~/.cmail-completion.bash' &gt;&gt; ~/.bashrc
@@ -187,6 +195,6 @@ cmail completion fish &gt; ~/.config/fish/completions/cmail.fish</code></pre>
     </div>
   </div>
 </main>
-<footer><span>cmail 0.2.0 reference</span><nav aria-label="Footer"><a href="index.html">Home</a><a href="setup.html">Setup</a><a href="changelog.html">Changelog</a><a href="privacy.html">Privacy</a><a href="https://github.com/luongnv89/cmail/issues">Report an issue</a></nav></footer>
+<footer><span>cmail 0.4.0 reference</span><nav aria-label="Footer"><a href="index.html">Home</a><a href="setup.html">Setup</a><a href="changelog.html">Changelog</a><a href="privacy.html">Privacy</a><a href="https://github.com/luongnv89/cmail/issues">Report an issue</a></nav></footer>
 </body>
 </html>

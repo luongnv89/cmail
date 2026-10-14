@@ -5,97 +5,60 @@ simple steps**, delivered to **the inbox you already use** (Gmail, Outlook,
 iCloud, Proton, a work address, …). Built on **Cloudflare Email Routing**; no
 new mailbox and no Google account needed.
 
-## Install in one command
+`cmail` is a single command-line program (written in Rust) with no runtime
+dependencies: no Bash, curl or jq needed to run it.
+
+## Install
+
+One command, no clone, no sudo:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh | bash
-export PATH="$HOME/.local/bin:$PATH"   # only if the installer says it is not on PATH
+```
+
+The installer detects your OS and CPU (macOS or Linux, x86_64 or arm64),
+downloads the matching prebuilt binary from the
+[latest GitHub release](https://github.com/luongnv89/cmail/releases/latest),
+verifies its SHA-256 checksum, and installs it as `~/.local/bin/cmail`
+(override with `CMAIL_BIN_DIR`). It never runs setup or changes DNS. If
+`~/.local/bin` is not on your `PATH`, it prints the line to add:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+**Homebrew** (macOS and Linux), which also installs shell completions:
+
+```bash
+brew install luongnv89/tap/cmail
+```
+
+**From a reviewed checkout** (needs [Rust](https://rustup.rs/)):
+
+```bash
+git clone https://github.com/luongnv89/cmail
+cd cmail
+bash install.sh --local      # builds this checkout and installs it to ~/.local/bin
+# or: cargo install --path .
+```
+
+Then:
+
+```bash
 cmail --version
 cmail config init
 cmail setup
 ```
 
-The installer downloads the pinned v0.2.0 release runtime into your home
-directory (no sudo), then tells you whether `~/.local/bin` is already on your
-PATH. To read it first, download it, review it, then run it:
-`curl -fsSLO https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh && bash install.sh`.
-To install a cloned checkout you reviewed, without downloads, run this inside it:
+Upgrade by re-running the same install command (or `brew upgrade cmail`).
+Uninstall by deleting the `cmail` binary (or `brew uninstall cmail`); your
+private configuration in `~/.config/cmail` is kept unless you delete it.
 
-```bash
-bash install.sh --local
-```
+**Proxies:** cmail does not use `HTTPS_PROXY` or `ALL_PROXY` yet. It connects
+directly to `api.cloudflare.com` over HTTPS, so it needs direct internet access.
+The installer's download does follow your proxy settings.
 
-The current CLI (`0.2.0`) has command-specific help, private
-literal configuration, read-only diagnostics, full setup previews, JSON reports,
-shell completions, and an elapsed-time setup summary. `--local` installs the
-checkout you reviewed; unflagged `bash install.sh` installs the pinned v0.2.0 runtime.
-The new CLI is published as the [v0.2.0 release](https://github.com/luongnv89/cmail/releases/tag/v0.2.0).
-
-```bash
-cmail doctor --offline
-cmail setup --dry-run --format json
-cmail status --format json
-cmail config show
-```
-
-See the [current CLI guide](docs/cli.md) for configuration, flags, timing,
-completion installation, automation, and exit codes. Setup runs in a terminal and
-checks dependencies without installing them. Status and doctor never write config or
-install tools.
-
-**Any registrar, no GoDaddy required.** By default (`REGISTRAR=manual`) the
-current CLI works with a domain you already own at any registrar and never needs
-`gddy` or a GoDaddy login. If the domain is already active on Cloudflare, setup
-skips nameservers entirely. Otherwise it prints the exact Cloudflare-assigned
-nameservers and migration warnings (copy existing DNS records into Cloudflare
-and turn off DNSSEC first). You then replace the nameservers at your registrar
-while setup polls Cloudflare until the zone is active. GoDaddy automation is
-opt-in: `cmail setup --registrar godaddy` (or `cmail config set REGISTRAR godaddy`)
-uses `gddy` to pick a domain and apply the nameserver change after confirmation.
-Domain purchase is offered only in that mode and needs the domain typed at a
-terminal. Setup previews never change providers or launch authentication.
-The final summary measures actual setup time, including prompts and provider
-waits; receiving still needs an independent mailbox delivery test.
-
-Developer checks: `make test` and `make lint`; Bash 3.2 compatibility:
-`CMAIL_TEST_BASH=/bin/bash make test`. Provider operations are mocked in tests.
-
-## Previous reviewed snapshot and release instructions
-
-The instructions below describe the pinned development snapshot and legacy
-release. Their dependency installation, configuration, dry-run, and automation
-behavior differs from `0.2.0`; use the [current CLI guide](docs/cli.md) with
-this checkout or a `--local` installation.
-
-The receive-only workflow below uses a **reviewed development source snapshot**,
-not v0.1.0, until a compatible release/installer ships. Fetch the pin explicitly;
-it need not be advertised on the default branch:
-
-```bash
-git clone https://github.com/luongnv89/cmail
-cd cmail
-git fetch origin cda65f0554a870ed8079e93741a331918118acec
-git checkout --detach cda65f0554a870ed8079e93741a331918118acec
-# Review cmail and lib/ before execution.
-./cmail help         # Must list send-as; stop if missing, before setup.
-./cmail setup        # Approve in browser, paste a token, click one link.
-                     # From another mailbox, email hello@your-domain — done.
-```
-
-Use this checkout's `./cmail`, not a PATH `cmail`; config defaults to checkout
-`.env`. The [installer](#installation) installs the pinned v0.2.0 runtime, which
-follows the [current CLI guide](docs/cli.md), not this snapshot.
-
-> **Sending is optional, not the default** in this source workflow. `./cmail setup`
-> only sets up receiving. If you also want to *send* as `hello@your-domain`, run
-> `./cmail send-as` afterwards, only on request. It guides Gmail "Send mail as"
-> and needs a Gmail/Google account. See
-> [Optional: send from your custom address](#optional-send-from-your-custom-address).
-
-Inspired by this [Tokifyi thread](https://x.com/tokifyi/status/2025741929997361371):
-$0/month for email — you only pay for the domain itself.
-
-Release: [v0.3.0](https://github.com/luongnv89/cmail/releases/tag/v0.3.0) · [Changelog](CHANGELOG.md).
+See [distribution](docs/distribution.md) for release and packaging details.
 
 ## Start here
 
@@ -103,364 +66,218 @@ Website: [luongnv89.github.io/cmail](https://luongnv89.github.io/cmail/), built 
 [introduction](docs/index.html) → [8-step visual setup guide](docs/setup.html)
 ([Markdown version](docs/setup.md)) · [CLI docs](docs/docs.html) ·
 [changelog](docs/changelog.html) · [privacy](docs/privacy.html).
-The guide targets the current 0.2.0 CLI. Checkmarks save only step IDs/booleans
-in your browser; they do not verify providers, and the site collects no credentials.
-See [local preview](docs/setup.md#local-preview).
+Checkmarks save only step IDs/booleans in your browser; they do not verify
+providers, and the site collects no credentials. See [local preview](docs/setup.md#local-preview).
+
+**Any registrar, no GoDaddy required.** By default (`REGISTRAR=manual`) cmail
+works with a domain you already own at any registrar. If the domain is already
+active on Cloudflare, setup skips nameservers entirely. Otherwise it prints the
+exact Cloudflare-assigned nameservers and migration warnings (copy existing DNS
+records into Cloudflare and turn off DNSSEC first), then waits while you replace
+the nameservers at your registrar. GoDaddy automation is opt-in:
+`cmail setup --registrar godaddy` uses [`gddy`](https://developer.godaddy.com/en/docs/api-users/cli/set-up)
+to pick a domain and apply the nameserver change after confirmation. Domain
+purchase is offered only in that mode and needs the domain typed at a terminal.
 
 **Gmail sending policy:** [Google's current help](https://support.google.com/mail/answer/22370)
 announces removal of third-party “Send as” starting **January 2027**. Check current
-availability/account eligibility before relying on cmail's optional custom-domain
-outbound path. Inbound Cloudflare forwarding is separate; alternative SMTP/Workspace setup
-is outside this workflow. Public provider references were checked 7 October 2026,
-not live authenticated setup or delivery.
+availability before relying on cmail's optional outbound path. Inbound Cloudflare
+forwarding is separate.
 
-## Installation
+## What setup does
 
-Install with one command, without cloning the repository:
+`cmail setup` runs in a terminal and walks through each step. Sending is optional
+and not part of it.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/luongnv89/cmail/main/install.sh | bash
-```
-
-The same installer also runs from a source checkout **containing `install.sh`**:
-`bash install.sh` downloads the pinned runtime, and `bash install.sh --local`
-installs the checkout itself. `--local` needs that checkout, so it does not work
-through `curl | bash`.
-
-The one-line command reads `install.sh` from `main`, because the v0.2.0 tag's own
-installer still pins v0.1.0; from a v0.2.0 checkout, use `--local`. The installer
-is **not in the v0.1.0 release**. See the
-[distribution decision and recorded status](docs/distribution.md).
-
-The installer downloads the complete v0.2.0 runtime at a pinned commit over
-HTTPS. It requires Bash 3.2+, curl and standard macOS/Linux utilities, but not
-git, jq, sudo, a package manager, authentication or provider access. It checks
-syntax and offline help before activating a launcher. It never runs setup or
-doctor, modifies shell startup files, or changes DNS/email settings.
-
-Default destinations (use user-owned directories, including their parents):
-
-| Item | Destination | Override |
-|---|---|---|
-| Launcher | `~/.local/bin/cmail` | `CMAIL_BIN_DIR` |
-| Complete runtimes | `~/.local/share/cmail/runtime.*` | `CMAIL_DATA_DIR` |
-| Private config | `~/.config/cmail/.env` | `CMAIL_CONFIG_DIR` at install; `ENV_FILE` at runtime |
-
-Overrides must be absolute directories. Unmanaged runtime stores/executables
-and direct symlink destinations are refused rather than overwritten. Existing
-config is never replaced by installation or upgrades; the new config directory
-is private and the file is created only on an explicit setup/status/doctor call.
-The launcher honors an explicit `ENV_FILE` override. Source-checkout execution
-still defaults to the adjacent `.env`.
-
-Verify the installed CLI without authentication or network calls:
-
-```bash
-"$HOME/.local/bin/cmail" help
-export PATH="$HOME/.local/bin:$PATH"   # only if this directory is not on PATH
-cmail help
-```
-
-This default installed runtime is **v0.2.0**: `cmail setup` sets up receiving
-only, at any registrar by default, and sending is the optional `cmail send-as`.
-Follow the [current CLI guide](docs/cli.md) for it. Only when ready for the
-guided, potentially live-changing workflow, run installed `cmail setup`. Installation success proves CLI availability, not functioning
-DNS, provider permissions or end-to-end email delivery.
-
-Re-run the one-line command or `bash install.sh` to reinstall the pinned runtime. To upgrade after
-reviewing an upstream revision, provide its full 40-character lowercase SHA:
-`CMAIL_REF=<reviewed-commit-sha> bash install.sh`. Moving branches/tags are not
-accepted. Each successful run activates a fresh runtime and retains old ones;
-failed downloads/validation leave the old launcher working. Use the same paths
-for subsequent installs, and never share a launcher across runtime stores.
-To uninstall, remove the installed launcher and the managed cmail runtime
-store; retain `~/.config/cmail` unless you explicitly want to delete your
-configuration/credentials. No shell profile changes need undoing.
-
-## Quickstart (reviewed current source)
-
-Use this immutable feature-containing development snapshot, **not v0.1.0**, until
-a compatible release/installer ships. Clone upstream and fetch the pin explicitly;
-it need not be advertised on the default branch. Select the exact revision,
-then review `cmail` and `lib/` before executing it:
-
-```bash
-git clone https://github.com/luongnv89/cmail
-cd cmail
-git fetch origin cda65f0554a870ed8079e93741a331918118acec
-git checkout --detach cda65f0554a870ed8079e93741a331918118acec
-./cmail help         # Must list send-as; stop if missing, before setup.
-./cmail setup
-```
-
-All workflow commands below refer to this checkout's `./cmail`, not PATH `cmail`.
-It defaults to checkout `.env`; to reuse private installed config, explicitly set
-`ENV_FILE="$HOME/.config/cmail/.env"` for every `./cmail` invocation. Do not run
-`bash install.sh` as part of this quickstart: its default pin selects the v0.2.0
-runtime, regardless of the checkout revision.
-
-The script walks you through each step. Authentication is browser-based
-(OAuth) wherever possible:
-
-1. **Dependencies** — installs `gddy`, `jq`, `curl` if missing
-2. **Configuration** — collect your destination inbox (any provider) and
-   forwarding local parts
-3. **GoDaddy authentication** — `gddy auth login` opens browser OAuth consent
-4. **Domain** — pick one from your GoDaddy account (or register a new one
-   via `gddy`, with an explicit price confirmation)
-5. **Cloudflare token** — show required permissions, verify token activity,
-   and save it to `.env`; activity alone does not prove resource access
-6. **Cloudflare zone** — reuse/create the zone and fetch assigned nameservers;
-   multiple visible accounts require an explicit `CF_ACCOUNT_ID`
-7. **Nameservers** — check current GoDaddy nameservers. Matching servers are
-   skipped; replacement requires confirmation. Migrate existing DNS records
-   to Cloudflare first to avoid disrupting websites or existing mail.
-8. **Zone activation** — wait up to about 20 minutes for propagation;
+1. **Configuration**: collect your destination inbox (any provider) and the
+   addresses to create (`hello,contact,…`)
+2. **Domain**: a domain you own at any registrar (or, with `--registrar godaddy`,
+   pick or register one through `gddy`, with an explicit price confirmation)
+3. **Cloudflare token**: show the five required permissions, open the token page,
+   and verify the token you paste (input hidden). Activity alone does not prove
+   resource access; later steps check it.
+4. **Cloudflare zone**: reuse or create the zone and fetch its assigned nameservers.
+   Several visible accounts require an explicit `CF_ACCOUNT_ID`.
+5. **Nameservers**: print them for your registrar (or, with GoDaddy, compare and
+   replace them after confirmation). Migrate existing DNS records first.
+6. **Zone activation**: wait (default up to 20 minutes, `--wait-timeout`);
    failures explain how to check delegation and resume
-9. **Email Routing** — skip enabled routing; otherwise Cloudflare adds and
-   locks the required routing DNS records via its API
-10. **Destination** — register/reuse your destination inbox; click the
-    verification email while the script polls until confirmed
-11. **Addresses** — create forwarding rules (`hello@`, `contact@`, …);
-    conflicting or disabled existing rules require your attention
+7. **Email Routing**: skip if enabled; otherwise Cloudflare adds and locks the
+   routing DNS records
+8. **Destination**: register or reuse your inbox; click Cloudflare's verification
+   email while cmail polls until it is confirmed
+9. **Addresses**: create forwarding rules. Conflicting or disabled existing rules
+   are reported, never overwritten.
 
-Setup ends here: receiving works. Test it by sending from a **different
-mailbox** to your custom address (not automatically verified).
-
-Re-runnable and idempotent — state lives in `.env`, existing resources
-are detected and skipped.
+Setup ends here: receiving works. Test it by sending from a **different mailbox**
+to your custom address (delivery is not verified automatically). Setup is
+re-runnable: state lives in your private config, and existing resources are
+detected and skipped. `cmail setup --dry-run` prints the full plan without
+changing anything.
 
 ### Optional: send from your custom address
 
-Only if you also want to **send** as `hello@your-domain`, and your
-`DEST_EMAIL` is a Gmail/Google account that can use App Passwords:
+Sending is optional. Only if you also want to **send** as `hello@your-domain`, and
+your `DEST_EMAIL` is a Gmail/Google account that can use App Passwords:
 
 ```bash
-./cmail send-as
+cmail send-as
 ```
 
 It guides the manual Gmail "Send mail as" setup with an App Password. Gmail's
 confirmation code arrives through the forwarding that `setup` created, so run
 `setup` first. Test outbound separately; pressing Enter does not verify it.
 
-## Agent-assisted verified setup
-
-The portable [cmail-setup skill](skills/cmail-setup/SKILL.md) guides installation,
-dependency checks, private configuration, provider access and troubleshooting.
-Copy the whole directory into your agent's skill location; see its
-[installation and usage guide](skills/cmail-setup/docs/README.md). The runtime
-installer does not install agent skills; the skill is included in the v0.2.0 release.
-
-Ask “Use cmail-setup to help me set up custom email” or `/cmail-setup` in an
-agent supporting slash skills. The agent selects a trusted source or
-installed runtime and its tools, fills the non-secret config, runs a read-only
-preflight and then runs that runtime's setup itself,
-troubleshooting and rerunning on failure. It verifies each gate before advancing.
-It asks only when a value is missing, a step needs you (Cloudflare token entry,
-browser approvals, delivery tests, and Gmail send-as only if you ask for
-sending), or a decision is important:
-nameserver replacement, existing mail/DNSSEC records, purchases or sudo.
-Credentials stay in your local browser/editor, never chat.
-
-An optional Python 3 checker validates private literal config without sourcing or
-printing it. Offline tests/evaluation cases do not prove a real user's setup,
-provider access or delivery. Redistribution licensing remains a maintainer decision.
-
 ## Commands
-
-These are the reviewed current-source commands; legacy v0.1.0 lacks `send-as`
-and includes the Gmail guide in setup.
 
 | Command | Description |
 |---|---|
-| `./cmail setup` | Guided receive setup (forwarding to any inbox) |
-| `./cmail send-as` | Optional: guided Gmail "Send mail as" for sending from your custom address |
-| `./cmail status` | Show zone, routing, destination, and rule state |
-| `./cmail list [--domain DOMAIN]` | List every address on a domain and where it forwards (with destination verification and catch-all) |
-| `./cmail forward ADDRESS --destination EMAIL` | Change where an existing address forwards; the address is kept. The new inbox must be verified first (cmail offers to send the verification email, then you rerun) |
-| `./cmail doctor` | Check tools + auth; may install missing dependencies |
+| `cmail setup` | Guided receive setup (forwarding to any inbox); `--dry-run` previews it |
+| `cmail status` | Show zone, routing, destination, and rule state |
+| `cmail list [--domain DOMAIN]` | Every address on a domain, where it forwards, destination verification, and the catch-all |
+| `cmail forward ADDRESS --destination EMAIL` | Change where an existing address forwards; asks before writing. The new inbox must be verified first (cmail offers to send the verification email, then you rerun) |
+| `cmail doctor [--offline]` | Read-only configuration, registrar tool, and authentication checks |
+| `cmail send-as` | Optional guided Gmail "Send mail as" |
+| `cmail config init\|show\|check\|set\|path` | Manage the private configuration |
+| `cmail completion bash\|zsh\|fish` | Print a shell completion script |
 
-`status` and `doctor` can create `.env` from the template or secure its permissions. They do not change live DNS or email-routing settings.
+Every command has `--help`. Global options work before or after the command:
+`-c/--config PATH`, `-f/--format text|json`, `-v/--verbose`, `-q/--quiet`,
+`--no-color`, `--no-browser`, `--timeout SECONDS`.
+
+**Output.** On a terminal, reports are drawn as boxes in a btop-inspired style.
+When piped, `status`, `list`, `doctor` and `config show` print tab-separated
+records (one per line, no header) for tools like `cut` and `awk`. For scripts,
+prefer `--format json` (`{schema_version, command, data}`), which is stable.
+`NO_COLOR` or `--no-color` turns color off; `FORCE_COLOR=1` forces styling.
+
+```bash
+cmail list --format json | jq -r '.data.addresses[].address'
+cmail doctor --offline
+cmail forward hello --destination new@outlook.com
+```
+
+**Exit codes:** `0` success, `1` provider or runtime failure, `2` invalid
+arguments, `3` invalid configuration or input, `130` interrupted.
 
 ## Configuration
 
-Copy `.env.example` to `.env` (the setup does this for you). `.env` is
-git-ignored and `chmod 600`. It is trusted Bash assignment configuration
-(`NAME=value`, no spaces around `=`); quote values containing spaces. Do not
-put scripts/commands with side effects in it: setup evaluates it in an isolated
-fail-fast validation shell before loading it, so assignments are evaluated twice.
+The private configuration lives at `~/.config/cmail/.env` (or
+`$XDG_CONFIG_HOME/cmail/.env`). Select another file with `--config`,
+`CMAIL_CONFIG` or `ENV_FILE`; `cmail config path` prints the one in use.
+Environment variables override the file, and command-line options override both.
+
+The file holds literal `NAME=value` lines. cmail parses it and never evaluates it:
+expansions, commands and unquoted shell syntax are rejected. It must be a regular
+file you own with mode `600`. `cmail config set KEY VALUE` updates one setting
+atomically; secrets require `--stdin` so they never appear in shell history.
 
 | Var | Meaning |
 |---|---|
 | `DOMAIN` | Custom domain to use |
 | `DEST_EMAIL` | Any email address you own that receives forwarded mail; must be a Gmail/Google account only for `send-as` |
-| `ADDRESSES` | Comma-separated local parts, e.g. `hello,contact,me` |
-| `CLOUDFLARE_API_TOKEN` | CF token: Zone permissions (Zone:Edit, Zone Settings:Edit, DNS:Edit, Email Routing Rules:Edit) plus Account permission (Email Routing Addresses:Edit) |
+| `ADDRESSES` | Comma-separated local parts, e.g. `hello,contact,me` (default `hello`) |
+| `CLOUDFLARE_API_TOKEN` | Zone permissions (Zone:Edit, Zone Settings:Edit, DNS:Edit, Email Routing Rules:Edit) plus Account permission (Email Routing Addresses:Edit) |
+| `REGISTRAR` | `manual` (default, any registrar) or `godaddy` (opt-in `gddy` automation) |
 | `GDDY_ENV` | GoDaddy environment (default `prod`) |
-| `GDDY_PAT` | Optional — PAT instead of OAuth for headless runs |
-| `CF_ZONE_ID` | Auto-populated by `setup` — Cloudflare zone ID, used by `status` |
-| `CF_ACCOUNT_ID` | Optional 32-character account ID from the Cloudflare dashboard; skips account discovery when creating a zone, and selects the intended account when several are visible. Does not grant API permissions. |
-| `DRY_RUN` | `1` previews only nameserver replacement; setup can still perform other provider writes/purchases |
+| `GDDY_PAT` | Optional PAT instead of browser OAuth for headless GoDaddy runs |
+| `CF_ZONE_ID` | Saved by `setup`; reused by `status`, `list` and `forward` |
+| `CF_ACCOUNT_ID` | Optional 32-character account ID; selects the account when several are visible. Does not grant API permissions. |
+| `DRY_RUN` | `1` makes `setup` run its read-only preview (same as `--dry-run`) |
+
+Upgrading from 0.3 or earlier: a checkout's `./.env` is no longer read
+automatically. Move it to `~/.config/cmail/.env` (keep `chmod 600`) or pass
+`--config ./.env`.
 
 ## What is NOT automated (and why)
 
-- **Cloudflare API token** — Cloudflare has no self-service OAuth for
-  arbitrary scripts; the script opens the token page, lists the five
-  permissions to add, then verifies whatever you paste.
-- **Destination verification** — Cloudflare emails a link to your
-  destination inbox; you must click it (script waits and continues automatically).
-- **Gmail "Send mail as"** (optional, `./cmail send-as`) — automating it
-  needs the restricted `gmail.settings.*` OAuth scope, which requires a
-  verified Google Cloud app — disproportionate for a personal setup.
-  Guided manual instead.
-- **Domain purchase** — supported via `gddy` but always asks before
-  spending money.
+- **Cloudflare API token**: Cloudflare has no self-service OAuth for arbitrary
+  programs; cmail opens the token page, lists the permissions to add, then
+  verifies what you paste.
+- **Destination verification**: Cloudflare emails a link to your destination
+  inbox; you click it (cmail waits and continues automatically).
+- **Gmail "Send mail as"** (optional, `cmail send-as`): automating it needs the
+  restricted `gmail.settings.*` OAuth scope, which requires a verified Google
+  Cloud app. Guided manual steps instead.
+- **Domain purchase**: supported only via `gddy`, and always asks before spending money.
 
 ## Recovering a stopped setup
 
-Failures identify the step, give a **Next** action, and tell you to rerun
-`./cmail setup` after fixing the cause. Earlier configuration/resources may
-already be saved. Once the nameserver step is reached, DNS delegation may
-already have changed; the script does not roll it back. For uncertain writes,
-check the provider dashboard before retrying (especially domain purchases).
-Do not share `.env`, API tokens, PATs, or app passwords.
-
-### “No Cloudflare account visible to token”
-
-A successful token verification means the token is **active**, not that it
-can list accounts, read your domain, or create a zone. This failure happens
-before this run creates a zone or attempts a GoDaddy nameserver change.
-
-1. Open [Cloudflare API tokens](https://dash.cloudflare.com/profile/api-tokens)
-   and edit the token. Under **Account Resources**, choose Include → All
-   accounts; under **Zone Resources**, choose Include → All zones from an
-   account → the account that owns your domain. Zone creation needs **Zone → Zone → Edit**; destination
-   registration needs **Account → Email Routing Addresses → Edit**.
-2. If listing still exposes no account, open the
-   [Cloudflare dashboard](https://dash.cloudflare.com/), select the account/domain,
-   and copy its **Account ID** (not Zone ID). Add `CF_ACCOUNT_ID=<account ID>`
-   to `.env`. This bypasses account discovery **only**; zone permissions and
-   resource scope still apply. If your domain already exists but was not
-   found, fix its token scope before trying to create it again.
-3. If you create a replacement token, update `CLOUDFLARE_API_TOKEN` locally
-   in `.env`, then rerun `./cmail setup`.
-
-When multiple accounts are visible, setup lists them and asks you to select
-one using `CF_ACCOUNT_ID` rather than silently choosing the first.
-
-### Other steps
+Failures name the step, give a **Next** action, and tell you to rerun
+`cmail setup` after fixing the cause. Earlier configuration and resources may
+already be saved. Once the GoDaddy nameserver step is reached, delegation may
+already have changed; cmail never rolls it back. For uncertain writes, check
+the provider dashboard before retrying (especially domain purchases). Never
+share your config, API tokens, PATs or app passwords. `cmail status` shows the
+saved Cloudflare state.
 
 | Step / symptom | How to unblock |
 |---|---|
-| Dependency install fails | Check connectivity and package-manager/sudo access, install the named package manually, then check PATH. The GoDaddy installer places `gddy` in `~/.local/bin`. |
-| Configuration cannot load / missing input | Check `.env` is writable by you, valid Bash assignments, and private (`chmod 600`). Set `DEST_EMAIL`, `ADDRESSES` (local parts only), and run setup interactively. |
-| GoDaddy authentication/domain access | Use the correct account and `GDDY_ENV`; run `gddy auth login --env prod` (or `ote`), or replace an expired PAT locally. Check your domain/order history before repeating an uncertain purchase. |
-| Nameserver lookup/update fails | Compare GoDaddy domain → DNS → Nameservers with Cloudflare domain → Overview. Verify a failed update's outcome before retrying; preserve/migrate existing DNS records first. |
-| Zone stays pending | Verify both assigned nameservers at GoDaddy. Propagation can take 24–48 hours; rerun once Cloudflare shows Active. API/auth errors fail immediately instead of being treated as propagation. |
-| HTTP 401/403 | Check token activity, operation-specific permission, and account/zone resource scope at the token settings URL. |
-| Network / HTTP 429 / HTTP 5xx | Fix DNS/proxy/connectivity, wait after rate limiting, or check [Cloudflare status](https://www.cloudflarestatus.com/). Inspect the dashboard before retrying an uncertain write. |
-| Email Routing activation fails | Check Email → Email Routing and conflicting MX/TXT records. Do not delete existing mail-provider records without planning migration. |
-| Destination verification times out | Sign into the correct destination mailbox, check Inbox/Spam, click the Cloudflare link. Resend missing/expired links in Email Routing → Destination addresses; pending entries are kept. |
-| Existing forwarding rule conflicts | In Email Routing → Routing rules, enable/correct the address's rule to forward to `DEST_EMAIL`. Setup will not overwrite it or report a wrong/disabled rule as ready. To change where an existing address forwards, run `cmail forward ADDRESS --destination EMAIL` instead. |
-| Gmail send-as is blocked (`./cmail send-as`) | Enable 2-Step Verification and use a Google App Password, not the login password. Account policy may prohibit app passwords; use an approved SMTP provider instead. Check username, port 587/TLS, and the confirmation email. Receiving is unaffected. |
+| “No Cloudflare account visible to token” | Edit the token at [Cloudflare API tokens](https://dash.cloudflare.com/profile/api-tokens): include the account under **Account Resources** and its zones under **Zone Resources**. If listing still shows none, copy the **Account ID** (not Zone ID) from the dashboard and run `cmail config set CF_ACCOUNT_ID <id>`. |
+| Several accounts visible | Setup lists them; select one with `CF_ACCOUNT_ID` rather than letting cmail guess. |
+| HTTP 401/403 | Check token activity, the operation's permission (named in the error), and account/zone resource scope. |
+| Network / HTTP 429 / 5xx | Fix connectivity, wait after rate limiting, or check [Cloudflare status](https://www.cloudflarestatus.com/). Inspect the dashboard before retrying an uncertain write. |
+| Zone stays pending | Compare the nameservers at your registrar with Cloudflare Overview. Propagation can take 24–48 hours; rerun once Cloudflare shows Active. |
+| Email Routing activation fails | Needs **Zone → Zone Settings → Edit**. Check conflicting MX/TXT records; do not delete an existing mail provider's records without planning a migration. |
+| Destination verification times out | Check Inbox/Spam of the right mailbox and click the link. Resend from Email Routing → Destination addresses; the pending entry is kept. |
+| Existing forwarding rule conflicts | Enable/correct it in Email Routing → Routing rules, or change its destination with `cmail forward`. Setup never overwrites it. |
+| GoDaddy authentication/domain access | Use the right account and `GDDY_ENV`; run `gddy auth login --env prod` (or `ote`), or replace an expired PAT. |
+| Gmail send-as blocked | Enable 2-Step Verification and use an App Password (smtp.gmail.com, port 587, TLS). Receiving is unaffected. |
 
-After setup, use a **different mailbox** to test inbound forwarding. If you ran
-the optional `send-as` step, also send from the custom alias to that mailbox and
-check the From address and delivery. Pressing Enter does not verify Gmail setup.
+## Agent-assisted verified setup
 
-## Troubleshooting Email Routing
+The portable [cmail-setup skill](skills/cmail-setup/SKILL.md) lets an AI agent
+install cmail, fill the non-secret config, run a read-only preflight and then
+run setup itself, verifying each gate and asking only when a step needs you
+(token entry, browser approvals, delivery tests, nameserver or purchase
+decisions). Credentials stay in your local browser or editor, never in chat. See
+its [installation and usage guide](skills/cmail-setup/docs/README.md).
 
-Email Routing activation uses `POST /zones/{zone_id}/email/routing/dns`
-([Cloudflare API documentation](https://developers.cloudflare.com/api/resources/email_routing/subresources/dns/methods/create/))
-and requires **Zone → Zone Settings → Edit**. If your token was created
-using the earlier three-permission instructions, add this permission to
-it in [Cloudflare's API token settings](https://dash.cloudflare.com/profile/api-tokens).
-Ensure its zone resources include your domain, then rerun `./cmail setup`.
-If you create a replacement token, update `CLOUDFLARE_API_TOKEN` in `.env`.
-
-Destination addresses use the account-scoped endpoint
-`/accounts/{account_id}/email/routing/addresses`
-([Cloudflare API documentation](https://developers.cloudflare.com/api/resources/email_routing/subresources/addresses/methods/create/)).
-Add **Account → Email Routing Addresses → Edit** to your token and set
-**Account Resources** to Include → All accounts. The script
-reads that account ID from the selected zone; no manual account ID is needed.
-Existing verified or pending destinations are reused rather than recreated.
-
-Activation and destination failures include the HTTP status and Cloudflare
-error body; network failures retain curl's diagnostic. Token verification only checks
-that the token is active, not that it has every required permission.
-
-## Tests
-
-Run the offline regression tests (requires Bash and `jq`; the installer suite
-itself only needs Bash and standard utilities):
+## Development
 
 ```bash
-bash tests/godaddy_test.sh
-bash tests/cloudflare_test.sh
-bash tests/cloudflare_dest_test.sh
-bash tests/cloudflare_rules_test.sh
-bash tests/cloudflare_setup_test.sh
-bash tests/workflow_guidance_test.sh
-bash tests/install_test.sh
-python3 tests/skill_setup_test.py   # optional skill/config suite; needs Python 3
+make build    # release binary in target/release/cmail
+make test     # cargo tests + offline Python/Node contract suites
+make lint     # cargo fmt --check, clippy -D warnings, shellcheck
+```
+
+The contract suites run the real binary against a loopback Cloudflare API
+fixture (`tests/fixture_server.py`) and a fake `gddy`; they never contact live
+providers or change DNS. Individual suites:
+
+```bash
+cargo test
+python3 tests/cli_test.py           # command contracts, output formats, completions
+python3 tests/setup_flow_test.py    # setup provider flows and recovery
+python3 tests/timing_test.py        # elapsed time, interrupts, bounded waits
+bash tests/install_test.sh          # installer against a local fake release
+python3 tests/skill_setup_test.py   # cmail-setup skill and config helper
 node --test tests/checklist_test.js # static checklist unit tests; Node 18+
 python3 tests/site_test.py          # offline docs/link/contrast contract tests
 ```
 
-GoDaddy, Cloudflare and installer downloads are mocked; the tests do not change
-any live DNS settings. The installer suite verifies runnable help, complete
-runtime downloads, private config/upgrade preservation and failure/conflict
-handling, including paths with spaces and shell metacharacters.
+Optional real-browser site tests use an externally installed Playwright:
+`node --test tests/site_browser_test.cjs` (set `NODE_PATH`/`CHROME_BIN` as needed;
+external requests are blocked).
 
-The static site has no frontend build or production dependencies. Optional real
-browser tests use an externally installed Playwright and Chromium/Chrome:
+### Website deployment
 
-```bash
-node --test tests/site_browser_test.cjs
-```
-
-If Playwright is outside the normal module search path, set `NODE_PATH` to its
-containing `node_modules`. Set `CHROME_BIN` to a trusted browser executable to
-use an existing Chrome instead of Playwright's bundled browser. Optional
-`SCREENSHOT_DIR` stores review screenshots outside the source tree. The test
-server is loopback-only; all external browser requests are blocked. The suite
-checks keyboard controls, persistence/reset, malformed/blocked storage, no-JS,
-and 375/768/1280px layouts; it never calls live providers.
-
-## Website deployment
-
-[GitHub Pages](https://luongnv89.github.io/cmail/) is the site destination.
-The [Pages workflow](.github/workflows/pages.yml) validates the documentation,
-checklist and staged artifact, then deploys updates after relevant changes land
-on `main`. Pull requests validate without deploying. To redeploy, choose
-**Actions → Deploy documentation to GitHub Pages → Run workflow → main**.
-The `github-pages` environment shows the actual deployment URL/status.
-
-Pages must be enabled with **Settings → Pages → Source: GitHub Actions**;
-private repositories also require an eligible GitHub plan. Pages publishes the
-website, not the repository: source/skill/installer links still require repository
-access while private. No billing or repository visibility change is automated.
-
-Only the six files allowlisted in [the staging script](scripts/build-pages.sh)
-are published. Preview the exact artifact with `bash scripts/build-pages.sh`,
-then `python3 -m http.server 8000 --bind 127.0.0.1 --directory _site`.
-Use a fresh staging directory; the script refuses an existing `_site` rather
-than overwriting it. Validate offline with `python3 tests/pages_test.py`
-(no publication or provider calls).
-
-## Requirements
-
-Linux or macOS. Runtime tested on Arch Linux; the offline installer suite also
-runs on macOS Bash 3.2. Setup/doctor install missing dependencies themselves
-(`pacman`/`apt`/`brew` for `jq`/`curl`; official installer for `gddy`).
+[GitHub Pages](https://luongnv89.github.io/cmail/) is built by the
+[Pages workflow](.github/workflows/pages.yml) from the files allowlisted in
+[the staging script](scripts/build-pages.sh). Preview with
+`bash scripts/build-pages.sh` and
+`python3 -m http.server 8000 --bind 127.0.0.1 --directory _site`; validate with
+`python3 tests/pages_test.py`.
 
 ## Limitations
 
-- Cloudflare only **forwards** mail — no mailbox/storage (your destination
+- Cloudflare only **forwards** mail: no mailbox or storage (your destination
   inbox's storage is used).
-- Optional outbound via Gmail isn't DKIM-signed with your domain — fine for
-  personal use; upgrade to Google Workspace if deliverability matters.
-- Gmail sending limits and third-party send-as availability are Google/account
-  dependent; see the January 2027 policy warning above. Neither CLI completion nor
-  offline tests guarantee Gmail acceptance, DKIM alignment or delivery.
+- Optional outbound via Gmail isn't DKIM-signed with your domain; fine for
+  personal use, upgrade to Google Workspace if deliverability matters.
+- Gmail sending limits and third-party send-as availability depend on Google and
+  your account; see the January 2027 policy warning above.
+
+## License
+
+[MIT](LICENSE)
