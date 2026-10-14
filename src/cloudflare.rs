@@ -165,7 +165,7 @@ impl Cf {
                 account_recovery(domain);
             } else if route == "/zones" && method == "POST" {
                 ui::warn(&format!(
-                    "creating the {domain} zone needs Zone > Zone > Edit and Zone Resources: All zones from the account that owns it"
+                    "this token cannot see {domain}. If it is already on Cloudflare, set Zone Resources -> Specific zone -> {domain} and Account Resources -> its owning account. Only to let cmail add it, grant Zone > Zone > Edit with Zone Resources: All zones from that account"
                 ));
             } else if route == "/zones" || route.starts_with("/zones/") {
                 ui::warn(&format!("check Zone Resources includes {domain}; grant Zone > Zone > Read"));
