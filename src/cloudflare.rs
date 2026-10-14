@@ -51,9 +51,10 @@ pub fn account_recovery(domain: &str) {
         "To unlock account discovery:
   1. Open https://dash.cloudflare.com/profile/api-tokens and edit your token.
      An active token is not proof of account/zone access. Under Account Resources,
-     include the account that owns {domain}; under Zone Resources, include that
-     account's zones (including {domain} if it already exists).
-     Zone creation needs Zone > Zone > Edit. Destination registration needs
+     include only the account that owns {domain} (not All accounts); under Zone
+     Resources, include {domain} (Specific zone) or, to let cmail add it, All
+     zones from that account. Zone lookup needs Zone > Zone > Read; zone creation
+     needs Zone > Zone > Edit. Destination registration needs
      Account > Email Routing Addresses > Edit.
   2. Open https://dash.cloudflare.com/ and select the intended account/domain.
      Copy its Account ID (not Zone ID) from the dashboard and add it to your config:
@@ -162,10 +163,12 @@ impl Cf {
                 ui::warn("check token access to this zone and grant Zone > Zone Settings > Edit");
             } else if route == "/accounts" {
                 account_recovery(domain);
-            } else if route == "/zones" || route.starts_with("/zones/") {
+            } else if route == "/zones" && method == "POST" {
                 ui::warn(&format!(
-                    "check Zone Resources includes {domain} (or its account's zones for creation); grant Zone > Zone > Edit"
+                    "this token cannot see {domain}. If it is already on Cloudflare, set Zone Resources -> Specific zone -> {domain} and Account Resources -> its owning account. Only to let cmail add it, grant Zone > Zone > Edit with Zone Resources: All zones from that account"
                 ));
+            } else if route == "/zones" || route.starts_with("/zones/") {
+                ui::warn(&format!("check Zone Resources includes {domain}; grant Zone > Zone > Read"));
             } else if route == "/user/tokens/verify" {
                 ui::warn("token rejected: replace CLOUDFLARE_API_TOKEN in your config with an active API token from https://dash.cloudflare.com/profile/api-tokens");
             } else {

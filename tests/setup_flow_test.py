@@ -283,6 +283,13 @@ class Zone(Flow):
         self.expect(self.setup(), 0, 'creating zone example.com in account ' + 'c' * 32)
         self.assertNotIn('GET /accounts ', self.log())
 
+    def test_denied_zone_creation_suggests_fixing_scope_first(self):
+        self.no_zone(ok([{'id': ACCOUNT, 'name': 'Main'}]))
+        self.fixtures['POST /zones'] = {'success': False, 'errors': [{'message': 'denied'}], '_status': 403}
+        self.save()
+        self.expect(self.setup(), 1, 'HTTP 403', 'Specific zone -> example.com', 'Only to let cmail add it',
+                    'Setup stopped at: Cloudflare zone: example.com')
+
     def test_account_problems_stop_before_writes(self):
         for name, accounts, texts in [
             ('none', ok([]), ['no Cloudflare account visible', 'To unlock account discovery']),
@@ -317,6 +324,10 @@ class Zone(Flow):
         result = self.setup('--no-browser')
         self.expect(result, 1, "token is 'disabled'", 'Custom token', 'no token input')
         self.assertNotIn('browser', self.log())
+        # Least-privilege recipe (#36): four permissions, no DNS, one account and one zone.
+        self.expect(result, 1, 'Permissions (four rows)', 'Specific zone -> <your domain>',
+                    'Include -> <the account that owns your domain>', 'Never choose All accounts or All zones')
+        self.assertNotRegex(result.stdout + result.stderr, r'\|\s*DNS\s*\|')
 
     def test_pasted_token_is_verified_and_saved(self):
         self.write_config(BASE.replace('CLOUDFLARE_API_TOKEN=' + TOKEN + '\n', ''))

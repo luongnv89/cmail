@@ -54,20 +54,33 @@ bash install.sh --local
 
 ### 3. Create a Cloudflare API token
 
-Open [My Profile → API Tokens](https://dash.cloudflare.com/profile/api-tokens) → Create Token → Custom token, and add:
+Open [My Profile → API Tokens](https://dash.cloudflare.com/profile/api-tokens) → Create Token → Custom token. Give the token any name you will recognise (for example `cmail yourdomain.com`), then add:
 
 | Scope | Permission | Access |
 |---|---|---|
-| Zone | Zone | Edit |
+| Zone | Zone | Read (Edit only if cmail adds your domain) |
 | Zone | Zone Settings | Edit |
-| Zone | DNS | Edit |
 | Zone | Email Routing Rules | Edit |
 | Account | Email Routing Addresses | Edit |
 
-Zone Resources: All zones from an account → your account. Account Resources: the account that owns your domain.
+Then set the resources:
+
+| Section | Include | Value |
+|---|---|---|
+| Account Resources | Include | the account that owns your domain |
+| Zone Resources | Include | Specific zone → your domain |
+
+Your domain is not on Cloudflare yet? Add it first (step 4) and keep the token above. Only if you want `cmail setup` to add
+the domain for you (for example in GoDaddy mode), set **Zone** to **Edit** and Zone Resources to **All zones from an account**
+→ your account: a token cannot name a zone that does not exist yet. Never choose **All accounts** or **All zones**.
+
+Why these permissions: Zone finds your domain (Edit also creates it), Zone Settings turns on Email Routing, Email Routing Rules
+adds the forwarding rules and Email Routing Addresses registers your inbox. cmail never edits other DNS records, so it does not
+need DNS access: Cloudflare adds the Email Routing records itself.
+
 Copy the token. Never paste it into chat, a web page or a screenshot.
 
-**Done when:** the token has all five permissions and is copied somewhere private.
+**Done when:** the token has all four permissions and is copied somewhere private.
 
 - [ ] I created the token
 
@@ -77,6 +90,19 @@ Copy the token. Never paste it into chat, a web page or a screenshot.
 Tick this step and go on: `cmail setup` will say `zone already active on Cloudflare`.
 
 1. Open the [Cloudflare dashboard](https://dash.cloudflare.com/) → **Domains** → **Add a domain**. Enter your domain and choose the Free plan.
+
+   Prefer the terminal? Cloudflare's own CLI, [`cf`](https://developers.cloudflare.com/cf/get-started/) (beta, needs Node.js 22 or newer),
+   can add the domain instead. Copy your **Account ID** (not Zone ID) from the dashboard first:
+
+   ```bash
+   npm install -g cf
+   cf auth login                     # sign in to Cloudflare in your browser
+   cf zones create --account-id <account ID> --name yourdomain.com
+   cf auth logout                    # cf's sign-in can do far more than cmail's token
+   ```
+
+   Either way, cmail's token can stay at **Zone: Read** (step 3). The `cf` route may not copy your existing DNS records,
+   so check them carefully in the next step.
 2. Check the DNS records Cloudflare found. Add any you still need (website, MX, TXT).
 3. Follow Cloudflare's instructions to switch nameservers at your current registrar: turn off DNSSEC (remove DS records)
    first, then replace **all** nameservers with the two Cloudflare shows.
@@ -94,7 +120,7 @@ cmail setup
 ```
 
 Answer two questions (receiving inbox, your domain), then paste the token.
-cmail finds your domain on Cloudflare (or adds it, if it is not there yet), waits until it is active,
+cmail finds your domain on Cloudflare (or adds it, if it is not there yet and your token has Zone: Edit; see step 3), waits until it is active,
 enables Email Routing and adds a rule per address. If the nameservers are still switching, it prints them (step 4) and waits.
 Want a preview first? `cmail setup --dry-run` changes nothing.
 
