@@ -177,7 +177,7 @@ atomically; secrets require `--stdin` so they never appear in shell history.
 | `DOMAIN` | Custom domain to use |
 | `DEST_EMAIL` | Any email address you own that receives forwarded mail; must be a Gmail/Google account only for `send-as` |
 | `ADDRESSES` | Comma-separated local parts, e.g. `hello,contact,me` (default `hello`) |
-| `CLOUDFLARE_API_TOKEN` | Zone permissions (Zone:Edit, Zone Settings:Edit, DNS:Edit, Email Routing Rules:Edit) plus Account permission (Email Routing Addresses:Edit) |
+| `CLOUDFLARE_API_TOKEN` | Zone:Read (Zone:Edit only if cmail adds the domain), Zone Settings:Edit, Email Routing Rules:Edit, Account Email Routing Addresses:Edit. Account Resources: only the account that owns the domain; Zone Resources: that domain (or all zones from that account when cmail adds it). Never All accounts. See [step 3 of the setup guide](docs/setup.md#3-create-a-cloudflare-api-token) |
 | `REGISTRAR` | `manual` (default, any registrar) or `godaddy` (opt-in `gddy` automation) |
 | `GDDY_ENV` | GoDaddy environment (default `prod`) |
 | `GDDY_PAT` | Optional PAT instead of browser OAuth for headless GoDaddy runs |
@@ -213,7 +213,7 @@ saved Cloudflare state.
 
 | Step / symptom | How to unblock |
 |---|---|
-| “No Cloudflare account visible to token” | Edit the token at [Cloudflare API tokens](https://dash.cloudflare.com/profile/api-tokens): include the account under **Account Resources** and its zones under **Zone Resources**. If listing still shows none, copy the **Account ID** (not Zone ID) from the dashboard and run `cmail config set CF_ACCOUNT_ID <id>`. |
+| “No Cloudflare account visible to token” | Edit the token at [Cloudflare API tokens](https://dash.cloudflare.com/profile/api-tokens): include the account that owns your domain under **Account Resources** (not All accounts) and your domain under **Zone Resources** (all zones from that account only if cmail must add the domain). If listing still shows none, copy the **Account ID** (not Zone ID) from the dashboard and run `cmail config set CF_ACCOUNT_ID <id>`. |
 | Several accounts visible | Setup lists them; select one with `CF_ACCOUNT_ID` rather than letting cmail guess. |
 | HTTP 401/403 | Check token activity, the operation's permission (named in the error), and account/zone resource scope. |
 | Network / HTTP 429 / 5xx | Fix connectivity, wait after rate limiting, or check [Cloudflare status](https://www.cloudflarestatus.com/). Inspect the dashboard before retrying an uncertain write. |

@@ -73,15 +73,19 @@ visible to local `ps`; prefer current cmail on shared machines.
 
    | Scope | Permission | Access |
    |---|---|---|
-   | Zone | Zone | Edit |
+   | Zone | Zone | Read (Edit only if cmail must create the zone) |
    | Zone | Zone Settings | Edit |
-   | Zone | DNS | Edit |
    | Zone | Email Routing Rules | Edit |
    | Account | Email Routing Addresses | Edit |
 
-   Name the token anything recognisable. Set Account Resources to Include → All
-   accounts, and Zone Resources to Include → All zones from an account → the
-   account that owns the domain. Then open the config in an **unrecorded local editor** for the
+   No DNS permission: cmail never edits DNS records; enabling Email Routing
+   (Zone Settings) makes Cloudflare add its own records. Name the token anything
+   recognisable. Account Resources: Include → only the account that owns the
+   domain. Zone Resources: Include → Specific zone → the domain when it is
+   already on Cloudflare; only when cmail must create the zone, Include → All
+   zones from an account → that account, plus Zone → Edit. **Refuse a token
+   scoped to All accounts or All zones**: ask the user to narrow it before
+   continuing, even if setup would work with it. Then open the config in an **unrecorded local editor** for the
    user (`open -t <file>` on macOS, `xdg-open <file>` on Linux) and ask them to
    paste the token right after `CLOUDFLARE_API_TOKEN=` with no quotes or spaces,
    then save. Ask only whether it is saved; then run `chmod 600 <file>` (editors

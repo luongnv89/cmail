@@ -224,15 +224,17 @@ fn ensure_token(config: &mut Config, cf: &mut Cf) -> Result<()> {
 needed once. Create it now (browser will open):
 
   1. \"Create token\" -> \"Custom token\" -> \"Get started\"
-  2. Permissions (five rows):
-       Zone  | Zone                 | Edit
-       Zone  | Zone Settings        | Edit
-       Zone  | DNS                  | Edit
-       Zone  | Email Routing Rules  | Edit
+     Token name: any label you will recognise (e.g. cmail <your domain>)
+  2. Permissions (four rows):
+       Zone    | Zone                    | Read (Edit if cmail adds the domain)
+       Zone    | Zone Settings           | Edit
+       Zone    | Email Routing Rules     | Edit
        Account | Email Routing Addresses | Edit
-  3. Zone Resources: Include -> All zones from an account -> <your account>
-     (or \"All zones\" if you only have one account)
-     Account Resources: Include -> <the account that owns your domain>
+  3. Account Resources: Include -> <the account that owns your domain>
+     Zone Resources:
+       domain already on Cloudflare: Include -> Specific zone -> <your domain>
+       cmail adds the domain:        Include -> All zones from an account -> <that account>
+     Never choose All accounts or All zones.
   4. Create token, copy it, paste below (input hidden).
 
 ",

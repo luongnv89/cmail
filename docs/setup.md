@@ -58,9 +58,8 @@ Open [My Profile → API Tokens](https://dash.cloudflare.com/profile/api-tokens)
 
 | Scope | Permission | Access |
 |---|---|---|
-| Zone | Zone | Edit |
+| Zone | Zone | Read (Edit only if cmail adds your domain) |
 | Zone | Zone Settings | Edit |
-| Zone | DNS | Edit |
 | Zone | Email Routing Rules | Edit |
 | Account | Email Routing Addresses | Edit |
 
@@ -68,12 +67,20 @@ Then set the resources:
 
 | Section | Include | Value |
 |---|---|---|
-| Account Resources | Include | All accounts |
-| Zone Resources | Include | All zones from an account → your account |
+| Account Resources | Include | the account that owns your domain |
+| Zone Resources | Include | Specific zone → your domain |
+
+Your domain is not on Cloudflare yet? Add it first (step 4) and keep the token above. Only if you want `cmail setup` to add
+the domain for you (for example in GoDaddy mode), set **Zone** to **Edit** and Zone Resources to **All zones from an account**
+→ your account: a token cannot name a zone that does not exist yet. Never choose **All accounts** or **All zones**.
+
+Why these permissions: Zone finds your domain (Edit also creates it), Zone Settings turns on Email Routing, Email Routing Rules
+adds the forwarding rules and Email Routing Addresses registers your inbox. cmail never edits other DNS records, so it does not
+need DNS access: Cloudflare adds the Email Routing records itself.
 
 Copy the token. Never paste it into chat, a web page or a screenshot.
 
-**Done when:** the token has all five permissions and is copied somewhere private.
+**Done when:** the token has all four permissions and is copied somewhere private.
 
 - [ ] I created the token
 

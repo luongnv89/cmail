@@ -317,6 +317,10 @@ class Zone(Flow):
         result = self.setup('--no-browser')
         self.expect(result, 1, "token is 'disabled'", 'Custom token', 'no token input')
         self.assertNotIn('browser', self.log())
+        # Least-privilege recipe (#36): four permissions, no DNS, one account and one zone.
+        self.expect(result, 1, 'Permissions (four rows)', 'Specific zone -> <your domain>',
+                    'Include -> <the account that owns your domain>', 'Never choose All accounts or All zones')
+        self.assertNotRegex(result.stdout + result.stderr, r'\|\s*DNS\s*\|')
 
     def test_pasted_token_is_verified_and_saved(self):
         self.write_config(BASE.replace('CLOUDFLARE_API_TOKEN=' + TOKEN + '\n', ''))

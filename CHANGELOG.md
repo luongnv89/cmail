@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Ask for a smaller Cloudflare API token (#36). The guide now asks for four
+  permissions instead of five: DNS Edit is gone, because cmail never edits DNS
+  records itself, and Zone is Read unless cmail has to add the domain to
+  Cloudflare. Account Resources is the one account that owns the domain, and
+  Zone Resources is that one domain, or all zones from that account only when
+  cmail adds the domain. The setup prompt, recovery hints, setup guides,
+  README, `.env.example` and the cmail-setup skill all say the same thing,
+  and the skill again refuses an All accounts token.
 - Say during install and in the docs that cmail does not use proxy settings
   (`HTTPS_PROXY`, `ALL_PROXY`) yet and needs direct HTTPS access to
   `api.cloudflare.com`. The installer warns when those variables are set.
@@ -40,10 +48,6 @@
   clicking the link. `DEST_EMAIL` is updated only when every configured address
   then forwards to the new inbox; otherwise cmail names the addresses that still
   forward elsewhere.
-- Update the Cloudflare API token guide (setup prompt, setup page, README,
-  `.env.example` and the cmail-setup skill): name the token, set Account
-  Resources to Include → All accounts, and Zone Resources to Include → All
-  zones from an account → your account. The five permissions are unchanged.
 
 ## v0.3.0 — 2026-10-11
 

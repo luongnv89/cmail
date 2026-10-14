@@ -114,12 +114,14 @@ Next: cmail setup
         <ol>
           <li>Open <a href="https://dash.cloudflare.com/profile/api-tokens">My Profile → API Tokens</a> → <strong>Create Token</strong> → <strong>Custom token</strong> → Get started.</li>
           <li>Give the token any name you will recognise, for example <code>cmail yourdomain.com</code>.</li>
-          <li>Add the <strong>five permissions</strong> shown on the right.</li>
-          <li><strong>Account Resources:</strong> Include → All accounts.<br><strong>Zone Resources:</strong> Include → All zones from an account → your account.</li>
+          <li>Add the <strong>four permissions</strong> shown on the right.</li>
+          <li><strong>Account Resources:</strong> Include → the account that owns your domain.<br><strong>Zone Resources:</strong> Include → Specific zone → your domain.</li>
           <li>Create the token and copy it. You paste it in the next step.</li>
         </ol>
+        <p>Domain not on Cloudflare yet? Add it first (step 4) and keep this token. Only if you want <code>cmail setup</code> to add the domain for you, set <strong>Zone</strong> to <strong>Edit</strong> and Zone Resources to <strong>All zones from an account</strong> → your account. Never choose <strong>All accounts</strong> or <strong>All zones</strong>.</p>
+        <p class="meta">cmail never edits other DNS records, so the token needs no DNS permission: Cloudflare adds the Email Routing records itself.</p>
         <p class="callout">Never paste the token into chat, a web page or a screenshot. cmail asks for it with hidden input.</p>
-        <p class="done-when"><strong>Done when:</strong> the token is created with all five permissions and copied somewhere private.</p>
+        <p class="done-when"><strong>Done when:</strong> the token is created with all four permissions and copied somewhere private.</p>
         <label class="check" for="step-token"><input id="step-token" type="checkbox">I created the token</label>
       </div>
       <div class="visual">
@@ -128,17 +130,16 @@ Next: cmail setup
           <div class="mock-body">
             <p><strong>Create Custom Token</strong> · Permissions</p>
             <div class="table-wrap"><table>
-              <caption class="meta" style="caption-side:bottom;text-align:left;padding-top:.5rem">All five rows are required. Simplified illustration.</caption>
+              <caption class="meta" style="caption-side:bottom;text-align:left;padding-top:.5rem">All four rows are required. Simplified illustration.</caption>
               <thead><tr><th scope="col">Scope</th><th scope="col">Permission</th><th scope="col">Access</th></tr></thead>
               <tbody>
-                <tr class="hl"><td>Zone</td><td>Zone</td><td>Edit</td></tr>
+                <tr class="hl"><td>Zone</td><td>Zone</td><td>Read</td></tr>
                 <tr class="hl"><td>Zone</td><td>Zone Settings</td><td>Edit</td></tr>
-                <tr class="hl"><td>Zone</td><td>DNS</td><td>Edit</td></tr>
                 <tr class="hl"><td>Zone</td><td>Email Routing Rules</td><td>Edit</td></tr>
                 <tr class="hl"><td>Account</td><td>Email Routing Addresses</td><td>Edit</td></tr>
               </tbody>
             </table></div>
-            <p><strong>Account Resources</strong> · Include · All accounts<br><strong>Zone Resources</strong> · Include · All zones from an account · your account</p>
+            <p><strong>Account Resources</strong> · Include · your account<br><strong>Zone Resources</strong> · Include · Specific zone · your domain</p>
             <span class="fake-btn">Continue to summary</span>
           </div>
         </div>

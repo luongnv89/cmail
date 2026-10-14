@@ -77,8 +77,8 @@ machine-read checks use `--format json` (piped text is tab-separated records).
 - Failure: 401/403, no visible account, multiple accounts, invalid ID or wrong zone.
 - Repair/recheck: multiple accounts → stop to choose, then `set_config.py
   CF_ACCOUNT_ID=<id>`; scope errors → the user edits the token's resources
-  (hands-on: Account Resources → All accounts, Zone Resources → All zones
-  from the owning account); rerun pass 1. Never create a duplicate zone.
+  (hands-on; the owning account and the domain, never "all accounts"); rerun
+  pass 1. Never create a duplicate zone.
 
 ## Gate 5 — Delegation and active zone
 
