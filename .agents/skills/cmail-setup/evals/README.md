@@ -1,11 +1,13 @@
 # Evaluation record
 
-## Result: implementation checked; skill certification incomplete
+## Result: skill standard met at 3.1.0; behavior and human understanding unmeasured
 
-The skill is not claimed publish-ready. `asm eval` measured 87/100, but the
-license category is 0, below the required minimum 8. This repository has no
-LICENSE; selecting redistribution rights requires the maintainer. No license
-was invented to improve an evaluator score.
+Skill 3.1.0 clears both skill-standard gates: `quick_validate.py` is clean with
+no warnings, and `asm eval --json` measured 96/100 with every category at least 8
+(context efficiency 8, PII 8, all others 10). The license is MIT, copied from the
+repository's `LICENSE` into this directory. Behavioral with-skill/baseline runs
+and human understanding remain unmeasured. The sections below record history;
+their scores describe the version they name.
 
 ## Checks actually run
 
@@ -234,3 +236,22 @@ step was removed from the CLI; the skill still classifies a `Send FROM` pause as
 success for older runtimes (such as legacy v0.1.0) that lack
 `send-as`. Eval ids 15, 17 and 18 were updated; id 17 now covers a
 receive-only request. These are scenario cases, not measured behavioral runs.
+
+## Skill 3.1.0 — skill-standard retrofit
+
+The description was trimmed from 297 to 246 characters (37 words); it keeps
+"any registrar" and the negative-trigger clause. Frontmatter declares
+`license: "MIT"`, and the repository `LICENSE` now ships at the skill root so a
+copied directory keeps its terms. A `## Self-Improve` closing check was added
+after the completion report; its signals are report shape, install/tool
+environment and repeated registrar/inbox/alias answers, and it never skips a
+safety stop.
+
+Checks run: `quick_validate.py` valid with no warnings (baseline had two:
+description length, missing Self-Improve); `asm eval --fix --dry-run` reported
+no fixes needed; `asm eval --json` 83 → 96 (license 0 → 10, description 8 → 10,
+structure 9 → 10; context efficiency stays 8 at 2,392 body words, PII stays 8 on
+the public author address and synthetic examples). `python3
+tests/skill_setup_test.py` passed after mirroring to `.agents/skills/cmail-setup`.
+No eval prompt changed; no behavioral run, live setup, provider call or mail send
+was performed.
