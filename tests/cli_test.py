@@ -94,8 +94,19 @@ esac''')
         self.assertEqual(self.invoke('help', 'config', 'set').stdout,
                          self.invoke('config', 'set', '--help').stdout)
 
-    def test_no_command_help(self):
-        self.assertIn('Start here:', self.invoke().stdout)
+    def test_no_command_help_until_configured(self):
+        missing = {'ENV_FILE': str(self.directory / 'missing.env')}
+        for env, text in ((missing, ''), ({}, 'CLOUDFLARE_API_TOKEN=synthetic-token\n'),
+                          ({}, 'DOMAIN=example.com\n')):
+            with self.subTest(env=env, config=text):
+                if text:
+                    self.config.write_text(text)
+                result = self.invoke(env=env)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('Start here:', result.stdout)
+                self.assertIn('With no command, cmail lists', result.stdout)
+                self.assertEqual(result.stderr, '')
+                self.assertFalse(self.calls.exists())
 
     def test_version_without_config(self):
         result = self.invoke('--version', env={'ENV_FILE': '/does/not/exist'})
@@ -761,6 +772,41 @@ esac''')
         styled=self.invoke('list',env={'FORCE_COLOR':'1','NO_COLOR':'1','COLUMNS':'200'})
         self.assertIn('example.com addresses',styled.stdout)
         self.assertIn('ghost@example.io (unregistered)',styled.stdout)
+
+    def test_no_command_lists_default_domain(self):
+        self.list_fixtures()
+        for args in ((), ('--format', 'json'), ('-f', 'text')):
+            with self.subTest(args=args):
+                bare = self.invoke(*args)
+                listed = self.invoke('list', *args)
+                self.assertEqual(bare.returncode, 0, bare.stderr)
+                self.assertEqual(bare.stdout, listed.stdout)
+                self.assertEqual(bare.stderr, listed.stderr)
+        self.assertIn('hello@example.com\tOwner@example.net (verified)\tenabled\n', self.invoke().stdout)
+        self.assertEqual(json.loads(self.invoke('--format', 'json').stdout)['command'], 'list')
+
+    def test_no_command_configured_from_environment(self):
+        self.list_fixtures()
+        env = {'ENV_FILE': str(self.directory / 'missing.env'), 'DOMAIN': 'example.com',
+               'CLOUDFLARE_API_TOKEN': 'synthetic-token'}
+        bare = self.invoke(env=env)
+        self.assertEqual(bare.returncode, 0, bare.stderr)
+        self.assertEqual(bare.stdout, self.invoke('list', env=env).stdout)
+        self.assertNotIn('Start here:', bare.stdout)
+
+    def test_no_command_reports_unreadable_configuration(self):
+        self.config.chmod(0o644)
+        result = self.invoke()
+        self.assertEqual(result.returncode, 3)
+        self.assertEqual(result.stdout, '')
+        self.assertEqual(result.stderr, self.invoke('list').stderr)
+        self.assertFalse(self.calls.exists())
+
+    def test_no_command_json_needs_configuration(self):
+        result = self.invoke('--format', 'json', env={'ENV_FILE': str(self.directory / 'missing.env')})
+        self.assertEqual(result.returncode, 3)
+        self.assertEqual(result.stdout, '')
+        self.assertFalse(self.calls.exists())
 
     def test_list_empty_domain(self):
         self.cloudflare()

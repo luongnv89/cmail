@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Running `cmail` with no command now lists the configured domain's
+  addresses, the same as `cmail list` (#37). Until `DOMAIN` and
+  `CLOUDFLARE_API_TOKEN` are set it still shows the help with its "Start
+  here" steps. `cmail --format json` returns `list`'s JSON (or its
+  configuration error, exit 3).
 - Ask for a smaller Cloudflare API token (#36). The guide now asks for four
   permissions instead of five: DNS Edit is gone, because cmail never edits DNS
   records itself, and Zone is Read unless cmail has to add the domain to

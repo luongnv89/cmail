@@ -12,7 +12,7 @@ use crate::error::Result;
 
 pub fn dispatch(invocation: &Invocation) -> Result<()> {
     let path = config::resolve_path(invocation.cli.global.config.as_deref());
-    let Some(command) = &invocation.cli.command else { return Ok(()) };
+    let Some(command) = &invocation.cli.command else { return status::default_list(path) };
     match command {
         Command::Setup(args) => setup::setup(path, args),
         Command::Status => status::status(path),

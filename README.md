@@ -134,6 +134,7 @@ confirmation code arrives through the forwarding that `setup` created, so run
 |---|---|
 | `cmail setup` | Guided receive setup (forwarding to any inbox); `--dry-run` previews it |
 | `cmail status` | Show zone, routing, destination, and rule state |
+| `cmail` | With no command: the configured domain's addresses, same as `cmail list` (shows help until `DOMAIN` and the token are set) |
 | `cmail list [--domain DOMAIN]` | Every address on a domain, where it forwards, destination verification, and the catch-all |
 | `cmail forward ADDRESS --destination EMAIL` | Change where an existing address forwards; asks before writing. The new inbox must be verified first (cmail offers to send the verification email, then you rerun) |
 | `cmail doctor [--offline]` | Read-only configuration, registrar tool, and authentication checks |
