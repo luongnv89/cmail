@@ -85,6 +85,7 @@ local manual checks are documented as a fallback.
 | `scripts/check_config.py` | Offline literal-assignment/privacy checker; `--summary` shows non-secret values only. |
 | `scripts/set_config.py` | Sets non-secret keys atomically at mode 600; refuses secret keys. |
 | `evals/evals.json` | Eighteen realistic/adversarial prompts including a negative trigger. |
+| `LICENSE` | MIT license, copied from the repository so the directory carries its terms. |
 
 ## Output
 
