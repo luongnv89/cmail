@@ -13,6 +13,8 @@ Start here:
   cmail doctor --offline
   cmail setup
 
+With no command, cmail lists the configured domain's addresses (cmail list).
+
 Options go before or after the command. Use -- to end option parsing.
 Exit codes: 0 success, 1 provider or runtime failure, 2 invalid arguments,
 3 invalid configuration or input, 130 interrupted.";
@@ -246,6 +248,11 @@ pub fn command(stdout: &Mode) -> clap::Command {
     Cli::command().styles(styles(stdout)).color(if colored { ColorChoice::Always } else { ColorChoice::Never })
 }
 
+/// Top-level help on stdout, for a bare `cmail` before a domain is configured.
+pub fn print_help(stdout: &Mode) {
+    let _ = command(stdout).print_help();
+}
+
 fn strip_ansi(text: &str) -> String {
     let mut out = String::new();
     let mut chars = text.chars().peekable();
@@ -327,11 +334,8 @@ pub fn parse(args: Vec<std::ffi::OsString>, stdout: &Mode) -> Parsed {
     let command_path = path.join(" ");
     let fail = |message: &str| Parsed::Done(2, Some((message.to_string(), command_path.clone())));
 
-    let Some(command) = &cli.command else {
-        let _ = cmd.print_help();
-        return Parsed::Done(0, None);
-    };
-    if let Command::Config { command: None } = command {
+    let command = cli.command.as_ref();
+    if let Some(Command::Config { command: None }) = command {
         let _ = cmd.find_subcommand_mut("config").expect("config").print_help();
         return Parsed::Done(0, None);
     }
@@ -361,19 +365,22 @@ pub fn parse(args: Vec<std::ffi::OsString>, stdout: &Mode) -> Parsed {
     let verbose = cli.global.verbose || (env_verbose && !cli.global.quiet);
     let quiet = cli.global.quiet || (env_quiet && !cli.global.verbose);
 
-    if let Command::Config { command: Some(ConfigCommand::Set { value, stdin, .. }) } = command {
+    if let Some(Command::Config { command: Some(ConfigCommand::Set { value, stdin, .. }) }) = command {
         if !stdin && value.is_none() {
             return fail("config set needs KEY and VALUE, or KEY --stdin");
         }
     }
     if json {
+        // No command runs `list`, so it accepts JSON too.
         let allowed = matches!(
             command,
-            Command::Status
-                | Command::List { .. }
-                | Command::Doctor { .. }
-                | Command::Setup(_)
-                | Command::Config { command: Some(ConfigCommand::Show | ConfigCommand::Check) }
+            None | Some(
+                Command::Status
+                    | Command::List { .. }
+                    | Command::Doctor { .. }
+                    | Command::Setup(_)
+                    | Command::Config { command: Some(ConfigCommand::Show | ConfigCommand::Check) }
+            )
         );
         if !allowed {
             return fail("JSON is available for status, list, doctor, config show/check, and setup --dry-run");

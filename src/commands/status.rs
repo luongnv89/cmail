@@ -125,6 +125,22 @@ pub fn render_status(mode: &Mode, data: &Value) -> String {
     boxed(mode, &clean(&text(&data["zone"]["name"]), false), Some(&footer), &[overview, dest, rule_lines])
 }
 
+/// A bare `cmail`: the configured domain's addresses, exactly as `cmail list`.
+/// Until DOMAIN and CLOUDFLARE_API_TOKEN are set, text mode shows the help
+/// (its "Start here" steps) instead; JSON always gets `list`'s result, and an
+/// unreadable configuration is reported by `list` itself.
+pub fn default_list(path: PathBuf) -> Result<()> {
+    if !ui::ctx().json {
+        let configured = Config::read(path.clone(), &Overrides::default())
+            .map_or(true, |c| !c.get("DOMAIN").is_empty() && !c.get("CLOUDFLARE_API_TOKEN").is_empty());
+        if !configured {
+            crate::cli::print_help(&ui::ctx().out);
+            return Ok(());
+        }
+    }
+    list(path, None)
+}
+
 pub fn list(path: PathBuf, domain: Option<String>) -> Result<()> {
     let overrides = Overrides { domain, ..Overrides::default() };
     let (config, cf) = load(path, &overrides, "a domain (DOMAIN or --domain) and CLOUDFLARE_API_TOKEN are required")?;

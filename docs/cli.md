@@ -41,6 +41,7 @@ Configuration defaults to `~/.config/cmail/.env` (`$XDG_CONFIG_HOME/cmail/.env` 
 | `cmail setup` | Guided receiving setup in a terminal |
 | `cmail setup --dry-run` | Read-only provider inspection and plan with blockers |
 | `cmail status` | Zone, routing, destinations, and rules report |
+| `cmail` | With no command: same as `cmail list` for the configured domain; help until `DOMAIN` and the token are set |
 | `cmail list [--domain DOMAIN]` | Every address on a domain, where it forwards, and the catch-all rule |
 | `cmail forward ADDRESS --destination EMAIL` | Change where an existing address forwards, in a terminal |
 | `cmail doctor` | Read-only dependency/config/authentication checks |
