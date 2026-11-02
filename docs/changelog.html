@@ -17,6 +17,18 @@
     <p class="lead">The highlights of each release. Full details are in <a href="https://github.com/luongnv89/cmail/blob/main/CHANGELOG.md">CHANGELOG.md</a>.</p>
   </div>
 
+  <article class="release" aria-labelledby="v050">
+    <div><h2 id="v050">v0.5.0</h2><p class="meta">2 November 2026 · <a href="https://github.com/luongnv89/cmail/releases/tag/v0.5.0">release</a></p></div>
+    <div>
+      <ul>
+        <li><span class="badge">New</span>Run <code>cmail</code> on its own to see your domain’s addresses and where each one forwards, the same as <code>cmail list</code>. Until cmail is set up, it still shows the “Start here” steps, and <code>cmail --format json</code> gives scripts the same JSON as <code>cmail list</code>.</li>
+        <li><span class="badge">Changed</span>Setup asks for a smaller Cloudflare API token: four permissions instead of five, limited to the one account that owns your domain, and to that domain alone when it is already on Cloudflare. cmail never edits DNS records itself, so it no longer asks for DNS access.</li>
+        <li><span class="badge">Changed</span>The setup guide shows how to add your domain to Cloudflare from the terminal with Cloudflare’s <code>cf</code> tool, so your cmail token only needs read access to the domain.</li>
+        <li><span class="badge">Changed</span>The cmail-setup agent skill now has a shorter description that fits the <code>/skills</code> list and comes with its MIT license. A new optional last step can suggest one change to fit the skill to you, and changes nothing unless you approve it.</li>
+      </ul>
+    </div>
+  </article>
+
   <article class="release" aria-labelledby="v040">
     <div><h2 id="v040">v0.4.0</h2><p class="meta">13 October 2026 · <a href="https://github.com/luongnv89/cmail/releases/tag/v0.4.0">release</a></p></div>
     <div>

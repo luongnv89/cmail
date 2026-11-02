@@ -14,7 +14,7 @@
 <header><a class="brand" href="index.html">cmail</a><nav aria-label="Main"><a href="index.html">Home</a><a href="setup.html" aria-current="page">Setup guide</a><a href="docs.html">Docs</a><a href="changelog.html">Changelog</a><a href="privacy.html">Privacy</a><a href="https://github.com/luongnv89/cmail">GitHub</a></nav></header>
 <main id="main">
   <div class="page-intro">
-    <p class="kicker">Setup guide · cmail 0.4.0</p>
+    <p class="kicker">Setup guide · cmail 0.5.0</p>
     <h1>From domain to inbox in 8 steps.</h1>
     <p class="lead">A few simple steps, in order. Tick each one when its <strong>Done when</strong> check passes. Your ticks are saved in this browser only.</p>
     <div class="overview">
@@ -91,14 +91,14 @@ cmail config set ADDRESSES hello,contact</code></pre>
         <p class="meta">Add the <code>export PATH</code> line to your shell profile to keep it. Config lives in <code>~/.config/cmail/.env</code> (mode 600); <code>cmail config path</code> prints it.</p>
         <p class="meta">Use Homebrew? <code>brew install luongnv89/tap/cmail</code> installs cmail and its shell completions instead.</p>
         <p class="meta">Prefer to review the code first? Clone it and build that checkout (needs Rust and cargo): <code>git clone https://github.com/luongnv89/cmail</code>, <code>cd cmail</code>, then <code>bash install.sh --local</code> (or <code>cargo install --path .</code>).</p>
-        <p class="done-when"><strong>Done when:</strong> <code>cmail --version</code> prints <code>cmail 0.4.0</code>.</p>
+        <p class="done-when"><strong>Done when:</strong> <code>cmail --version</code> prints <code>cmail 0.5.0</code>.</p>
         <label class="check" for="step-install"><input id="step-install" type="checkbox">cmail is installed</label>
       </div>
       <div class="visual">
         <div class="term" aria-label="Terminal: installing cmail">
           <div class="term-bar" aria-hidden="true"><i></i><i></i><i></i><span>~</span></div>
           <pre><span class="p">$</span> cmail --version
-cmail 0.4.0
+cmail 0.5.0
 <span class="p">$</span> cmail config init
 Created private configuration: ~/.config/cmail/.env
 Next: cmail setup

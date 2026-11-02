@@ -1,4 +1,4 @@
-# cmail CLI guide (0.4.0)
+# cmail CLI guide (0.5.0)
 
 Set up custom-domain receiving, inspect forwarding, and diagnose problems. Incoming mail is forwarded by Cloudflare to an inbox you already own. Sending uses a separate optional manual guide.
 

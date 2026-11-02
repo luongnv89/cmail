@@ -1,4 +1,4 @@
-# cmail setup guide (0.4.0)
+# cmail setup guide (0.5.0)
 
 [Home](index.html) · [Interactive guide](setup.html) · [CLI docs](docs.html) · [Changelog](changelog.html) · [Privacy](privacy.html)
 
@@ -48,7 +48,7 @@ cd cmail
 bash install.sh --local
 ```
 
-**Done when:** `cmail --version` prints `cmail 0.4.0`.
+**Done when:** `cmail --version` prints `cmail 0.5.0`.
 
 - [ ] cmail is installed
 

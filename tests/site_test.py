@@ -196,7 +196,7 @@ class SiteTests(unittest.TestCase):
         for name in ['setup.html', 'setup.md']:
             text = unescape((ROOT / 'docs' / name).read_text())
             for value in ['bash install.sh --local', 'cmail config init', 'cmail setup',
-                          'cmail setup --dry-run', 'cmail send-as', 'cmail list', 'cmail 0.4.0',
+                          'cmail setup --dry-run', 'cmail send-as', 'cmail list', 'cmail 0.5.0',
                           'Zone Settings', 'DNS', 'Email Routing Rules', 'Email Routing Addresses',
                           'zone already active on Cloudflare', 'DNSSEC', 'Receiving is set up',
                           'January 2027', 'Advanced Protection', '587', 'TLS', 'smtp.gmail.com',

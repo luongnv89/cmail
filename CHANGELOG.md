@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.5.0 — 2026-11-02
+
 - Running `cmail` with no command now lists the configured domain's
   addresses, the same as `cmail list` (#37). Until `DOMAIN` and
   `CLOUDFLARE_API_TOKEN` are set it still shows the help with its "Start
@@ -20,6 +22,9 @@
 - Say during install and in the docs that cmail does not use proxy settings
   (`HTTPS_PROXY`, `ALL_PROXY`) yet and needs direct HTTPS access to
   `api.cloudflare.com`. The installer warns when those variables are set.
+- Update the bundled cmail-setup skill to 3.1.0 (#40): a shorter description
+  that fits the `/skills` listing, its MIT `LICENSE`, and an optional step that
+  proposes one edit only with your approval. The setup workflow is unchanged.
 
 ## v0.4.0 — 2026-10-13
 
