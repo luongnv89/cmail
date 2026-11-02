@@ -13,8 +13,8 @@
 class Cmail < Formula
   desc "Free custom-domain email with Cloudflare Email Routing"
   homepage "https://github.com/luongnv89/cmail"
-  url "https://github.com/luongnv89/cmail/archive/refs/tags/v0.4.0.tar.gz"
-  sha256 "2fe75929f8a219aaacc8825fc2e56044e0598f259481ba4655c7813d123e84d4"
+  url "https://github.com/luongnv89/cmail/archive/refs/tags/v0.5.0.tar.gz"
+  sha256 "1f1cfa76d9eba61a4f16c288ccf45209be00f77c19cfa7c12c1da307449871b7"
   license "MIT"
   head "https://github.com/luongnv89/cmail.git", branch: "main"
 
