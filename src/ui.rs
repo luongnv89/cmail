@@ -200,8 +200,13 @@ pub fn report(error: &Error) -> i32 {
 
 /// Configuration problems: printed where the old `config_error` printed them.
 pub fn print_config_error(message: &str) {
+    print_input_error(message, "correct the private config locally (cmail config --help)");
+}
+
+/// An invalid-input failure (exit 3) with the hint that fits it.
+pub fn print_input_error(message: &str, hint: &str) {
     let c = ctx();
     let bad = c.err.paint(Role::High, &format!("{} ", c.err.g().bad));
     emit(&format!("{bad}{} {message}", c.err.paint(Role::Title, "cmail:")));
-    emit(&c.err.paint(Role::Dim, "hint: correct the private config locally (cmail config --help)"));
+    emit(&c.err.paint(Role::Dim, &format!("hint: {hint}")));
 }

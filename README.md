@@ -140,6 +140,7 @@ confirmation code arrives through the forwarding that `setup` created, so run
 | `cmail doctor [--offline]` | Read-only configuration, registrar tool, and authentication checks |
 | `cmail send-as` | Optional guided Gmail "Send mail as" |
 | `cmail sending enable [--dmarc auto\|none\|reject] [--dry-run]` | Onboard the domain to free Cloudflare Email Sending with a separate sending-only token; shows the DNS records and DMARC outcome and asks before writing. Never edits DNS: with `--dmarc none` you add `_dmarc` by hand first |
+| `cmail notify [MESSAGE] [--stdin] [--subject TEXT] [--to EMAIL] [--from LOCAL]` | Send a plain-text message to your own verified inbox (default `DEST_EMAIL`) with `CF_SENDING_TOKEN`; never prompts, so cron can run it. Refuses an unverified or unregistered recipient before sending (the Workers Free plan sends only to verified destinations) |
 | `cmail config init\|show\|check\|set\|path` | Manage the private configuration |
 | `cmail completion bash\|zsh\|fish` | Print a shell completion script |
 
@@ -179,8 +180,9 @@ atomically; secrets require `--stdin` so they never appear in shell history.
 | `DOMAIN` | Custom domain to use |
 | `DEST_EMAIL` | Any email address you own that receives forwarded mail; must be a Gmail/Google account only for `send-as` |
 | `ADDRESSES` | Comma-separated local parts, e.g. `hello,contact,me` (default `hello`) |
+| `NOTIFY_FROM` | Optional local part `cmail notify` sends from, as `NOTIFY_FROM@DOMAIN` (default: the first `ADDRESSES` entry) |
 | `CLOUDFLARE_API_TOKEN` | Zone:Read (Zone:Edit only if cmail adds the domain), Zone Settings:Edit, Email Routing Rules:Edit, Account Email Routing Addresses:Edit. Account Resources: only the account that owns the domain; Zone Resources: that domain (or all zones from that account when cmail adds it). Never All accounts. See [step 3 of the setup guide](docs/setup.md#3-create-a-cloudflare-api-token) |
-| `CF_SENDING_TOKEN` | Optional secret for `cmail sending enable`: a separate token with only Email Sending · Edit (Account Resources: the owning account; Zone Resources: the domain). Never the same as `CLOUDFLARE_API_TOKEN` |
+| `CF_SENDING_TOKEN` | Optional secret used by `cmail sending enable` and `cmail notify`: a separate token with only Email Sending · Edit (Account Resources: the owning account; Zone Resources: the domain). Never the same as `CLOUDFLARE_API_TOKEN` |
 | `REGISTRAR` | `manual` (default, any registrar) or `godaddy` (opt-in `gddy` automation) |
 | `GDDY_ENV` | GoDaddy environment (default `prod`) |
 | `GDDY_PAT` | Optional PAT instead of browser OAuth for headless GoDaddy runs |

@@ -10,6 +10,16 @@
   the DMARC outcome before asking, reads `_dmarc` over public DNS and never
   edits DNS. With `--dmarc none` it waits for a `p=none` record you add by
   hand and never onboards while `_dmarc` is missing.
+- New `cmail notify [MESSAGE] [--stdin] [--subject TEXT] [--to EMAIL]
+  [--from LOCAL]` sends a plain-text message through Cloudflare Email Sending
+  to your own verified destination address, which is free on every plan
+  (#44). It never prompts, so cron can run it; `--format json` returns
+  `{message_id, delivered, queued}`. The default subject is
+  `cmail notification`, `--to` defaults to `DEST_EMAIL`, and `--from`
+  defaults to the new optional `NOTIFY_FROM` setting or the first
+  `ADDRESSES` entry. With `CLOUDFLARE_API_TOKEN` set, an unregistered or
+  unverified recipient is refused before anything is sent; only
+  `CF_SENDING_TOKEN` is sent to Email Sending.
 
 ## v0.5.0 — 2026-11-02
 

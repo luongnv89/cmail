@@ -75,8 +75,8 @@ class Sending(unittest.TestCase):
         self.doh = FixtureServer(str(self.dns_file), str(self.doh_calls), prefix='', auth_log=str(self.doh_auth))
         self.addCleanup(self.doh.close)
         self.env = {k: v for k, v in os.environ.items() if not k.startswith(('CMAIL_', 'GDDY_')) and k not in
-                    ('DOMAIN', 'DEST_EMAIL', 'ADDRESSES', 'CLOUDFLARE_API_TOKEN', 'CF_SENDING_TOKEN', 'REGISTRAR',
-                     'CF_ZONE_ID', 'CF_ACCOUNT_ID', 'DRY_RUN', 'ENV_FILE', 'NO_COLOR', 'FORCE_COLOR', 'BROWSER')}
+                    ('DOMAIN', 'DEST_EMAIL', 'ADDRESSES', 'NOTIFY_FROM', 'CLOUDFLARE_API_TOKEN', 'CF_SENDING_TOKEN',
+                     'REGISTRAR', 'CF_ZONE_ID', 'CF_ACCOUNT_ID', 'DRY_RUN', 'ENV_FILE', 'NO_COLOR', 'FORCE_COLOR', 'BROWSER')}
         self.env.update(ENV_FILE=str(self.config), CMAIL_CF_API=self.api.url, CMAIL_DOH_URL=self.doh.url + '/dns-query',
                         CMAIL_TEST_SLEEP_LOG=str(self.sleeps), NO_COLOR='1')
 

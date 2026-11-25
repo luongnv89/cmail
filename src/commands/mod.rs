@@ -3,6 +3,7 @@
 mod config_cmd;
 mod doctor;
 mod forward;
+mod notify;
 mod sending;
 mod setup;
 mod status;
@@ -23,6 +24,7 @@ pub fn dispatch(invocation: &Invocation) -> Result<()> {
         Command::SendAs => setup::send_as(path),
         Command::Sending { command: Some(SendingCommand::Enable(args)) } => sending::enable(path, args),
         Command::Sending { command: None } => Ok(()),
+        Command::Notify(args) => notify::notify(path, args),
         Command::Config { command: Some(sub) } => config_cmd::run(sub, path),
         Command::Config { command: None } => Ok(()),
         Command::Completion { shell } => {
