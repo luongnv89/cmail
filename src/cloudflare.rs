@@ -1,4 +1,4 @@
-//! Cloudflare REST API client for zones and Email Routing.
+//! Cloudflare REST API client for zones, Email Routing and Email Sending.
 //!
 //! Every failure explains what to check next and never prints the token.
 
@@ -12,8 +12,35 @@ pub const API: &str = "https://api.cloudflare.com/client/v4";
 
 pub struct Cf {
     token: String,
+    /// The other configured Cloudflare token, redacted too though this client never sends it.
+    other_secret: String,
     base: String,
     domain: String,
+}
+
+/// A Cloudflare answer that was not a success: HTTP status, `errors[].code` values, redacted detail.
+#[derive(Debug)]
+pub struct ApiError {
+    pub status: u16,
+    pub codes: Vec<i64>,
+    pub detail: String,
+}
+
+/// Why a call produced no answer: Cloudflare said no, or the request never completed
+/// (the `ureq` transport error kind; for a write, its outcome is unknown).
+#[derive(Debug)]
+pub enum Failure {
+    Api(ApiError),
+    Transport(String),
+}
+
+/// Why the paged sending-subdomain list is unavailable.
+#[derive(Debug)]
+pub enum ListError {
+    /// A page request failed; `path` is that page's request path.
+    Failed { path: String, failure: Failure },
+    /// Cloudflare answered, but not with a usable list.
+    Malformed(String),
 }
 
 /// Base URL: the real API, or (tests only) `CMAIL_CF_API` on https or loopback http.
@@ -46,6 +73,68 @@ fn whole_number(value: &Value) -> Option<u64> {
     (f >= 0.0 && f.fract() == 0.0).then_some(f as u64)
 }
 
+/// Hint for a failed `/email/sending/` call: Cloudflare's documented codes first, then a generic
+/// message that names the HTTP status and code, so an unknown answer is never mistaken for a known one.
+pub fn sending_hint(status: u16, codes: &[i64], domain: &str) -> String {
+    let known = codes.iter().find_map(|code| match (status, code) {
+        (401, 10101) => Some(
+            "sending token rejected — replace CF_SENDING_TOKEN (cmail config set CF_SENDING_TOKEN --stdin) with an active token"
+                .to_string(),
+        ),
+        (401, 10103) => Some(
+            "Cloudflare says this token type can't send — create a Custom API token (not a Global API Key) with Email Sending · Edit"
+                .to_string(),
+        ),
+        (403, 10102) => Some(format!(
+            "sending token lacks permission — grant Email Sending · Edit for the account that owns {domain}, with Zone Resources including {domain}"
+        )),
+        (403, 10105) => Some(
+            "this Cloudflare account is not entitled to Email Sending — check Compute > Email Service in the dashboard"
+                .to_string(),
+        ),
+        (403, 10203 | 10207) => Some(
+            "sending is disabled or paused for this account/zone — see Compute > Email Service > Email Sending in the dashboard"
+                .to_string(),
+        ),
+        _ => None,
+    });
+    if let Some(hint) = known {
+        return hint;
+    }
+    if status == 429 {
+        return "Cloudflare sending limit reached (rate or daily quota) — retry later; new accounts start with a conservative daily quota".into();
+    }
+    if (500..600).contains(&status) {
+        return "Cloudflare service error — check https://www.cloudflarestatus.com/ and retry later; inspect the dashboard first if a write was attempted".into();
+    }
+    let code = codes_text(codes);
+    let mut hint = format!(
+        "Cloudflare answered HTTP {status} with {code}, which cmail does not recognise for Email Sending — see https://developers.cloudflare.com/email-service/reference/troubleshooting/"
+    );
+    if status == 401 || status == 403 {
+        hint.push_str(&format!("; check CF_SENDING_TOKEN is active and grants Email Sending · Edit for {domain}"));
+    }
+    hint
+}
+
+/// `no error code`, `error code 10102`, or `error codes 1000, 1001`.
+pub fn codes_text(codes: &[i64]) -> String {
+    match codes {
+        [] => "no error code".to_string(),
+        [code] => format!("error code {code}"),
+        _ => format!("error codes {}", codes.iter().map(i64::to_string).collect::<Vec<_>>().join(", ")),
+    }
+}
+
+/// What printed before a transport failure stops a call: the network checklist, plus the
+/// unknown-outcome warning for a write.
+pub fn warn_transport(method: &str) {
+    ui::warn("check your connection, DNS, proxy and https://www.cloudflarestatus.com/; this is not evidence of an invalid token");
+    if method != "GET" {
+        ui::warn("the write outcome is unknown — inspect the Cloudflare dashboard before retrying");
+    }
+}
+
 pub fn account_recovery(domain: &str) {
     ui::always(&format!(
         "To unlock account discovery:
@@ -71,6 +160,17 @@ impl Cf {
     pub fn new(config: &Config) -> Result<Cf> {
         Ok(Cf {
             token: config.get("CLOUDFLARE_API_TOKEN").to_string(),
+            other_secret: config.get("CF_SENDING_TOKEN").to_string(),
+            base: base_url()?,
+            domain: config.get("DOMAIN").to_string(),
+        })
+    }
+
+    /// Client for `/email/sending/*`: it carries CF_SENDING_TOKEN only, never CLOUDFLARE_API_TOKEN.
+    pub fn sending(config: &Config) -> Result<Cf> {
+        Ok(Cf {
+            token: config.get("CF_SENDING_TOKEN").to_string(),
+            other_secret: config.get("CLOUDFLARE_API_TOKEN").to_string(),
             base: base_url()?,
             domain: config.get("DOMAIN").to_string(),
         })
@@ -122,19 +222,44 @@ impl Cf {
 
     /// One API call with shared diagnostics. `limit` shortens the timeout for bounded waits.
     pub fn request(&self, method: &str, path: &str, body: Option<&Value>, limit: Option<u64>) -> Result<Value> {
+        match self.call(method, path, body, limit)? {
+            Ok(value) => Ok(value),
+            Err(error) => self.fail(method, path, error),
+        }
+    }
+
+    /// One API call that hands a Cloudflare error back instead of printing it.
+    /// Transport failures still stop here: their outcome is unknown, so no caller may treat them as answers.
+    pub fn call(
+        &self,
+        method: &str,
+        path: &str,
+        body: Option<&Value>,
+        limit: Option<u64>,
+    ) -> Result<std::result::Result<Value, ApiError>> {
+        match self.attempt(method, path, body, limit) {
+            Ok(value) => Ok(Ok(value)),
+            Err(Failure::Api(error)) => Ok(Err(error)),
+            Err(Failure::Transport(kind)) => {
+                warn_transport(method);
+                die(format!("Cloudflare request failed: {method} {path} ({kind})"))
+            }
+        }
+    }
+
+    /// One API call that prints nothing and hands back every failure, transport included, for
+    /// callers that must explain a failure in their own context (such as after a write).
+    pub fn attempt(
+        &self,
+        method: &str,
+        path: &str,
+        body: Option<&Value>,
+        limit: Option<u64>,
+    ) -> std::result::Result<Value, Failure> {
         let configured = ui::ctx().timeout as u64;
         let seconds = limit.map_or(configured, |l| l.min(configured));
         ui::verbose(&format!("Request: Cloudflare {method} {path} (timeout {configured}s)"));
-        let (status, body) = match self.send(method, path, body, seconds) {
-            Ok(result) => result,
-            Err(kind) => {
-                ui::warn("check your connection, DNS, proxy and https://www.cloudflarestatus.com/; this is not evidence of an invalid token");
-                if method != "GET" {
-                    ui::warn("the write outcome is unknown — inspect the Cloudflare dashboard before retrying");
-                }
-                return die(format!("Cloudflare request failed: {method} {path} ({kind})"));
-            }
-        };
+        let (status, body) = self.send(method, path, body, seconds).map_err(Failure::Transport)?;
         let parsed: Option<Value> = serde_json::from_str(&body).ok();
         let success = parsed.as_ref().is_some_and(|v| v.get("success") == Some(&Value::Bool(true)));
         if (200..300).contains(&status) && success {
@@ -148,12 +273,31 @@ impl Cf {
             },
             None => format!("non-JSON response: {}", body.chars().take(500).collect::<String>()),
         };
-        if !self.token.is_empty() {
-            detail = detail.replace(&self.token, "[redacted]");
+        for secret in [&self.token, &self.other_secret] {
+            if !secret.is_empty() {
+                detail = detail.replace(secret.as_str(), "[redacted]");
+            }
         }
         let detail: String = detail.chars().take(1000).collect();
+        let codes = parsed
+            .as_ref()
+            .and_then(|v| v.get("errors"))
+            .and_then(Value::as_array)
+            .map(|errors| errors.iter().filter_map(|e| e.get("code").and_then(Value::as_i64)).collect())
+            .unwrap_or_default();
+        Err(Failure::Api(ApiError { status, codes, detail }))
+    }
+
+    /// Print the hint for a failed call and stop with its status and redacted detail.
+    pub fn fail<T>(&self, method: &str, path: &str, error: ApiError) -> Result<T> {
+        let ApiError { status, codes, detail } = error;
         let domain = if self.domain.is_empty() { "your domain" } else { &self.domain };
         let route = path.split('?').next().unwrap_or(path);
+        if route.contains("/email/sending/") {
+            // Sending routes use their own token and table; the receive-token hints below would mislead.
+            ui::warn(&sending_hint(status, &codes, domain));
+            return die(format!("Cloudflare API error: {method} {path} (HTTP {status}): {detail}"));
+        }
         if status == 401 || status == 403 {
             if route.starts_with("/accounts/") && route.contains("/email/routing/addresses") {
                 ui::warn("check token access to this account and grant Account > Email Routing Addresses > Edit");
@@ -186,6 +330,43 @@ impl Cf {
             ui::warn("Cloudflare service error — check https://www.cloudflarestatus.com/ and retry later; inspect the dashboard first if a write was attempted");
         }
         die(format!("Cloudflare API error: {method} {path} (HTTP {status}): {detail}"))
+    }
+
+    /// Every Email Sending subdomain of a zone, across all pages. Nothing is printed: the
+    /// caller explains a failure, because what it means depends on whether a write already went out.
+    pub fn sending_subdomains(&self, zone: &str) -> std::result::Result<Vec<Value>, ListError> {
+        let mut records = Vec::new();
+        let mut page = 1u64;
+        loop {
+            if page > 1000 {
+                return Err(ListError::Malformed(
+                    "sending-subdomain listing exceeded 1000 pages — no complete result available".into(),
+                ));
+            }
+            let path = format!("/zones/{zone}/email/sending/subdomains?per_page=50&page={page}");
+            let response = match self.attempt("GET", &path, None, None) {
+                Ok(response) => response,
+                Err(failure) => return Err(ListError::Failed { path, failure }),
+            };
+            let Some(batch) = response.get("result").and_then(Value::as_array).cloned() else {
+                return Err(ListError::Malformed(
+                    "Cloudflare returned no sending-subdomain list (missing result)".into(),
+                ));
+            };
+            let count = batch.len() as u64;
+            records.extend(batch);
+            let total = response.pointer("/result_info/total_pages").cloned().unwrap_or(Value::Null);
+            let pages =
+                if truthy(&total) { whole_number(&total) } else { Some(if count >= 50 { page + 1 } else { page }) };
+            let Some(pages) = pages else {
+                return Err(ListError::Malformed("Cloudflare returned invalid sending-subdomain pagination".into()));
+            };
+            if page >= pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(records)
     }
 
     /// Every destination address of an account, across all pages.
@@ -504,6 +685,33 @@ mod tests {
         assert_eq!(describe_targets(&json!([{"type": "drop"}]), false), "drop");
         assert_eq!(describe_targets(&json!([]), false), "no action");
         assert_eq!(describe_targets(&json!([{"type": "forward", "value": []}]), false), "forward (no destination)");
+    }
+
+    #[test]
+    fn sending_hints_follow_the_error_table() {
+        assert!(
+            sending_hint(401, &[10101], "example.com").starts_with("sending token rejected — replace CF_SENDING_TOKEN")
+        );
+        assert!(sending_hint(401, &[10103], "example.com").contains("Email Sending · Edit"));
+        assert_eq!(
+            sending_hint(403, &[10102], "example.com"),
+            "sending token lacks permission — grant Email Sending · Edit for the account that owns example.com, with Zone Resources including example.com"
+        );
+        assert!(sending_hint(403, &[10105], "x").contains("not entitled to Email Sending"));
+        assert!(sending_hint(403, &[10207], "x").starts_with("sending is disabled or paused"));
+        assert!(sending_hint(429, &[10004], "x").starts_with("Cloudflare sending limit reached"));
+        assert!(sending_hint(503, &[10100], "x").starts_with("Cloudflare service error"));
+        assert!(!sending_hint(429, &[], "x").contains("cmail setup"));
+    }
+
+    #[test]
+    fn unknown_sending_codes_show_status_and_code() {
+        let hint = sending_hint(409, &[1000], "example.com");
+        assert!(hint.contains("HTTP 409") && hint.contains("error code 1000"), "{hint}");
+        assert!(sending_hint(400, &[], "x").contains("HTTP 400 with no error code"));
+        assert!(sending_hint(400, &[1, 2], "x").contains("error codes 1, 2"));
+        let hint = sending_hint(403, &[10999], "example.com");
+        assert!(hint.contains("error code 10999") && hint.contains("Email Sending · Edit"), "{hint}");
     }
 
     #[test]

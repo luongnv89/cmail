@@ -18,6 +18,13 @@ spec = importlib.util.spec_from_file_location("check_config", SCRIPT)
 config = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(config)
 BIN = Path(os.environ.get("CMAIL_BIN", ROOT / "target" / "debug" / "cmail"))
+# The config template `cmail config init` writes (include_str! in src/config.rs).
+ENV_TEMPLATE = ROOT / ".env.example"
+# A credential-shaped run: 20+ token characters mixing letters and digits, or a well-known key prefix.
+TOKEN_SHAPED = re.compile(
+    r"(?<![A-Za-z0-9_\-])(?=[A-Za-z0-9_\-]*[0-9])(?=[A-Za-z0-9_\-]*[A-Za-z])[A-Za-z0-9_\-]{20,}"
+    r"|\b(?:ghp_|gho_|github_pat_|glpat-|sk-|xox[abprs]-|AKIA)[A-Za-z0-9_\-]{8,}"
+)
 
 
 def runtime_source():
@@ -203,6 +210,47 @@ class ConfigTests(unittest.TestCase):
 SETTER = SKILL / "scripts/set_config.py"
 
 
+def secret_keys():
+    """KEYS entries that src/config.rs `is_secret` marks secret."""
+    source = (ROOT / "src/config.rs").read_text()
+    keys = re.search(r"pub const KEYS: \[&str; \d+\] = \[(.*?)\];", source, re.S)
+    secret = re.search(r"pub fn is_secret\(key: &str\) -> bool \{\s*matches!\(key,(.*?)\)", source, re.S)
+    if not keys or not secret:
+        raise AssertionError("src/config.rs no longer declares KEYS / is_secret in the expected form")
+    return re.findall(r'"(\w+)"', keys.group(1)), re.findall(r'"(\w+)"', secret.group(1))
+
+
+def template_problems(text, secrets):
+    """Why `text` is not a secret-free config template: each secret key must be assigned exactly
+    once with an empty value, and no line (comments included) may carry a token-shaped value."""
+    problems = []
+    for key in secrets:
+        values = [line.split("=", 1)[1].strip() for line in text.splitlines() if line.startswith(key + "=")]
+        if len(values) != 1:
+            problems.append("%s is assigned %d times, expected once" % (key, len(values)))
+        elif values[0] not in ("", "''", '""'):
+            problems.append("%s has a value; the template must leave it empty" % key)
+    for number, line in enumerate(text.splitlines(), 1):
+        if TOKEN_SHAPED.search(line):
+            problems.append("line %d holds a token-shaped value" % number)
+    return problems
+
+
+class TemplateTests(unittest.TestCase):
+    def test_env_template_leaves_every_secret_empty_and_holds_no_token(self):
+        # CI keeps the shipped template credential-free, independent of the IDD scanner's filename rule.
+        keys, secrets = secret_keys()
+        self.assertTrue(secrets, "is_secret lists no keys")
+        self.assertLessEqual(set(secrets), set(keys))
+        self.assertEqual(template_problems(ENV_TEMPLATE.read_text(), secrets), [])
+        # The check itself must bite: a filled secret and a token-shaped comment are both caught.
+        fake = "x9" * 20
+        broken = "CLOUDFLARE_API_TOKEN=" + fake + "\n# pasted: " + fake + "\n"
+        problems = template_problems(broken, ["CLOUDFLARE_API_TOKEN"])
+        self.assertIn("CLOUDFLARE_API_TOKEN has a value; the template must leave it empty", problems)
+        self.assertIn("line 2 holds a token-shaped value", problems)
+
+
 class HelperTests(unittest.TestCase):
     def private(self, tmp, text, name="private.env"):
         path = Path(tmp) / name
@@ -219,7 +267,8 @@ class HelperTests(unittest.TestCase):
             result = self.run_script(SCRIPT, "--summary", path)
             self.assertEqual(result.returncode, 0, result.stderr)
             for line in ("DOMAIN=example.com", "DEST_EMAIL=user@gmail.com", "ADDRESSES=hello,contact",
-                         "CLOUDFLARE_API_TOKEN set", "GDDY_PAT empty", "CF_ZONE_ID absent", "READY:"):
+                         "CLOUDFLARE_API_TOKEN set", "CF_SENDING_TOKEN absent", "GDDY_PAT empty", "CF_ZONE_ID absent",
+                         "READY:"):
                 self.assertIn(line, result.stdout)
             self.assertNotIn("synthetic fixture", result.stdout + result.stderr)
             partial = self.private(tmp, "DOMAIN=example.com\nCLOUDFLARE_API_TOKEN=\n", "partial.env")
@@ -298,7 +347,7 @@ class HelperTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = self.private(tmp, FIXTURE)
             before = path.read_bytes()
-            for arg in ("CLOUDFLARE_API_TOKEN=x", "GDDY_PAT=x", "DOMAIN=https://x", "PATH=/tmp",
+            for arg in ("CLOUDFLARE_API_TOKEN=x", "CF_SENDING_TOKEN=x", "GDDY_PAT=x", "DOMAIN=https://x", "PATH=/tmp",
                         "ADDRESSES=a,a", "DOMAIN", "DOMAIN=example.org DOMAIN=example.net"):
                 with self.subTest(arg=arg):
                     result = self.run_script(SETTER, path, *arg.split(" "))
@@ -543,12 +592,14 @@ class SkillContractTests(unittest.TestCase):
             path.write_text(FIXTURE)
             path.chmod(0o600)
             env = {k: v for k, v in os.environ.items() if not k.startswith("CMAIL_") and k not in (
-                "DOMAIN", "DEST_EMAIL", "ADDRESSES", "CLOUDFLARE_API_TOKEN", "REGISTRAR", "GDDY_ENV",
-                "GDDY_PAT", "CF_ZONE_ID", "CF_ACCOUNT_ID", "DRY_RUN", "ENV_FILE")}
-            # Any provider call would fail against a closed loopback port.
-            env.update(ENV_FILE=str(path), CMAIL_CF_API="http://127.0.0.1:9/client/v4")
+                "DOMAIN", "DEST_EMAIL", "ADDRESSES", "CLOUDFLARE_API_TOKEN", "CF_SENDING_TOKEN", "REGISTRAR",
+                "GDDY_ENV", "GDDY_PAT", "CF_ZONE_ID", "CF_ACCOUNT_ID", "DRY_RUN", "ENV_FILE")}
+            # Any provider or public DNS call would fail against a closed loopback port.
+            env.update(ENV_FILE=str(path), CMAIL_CF_API="http://127.0.0.1:9/client/v4",
+                       CMAIL_DOH_URL="http://127.0.0.1:9/dns-query")
             before = path.read_bytes()
-            for args in (["setup"], ["forward", "hello", "--destination", "new@example.org"], ["send-as"]):
+            for args in (["setup"], ["forward", "hello", "--destination", "new@example.org"], ["send-as"],
+                         ["sending", "enable"], ["sending", "enable", "--dmarc", "none"]):
                 for stdin in ("", "y\n", "y\n\n"):
                     with self.subTest(args=args, stdin=stdin):
                         result = subprocess.run([str(BIN), *args], input=stdin, text=True, env=env,

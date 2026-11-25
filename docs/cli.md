@@ -47,6 +47,8 @@ Configuration defaults to `~/.config/cmail/.env` (`$XDG_CONFIG_HOME/cmail/.env` 
 | `cmail doctor` | Read-only dependency/config/authentication checks |
 | `cmail doctor --offline` | Local checks without provider requests |
 | `cmail send-as` | Optional manual Gmail sending guide |
+| `cmail sending enable [--dmarc auto\|none\|reject]` | Onboard the domain to Cloudflare Email Sending with a separate sending-only token (`CF_SENDING_TOKEN`), in a terminal; never edits DNS |
+| `cmail sending enable --dry-run` | Read-only Email Sending and DMARC plan |
 | `cmail config init` | Create mode-600 configuration; preserve existing files |
 | `cmail config show` | Effective settings, with secrets redacted |
 | `cmail config check` | Validate settings and report readiness |
@@ -134,13 +136,13 @@ cmail --config ~/.config/cmail/work.env config check
 
 Both `setup --dry-run` and legacy `DRY_RUN=1` preview the entire workflow in this version: no provider changes, purchases, configuration writes, browser launches, installations, or authentication flows. The preview needs valid existing Cloudflare credentials and reports the selected `registrar` in its JSON data. In manual mode it never runs gddy and has no GoDaddy blocker. Its `nameservers` action is `ready` when the zone is already active. It is `manual` and lists the assigned nameservers when the zone is pending, and `manual` with a note that setup prints them when no zone exists yet. With `REGISTRAR=godaddy` it uses a supplied `GDDY_PAT` for the GoDaddy delegation read. Without a PAT it reports that check as a blocker, since gddy can automatically start OAuth during a read. Guided setup supports browser OAuth. Read access does not establish every write permission.
 
-A successfully generated preview exits 0 even when its `data.blockers` array is nonempty. Inspect blockers before setup. Actual setup, forward and send-as require terminal stdin; running them with closed or piped stdin fails before writes. Agent runners must use a pseudo-terminal and relay prompts. GoDaddy nameserver replacement retains explicit confirmation. Any charge, such as a domain purchase (offered only with `REGISTRAR=godaddy`), always requires the exact domain name typed at an interactive terminal; no flag, environment variable, or piped input can approve it. Existing DNS/service records require migration review before delegation changes.
+A successfully generated preview exits 0 even when its `data.blockers` array is nonempty. Inspect blockers before setup. Actual setup, forward, send-as and sending enable require terminal stdin; running them with closed or piped stdin fails before writes. Agent runners must use a pseudo-terminal and relay prompts. GoDaddy nameserver replacement retains explicit confirmation. Any charge, such as a domain purchase (offered only with `REGISTRAR=godaddy`), always requires the exact domain name typed at an interactive terminal; no flag, environment variable, or piped input can approve it. Existing DNS/service records require migration review before delegation changes.
 
 ## Output and timing
 
 Results go to stdout. Progress, prompts, warnings, and errors go to stderr. `--quiet` retains results and errors; `--verbose` adds redacted request context. They are mutually exclusive. On a terminal, status, list, doctor, config show/check and setup previews draw boxes with status marks (`●` ok, `▲` attention, `✗` failed). When stdout is piped, they print plain tab-separated records, one per line with no header, so they work with `cut`, `grep` and `awk`. `--format json` remains the stable scripting contract. A non-empty `NO_COLOR` or `--no-color` disables color; `FORCE_COLOR=1` styles output that is not a terminal (never JSON). Outside a UTF-8 locale, boxes use ASCII characters. `--no-browser` prints manual links; with `REGISTRAR=godaddy`, setup also requires an existing PAT in this mode to prevent automatic GoDaddy OAuth.
 
-JSON is available for status, list, doctor, config show/check, and setup previews:
+JSON is available for status, list, doctor, config show/check, setup previews, and `sending enable --dry-run`:
 
 ```json
 {"schema_version":1,"command":"status","data":{"zone":{},"routing":{},"destinations":[],"rules":[]}}

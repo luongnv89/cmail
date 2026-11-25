@@ -45,6 +45,7 @@ fn run() -> i32 {
     };
     let wait_timeout = match &invocation.cli.command {
         Some(cli::Command::Setup(setup)) => setup.wait_timeout,
+        Some(cli::Command::Sending { command: Some(cli::SendingCommand::Enable(args)) }) => args.wait_timeout,
         _ => 1200,
     };
     ui::init(ui::Ctx {
