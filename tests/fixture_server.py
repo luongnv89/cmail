@@ -7,6 +7,7 @@ is allowed only by an explicit 'METHOD path' fixture. Special keys:
   _status    HTTP status to return (default 200)
   _body      raw body instead of the JSON fixture
   _sequence  successive responses; the last one repeats
+  _drop      close the connection without any response (a transport failure)
 Each request is logged as 'METHOD path ' to the calls file; request bodies of
 writes go to the payloads file as JSON lines when one is configured. With an
 auth log, each request also appends 'METHOD path HASH': the first 16 hex digits
@@ -43,6 +44,9 @@ class FixtureServer:
                 length = int(self.headers.get('Content-Length') or 0)
                 body = self.rfile.read(length) if length else b''
                 status, text = server.answer(self.command, self.path, body, self.headers.get('Authorization'))
+                if status is None:
+                    self.close_connection = True
+                    return
                 data = text.encode()
                 self.send_response(status)
                 self.send_header('Content-Type', 'application/json')
@@ -85,6 +89,8 @@ class FixtureServer:
                 index = self.counts.get(key, 0)
                 self.counts[key] = index + 1
                 response = response['_sequence'][min(index, len(response['_sequence']) - 1)]
+            if response.get('_drop'):
+                return None, None
             response = dict(response)
             status = response.pop('_status', 200)
             raw = response.pop('_body', None)

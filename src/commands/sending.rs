@@ -7,7 +7,7 @@
 //! writes DNS records.
 
 use crate::cli::{Dmarc, SendingEnableArgs};
-use crate::cloudflare::{nonempty_str, truthy, Cf};
+use crate::cloudflare::{codes_text, nonempty_str, sending_hint, warn_transport, Cf, Failure, ListError};
 use crate::config::{Config, Overrides};
 use crate::error::{config_error, die, usage, Error, Result};
 use crate::output::{self, check, checks_json, checks_text, envelope, Check};
@@ -19,7 +19,15 @@ use std::time::{Duration, Instant};
 /// Public DNS-over-HTTPS JSON endpoint; tests point CMAIL_DOH_URL at a loopback fixture.
 const DOH: &str = "https://cloudflare-dns.com/dns-query";
 
-const NON_TTY: &str = "sending enable requires terminal input: it may ask about Gmail Send-as (pass --dmarc none or --dmarc reject) and asks you to confirm; run it interactively, or add --dry-run to preview";
+/// Without a terminal in auto mode: the Send-as question has no answer either.
+const NON_TTY_AUTO: &str = "sending enable requires terminal input: it may ask about Gmail Send-as (pass --dmarc none or --dmarc reject) and asks you to confirm; run it interactively, or add --dry-run to preview";
+
+/// Without a terminal after an explicit --dmarc: only the confirmation is left to answer.
+const NON_TTY: &str =
+    "sending enable requires terminal input to confirm the change — run it in a terminal, or add --dry-run";
+
+/// Consecutive unreadable DoH answers the none-mode wait rides out before it stops.
+const DOH_RETRIES: u32 = 3;
 
 /// Ends a malformed-answer message before the POST.
 const UNCHANGED: &str = "nothing was changed";
@@ -56,7 +64,7 @@ pub fn enable(path: PathBuf, args: &SendingEnableArgs) -> Result<()> {
         return usage("JSON sending enable output requires --dry-run");
     }
     if !dry_run && !term::stdin_is_tty() {
-        return usage(NON_TTY);
+        return usage(if args.dmarc == Dmarc::Auto { NON_TTY_AUTO } else { NON_TTY });
     }
     let domain = config.get("DOMAIN").to_string();
     let zone = config.get("CF_ZONE_ID").to_string();
@@ -77,11 +85,13 @@ pub fn enable(path: PathBuf, args: &SendingEnableArgs) -> Result<()> {
     }
     let cf = Cf::sending(&config)?;
     ui::step(&format!("Cloudflare Email Sending: {domain}"));
-    let entries = cf.sending_subdomains(&zone, UNCHANGED)?;
-    if find(&entries, &domain, false)?.is_some_and(|(_, enabled)| enabled) {
+    let entries = list_before_write(&cf, &zone)?;
+    if find(&entries, &domain, UNCHANGED)?.is_some_and(|(_, enabled)| enabled) {
         output::print(&format!("sending already enabled for {domain}"));
         return Ok(());
     }
+    // The spike's order: the records Cloudflare adds first, then the DMARC decision.
+    ui::always(&records_preview(&domain));
     let state = lookup_dmarc(&domain)?;
     let mut outcome = match (&state, args.dmarc) {
         (DmarcState::Present { .. }, _) => Outcome::Keep,
@@ -96,7 +106,7 @@ pub fn enable(path: PathBuf, args: &SendingEnableArgs) -> Result<()> {
             }
         }
     };
-    ui::always(&preview(&domain, &state, outcome));
+    ui::always(&dmarc_preview(&domain, &state, outcome));
     if outcome == Outcome::AddNone {
         ui::always(&none_instructions(&domain));
         wait_for_dmarc(&domain)?;
@@ -119,8 +129,17 @@ pub fn enable(path: PathBuf, args: &SendingEnableArgs) -> Result<()> {
 fn onboard(cf: &Cf, zone: &str, domain: &str) -> Result<()> {
     let path = format!("/zones/{zone}/email/sending/subdomains");
     let posted = cf.call("POST", &path, Some(&json!({"name": domain})), None)?;
-    let entries = cf.sending_subdomains(zone, UNCONFIRMED)?;
-    let found = find(&entries, domain, true)?;
+    // From here on the write may have happened: every failure says so, with the POST's own answer.
+    let after = match &posted {
+        Ok(_) => UNCONFIRMED.to_string(),
+        Err(error) => format!(
+            "{UNCONFIRMED} (the onboarding POST itself answered HTTP {} with {})",
+            error.status,
+            codes_text(&error.codes)
+        ),
+    };
+    let entries = list_after_write(cf, zone, domain, &after)?;
+    let found = find(&entries, domain, &after)?;
     if let Err(error) = posted {
         if !found.is_some_and(|(_, enabled)| enabled) {
             return cf.fail("POST", &path, error);
@@ -141,15 +160,22 @@ fn onboard(cf: &Cf, zone: &str, domain: &str) -> Result<()> {
             "Cloudflare returned no usable subdomain id — skipping the DNS record read-back; see Compute > Email Service > Email Sending in the dashboard",
         ),
         Some(id) => {
-            let response = cf.get(&format!("/zones/{zone}/email/sending/subdomains/{id}/dns"))?;
-            match response.get("result").and_then(Value::as_array) {
-                None => ui::warn(
-                    "Cloudflare returned no DNS record list for the sending subdomain — check DNS > Records in the dashboard",
-                ),
-                Some(records) => {
-                    lines.push("DNS records Cloudflare manages for sending:".into());
-                    lines.extend(records.iter().map(record_line));
-                }
+            // Onboarding is already confirmed; a failed record listing is reported, not fatal.
+            let dns = format!("/zones/{zone}/email/sending/subdomains/{id}/dns");
+            match cf.attempt("GET", &dns, None, None) {
+                Err(failure) => ui::warn(&format!(
+                    "could not read the DNS records Cloudflare manages for sending ({}) — check DNS > Records in the dashboard",
+                    failure_text(&failure)
+                )),
+                Ok(response) => match response.get("result").and_then(Value::as_array) {
+                    None => ui::warn(
+                        "Cloudflare returned no DNS record list for the sending subdomain — check DNS > Records in the dashboard",
+                    ),
+                    Some(records) => {
+                        lines.push("DNS records Cloudflare manages for sending:".into());
+                        lines.extend(records.iter().map(record_line));
+                    }
+                },
             }
         }
     }
@@ -160,22 +186,55 @@ fn onboard(cf: &Cf, zone: &str, domain: &str) -> Result<()> {
     Ok(())
 }
 
+/// The subdomain list before any write: a failure prints its usual hint and changes nothing.
+fn list_before_write(cf: &Cf, zone: &str) -> Result<Vec<Value>> {
+    match cf.sending_subdomains(zone) {
+        Ok(entries) => Ok(entries),
+        Err(ListError::Failed { path, failure: Failure::Api(error) }) => cf.fail("GET", &path, error),
+        Err(ListError::Failed { path, failure: Failure::Transport(kind) }) => {
+            warn_transport("GET");
+            die(format!("Cloudflare request failed: GET {path} ({kind})"))
+        }
+        Err(ListError::Malformed(reason)) => die(format!("{reason} — {UNCHANGED}")),
+    }
+}
+
+/// The read-back after the POST: whatever fails, the message says the request was sent
+/// (`after`), because Cloudflare may already have onboarded DOMAIN.
+fn list_after_write(cf: &Cf, zone: &str, domain: &str, after: &str) -> Result<Vec<Value>> {
+    match cf.sending_subdomains(zone) {
+        Ok(entries) => Ok(entries),
+        Err(ListError::Failed { path, failure: Failure::Api(error) }) => {
+            ui::warn(&sending_hint(error.status, &error.codes, domain));
+            die(format!("Cloudflare API error: GET {path} (HTTP {}): {} — {after}", error.status, error.detail))
+        }
+        Err(ListError::Failed { path, failure: Failure::Transport(kind) }) => {
+            warn_transport("GET");
+            die(format!("Cloudflare request failed: GET {path} ({kind}) — {after}"))
+        }
+        Err(ListError::Malformed(reason)) => die(format!("{reason} — {after}")),
+    }
+}
+
+fn failure_text(failure: &Failure) -> String {
+    match failure {
+        Failure::Api(error) => format!("HTTP {} with {}", error.status, codes_text(&error.codes)),
+        Failure::Transport(kind) => kind.clone(),
+    }
+}
+
 /// The entry named DOMAIN (case-insensitive) and its enabled state. Missing fields stop
-/// with a clear message rather than being guessed; `sent` says the POST already went out.
-fn find<'a>(entries: &'a [Value], domain: &str, sent: bool) -> Result<Option<(&'a Value, bool)>> {
+/// with a clear message rather than being guessed; `after` says what was (not) changed.
+fn find<'a>(entries: &'a [Value], domain: &str, after: &str) -> Result<Option<(&'a Value, bool)>> {
     let mut found = None;
     for entry in entries {
         let Some(name) = nonempty_str(&entry["name"]) else {
-            if sent {
-                return die(format!("Cloudflare returned a sending subdomain without a name — {UNCONFIRMED}"));
-            }
-            return die("Cloudflare returned a sending subdomain without a name — nothing was changed; check Compute > Email Service > Email Sending in the dashboard");
+            return die(format!("Cloudflare returned a sending subdomain without a name — {after}"));
         };
         if !name.eq_ignore_ascii_case(domain) {
             continue;
         }
         let Some(enabled) = entry["enabled"].as_bool() else {
-            let after = if sent { UNCONFIRMED } else { UNCHANGED };
             return die(format!(
                 "Cloudflare returned the sending subdomain {name} without a valid enabled state — {after}"
             ));
@@ -187,11 +246,15 @@ fn find<'a>(entries: &'a [Value], domain: &str, sent: bool) -> Result<Option<(&'
     Ok(found)
 }
 
-/// `id`, else `tag`, restricted to a safe path segment.
+/// The path id: `id` when it is a usable string, else `tag` (the documented identifier,
+/// at most 32 characters). Either must be a safe path segment.
 fn subdomain_id(entry: &Value) -> Option<&str> {
-    entry.get("id").filter(|v| truthy(v)).or_else(|| entry.get("tag")).and_then(Value::as_str).filter(|id| {
-        (1..=64).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
-    })
+    let usable = |key: &str| {
+        entry.get(key).and_then(Value::as_str).filter(|id| {
+            (1..=32).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+        })
+    };
+    usable("id").or_else(|| usable("tag"))
 }
 
 fn record_line(record: &Value) -> String {
@@ -207,7 +270,17 @@ fn record_line(record: &Value) -> String {
     format!("  {:<5} {}  {}{priority}", field("type"), field("name"), field("content"))
 }
 
-fn preview(domain: &str, state: &DmarcState, outcome: Outcome) -> String {
+fn records_preview(domain: &str) -> String {
+    format!(
+        "\nCloudflare Email Sending adds these DNS records for {domain}:
+  MX    cf-bounce.{domain}  route1.mx.cloudflare.net, route2.mx.cloudflare.net, route3.mx.cloudflare.net
+  TXT   cf-bounce.{domain}  v=spf1 include:_spf.mx.cloudflare.net ~all  (SPF)
+  TXT   cf-bounce._domainkey.{domain}  DKIM public key generated by Cloudflare
+"
+    )
+}
+
+fn dmarc_preview(domain: &str, state: &DmarcState, outcome: Outcome) -> String {
     let dmarc = match (state, outcome) {
         (DmarcState::Present { policy, record }, _) => format!(
             "  DMARC: _dmarc.{domain} exists ({}) — Cloudflare keeps an existing DMARC record unchanged.\n         {record}",
@@ -221,15 +294,7 @@ fn preview(domain: &str, state: &DmarcState, outcome: Outcome) -> String {
         }
         (_, Outcome::Keep) => format!("  DMARC: _dmarc.{domain} — Cloudflare keeps an existing DMARC record unchanged."),
     };
-    format!(
-        "\nCloudflare Email Sending adds these DNS records for {domain}:
-  MX    cf-bounce.{domain}  route1.mx.cloudflare.net, route2.mx.cloudflare.net, route3.mx.cloudflare.net
-  TXT   cf-bounce.{domain}  v=spf1 include:_spf.mx.cloudflare.net ~all  (SPF)
-  TXT   cf-bounce._domainkey.{domain}  DKIM public key generated by Cloudflare
-{dmarc}
-
-"
-    )
+    format!("{dmarc}\n\n")
 }
 
 fn policy_text(policy: &Option<String>) -> String {
@@ -253,21 +318,46 @@ Public DNS can cache the missing answer for up to 30 minutes after you add it.
     )
 }
 
-/// Re-check every 15 s until the record appears or `--wait-timeout` passes (exit 3).
+/// Re-check every 15 s until the record appears or `--wait-timeout` passes (exit 3). The last
+/// re-check runs at the deadline, so even `--wait-timeout 1` re-checks once. Up to DOH_RETRIES
+/// consecutive unreadable answers are ridden out; only a readable answer showing the record ends
+/// the wait, so an error never counts as found (fail closed).
 fn wait_for_dmarc(domain: &str) -> Result<()> {
     let limit = ui::ctx().wait_timeout;
     let deadline = Instant::now() + Duration::from_secs(limit);
     ui::note(&format!("waiting for _dmarc.{domain} in public DNS (rechecking every 15s, up to {limit}s)…"));
-    for _ in 0..limit.div_ceil(15) {
-        let left = deadline.saturating_duration_since(Instant::now()).as_secs();
-        if left == 0 {
-            break;
+    let mut errors = 0;
+    let mut last_error = None;
+    for round in 0..limit.div_ceil(15).max(1) {
+        // Whole seconds left, rounded up: a fraction of a second still earns its re-check.
+        let left = deadline.saturating_duration_since(Instant::now()).as_millis().div_ceil(1000) as u64;
+        if left == 0 && round > 0 {
+            break; // the previous round already re-checked at the deadline
         }
-        term::sleep(left.min(15));
-        if let DmarcState::Present { .. } = lookup_dmarc(domain)? {
-            return Ok(());
+        if left > 0 {
+            term::sleep(left.min(15));
         }
-        ui::note("_dmarc still missing — waiting…");
+        match read_dmarc(domain)? {
+            Ok(DmarcState::Present { .. }) => return Ok(()),
+            Ok(DmarcState::Missing) => {
+                errors = 0;
+                last_error = None;
+                ui::note("_dmarc still missing — waiting…");
+            }
+            Err(reason) => {
+                errors += 1;
+                if errors > DOH_RETRIES {
+                    return unreadable(domain, &reason);
+                }
+                ui::warn(&format!(
+                    "could not read _dmarc.{domain} from public DNS ({reason}) — retrying ({errors}/{DOH_RETRIES})"
+                ));
+                last_error = Some(reason);
+            }
+        }
+    }
+    if let Some(reason) = last_error {
+        return unreadable(domain, &reason);
     }
     ui::warn(&format!(
         "_dmarc.{domain} is still missing after {limit}s — add the record, then rerun cmail sending enable (public DNS can cache a missing answer for up to 30 minutes). Nothing was changed"
@@ -298,6 +388,20 @@ fn doh_url() -> Result<String> {
 /// Read `_dmarc.DOMAIN` TXT over DoH with no credential. Any failure stops: an
 /// unreadable answer must never pass for "missing" or "present".
 fn lookup_dmarc(domain: &str) -> Result<DmarcState> {
+    match read_dmarc(domain)? {
+        Ok(state) => Ok(state),
+        Err(reason) => unreadable(domain, &reason),
+    }
+}
+
+fn unreadable<T>(domain: &str, reason: &str) -> Result<T> {
+    die(format!(
+        "could not read _dmarc.{domain} from public DNS ({reason}) — nothing was changed; check your connection and rerun cmail sending enable"
+    ))
+}
+
+/// One DoH lookup. The outer error is a bad CMAIL_DOH_URL; the inner one an unreadable answer.
+fn read_dmarc(domain: &str) -> Result<std::result::Result<DmarcState, String>> {
     let url = format!("{}?name=_dmarc.{domain}&type=TXT", doh_url()?);
     let seconds = (ui::ctx().timeout as u64).max(1);
     ui::verbose(&format!("Request: public DNS TXT _dmarc.{domain} (timeout {seconds}s)"));
@@ -308,12 +412,7 @@ fn lookup_dmarc(domain: &str) -> Result<DmarcState> {
         Err(ureq::Error::Status(code, _)) => Err(format!("HTTP {code}")),
         Err(ureq::Error::Transport(t)) => Err(t.kind().to_string()),
     };
-    match answer.and_then(|body| parse_doh(&body)) {
-        Ok(state) => Ok(state),
-        Err(reason) => die(format!(
-            "could not read _dmarc.{domain} from public DNS ({reason}) — nothing was changed; check your connection and rerun cmail sending enable"
-        )),
-    }
+    Ok(answer.and_then(|body| parse_doh(&body)))
 }
 
 /// DoH JSON (`application/dns-json`): Status 3 or no TXT answer is missing; exactly one
@@ -425,7 +524,7 @@ fn ensure_token(config: &mut Config, domain: &str, zone: &str) -> Result<()> {
                 return Ok(());
             }
             Err(error) if error.status == 401 || error.status == 403 => {
-                ui::warn(&crate::cloudflare::sending_hint(error.status, &error.codes, domain));
+                ui::warn(&sending_hint(error.status, &error.codes, domain));
             }
             Err(error) => return cf.fail("GET", &path, error),
         }
@@ -463,8 +562,8 @@ fn plan(config: &Config, domain: &str, zone: &str, mode: Dmarc) -> Result<()> {
         act("sending", "manual", "Not checked: Email Sending state needs DOMAIN and CF_ZONE_ID.", "");
     } else {
         let cf = Cf::sending(config)?;
-        let entries = cf.sending_subdomains(zone, UNCHANGED)?;
-        let state = find(&entries, domain, false)?.map(|(_, enabled)| enabled);
+        let entries = list_before_write(&cf, zone)?;
+        let state = find(&entries, domain, UNCHANGED)?.map(|(_, enabled)| enabled);
         enabled = Some(state == Some(true));
         if state == Some(true) {
             act("sending", "ready", &format!("sending already enabled for {domain}"), "");
@@ -581,6 +680,11 @@ mod tests {
     fn subdomain_id_prefers_id_then_tag() {
         assert_eq!(subdomain_id(&json!({"id": "abc", "tag": "t1"})), Some("abc"));
         assert_eq!(subdomain_id(&json!({"tag": "t1"})), Some("t1"));
+        assert_eq!(subdomain_id(&json!({"id": 123, "tag": "t1"})), Some("t1"));
+        assert_eq!(subdomain_id(&json!({"id": "../x", "tag": "t1"})), Some("t1"));
+        assert_eq!(subdomain_id(&json!({"id": "", "tag": "t1"})), Some("t1"));
+        assert_eq!(subdomain_id(&json!({"tag": "a".repeat(32)})), Some("a".repeat(32).as_str()));
+        assert_eq!(subdomain_id(&json!({"tag": "a".repeat(33)})), None);
         assert_eq!(subdomain_id(&json!({"id": "../x"})), None);
         assert_eq!(subdomain_id(&json!({"name": "example.com"})), None);
     }

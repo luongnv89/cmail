@@ -196,6 +196,13 @@ class Onboarding(Sending):
         self.save()
         self.expect(self.run_tty(answer='y\n'), 0, 'route1.mx.cloudflare.net')
         self.assertIn('GET ' + SUBS + '/abc123/dns ', self.read(self.calls))
+        # An unusable id (here a number) falls back to the documented tag.
+        self.calls.unlink()
+        self.api.counts.clear()
+        self.fixtures[LIST] = {'_sequence': [ok([]), ok([dict(entry(True), id=123)])]}
+        self.save()
+        self.expect(self.run_tty(answer='y\n'), 0, 'route1.mx.cloudflare.net')
+        self.assertEqual(self.read(self.calls)[-1], 'GET ' + DNS + ' ')
 
 
 class Responses(Sending):
@@ -258,6 +265,42 @@ class Responses(Sending):
                 self.assertNotIn('Email Sending enabled', result.stdout + result.stderr)
                 self.assertEqual(self.writes(), [POST])
 
+    def test_failed_read_back_after_the_post_says_the_request_was_sent(self):
+        cases = [
+            # Probe D3 (review r1): the POST fails with an unknown code, then the read-back is rate limited.
+            (fail(400, 1234), fail(429, 971),
+             ['Cloudflare sending limit reached', 'GET ' + LIST + ' (HTTP 429)',
+              'the onboarding POST itself answered HTTP 400 with error code 1234']),
+            (ok(entry(True)), fail(503, 10002), ['Cloudflare service error', 'GET ' + LIST + ' (HTTP 503)']),
+            (ok(entry(True)), {'_drop': True},
+             ['check your connection', 'Cloudflare request failed: GET ' + LIST]),
+        ]
+        for posted, read_back, texts in cases:
+            with self.subTest(read_back=read_back):
+                self.fixtures[POST] = posted
+                self.fixtures[LIST] = {'_sequence': [ok([]), read_back]}
+                self.save()
+                self.api.counts.clear()
+                self.calls.unlink(missing_ok=True)
+                result = self.run_tty(answer='y\n')
+                self.expect(result, 1, UNCONFIRMED, *texts)
+                text = result.stdout + result.stderr
+                self.assertNotIn('nothing was changed', text)
+                self.assertNotIn('Email Sending enabled', text)
+                if '_status' not in posted:
+                    self.assertNotIn('onboarding POST itself', text)
+                self.assertEqual(self.writes(), [POST])
+
+    def test_dns_read_failure_after_confirmed_onboarding_only_warns(self):
+        for dns in (fail(500, 10002), {'_drop': True}):
+            with self.subTest(dns=dns):
+                self.fixtures[LIST] = {'_sequence': [ok([]), ok([entry(True)])]}
+                self.fixtures[DNS] = dns
+                self.save()
+                self.api.counts.clear()
+                self.expect(self.run_tty(answer='y\n'), 0, 'Email Sending enabled for example.com',
+                            'could not read the DNS records Cloudflare manages for sending')
+
     def test_missing_read_back_id_or_dns_fields_skip_with_a_message(self):
         untagged = {'name': 'example.com', 'enabled': True}
         cases = [
@@ -308,12 +351,51 @@ class Dmarc(Sending):
         self.assertEqual(self.read(self.sleeps), ['sleep 15', 'sleep 15'])
         self.assertEqual(self.writes(), [POST])
 
+    def test_wait_timeout_one_still_rechecks_once(self):
+        self.dns[DOH] = MISSING
+        self.save()
+        result = self.run_tty('--dmarc', 'none', '--wait-timeout', '1', answer='y\n')
+        self.expect(result, 3, 'add the record, then rerun cmail sending enable')
+        self.assertEqual(self.read(self.sleeps), ['sleep 1'])
+        self.assertEqual(len(self.read(self.doh_calls)), 2)
+        self.assertEqual(self.writes(), [])
+
+    def test_none_mode_wait_rides_out_transient_dns_errors(self):
+        blip = {'_status': 500, '_body': 'oops'}
+        # Three consecutive unreadable answers are tolerated; the record then appears and onboarding runs.
+        self.dns[DOH] = {'_sequence': [MISSING, blip, blip, blip, PRESENT]}
+        self.fixtures[LIST] = {'_sequence': [ok([]), ok([entry(True)])]}
+        self.save()
+        result = self.run_tty('--dmarc', 'none', answer='y\n')
+        self.expect(result, 0, 'retrying (1/3)', 'retrying (3/3)', '_dmarc.example.com found',
+                    'Email Sending enabled for example.com')
+        self.assertEqual(self.writes(), [POST])
+        # A fourth in a row, or an unreadable final re-check, fails closed: no write, never "found".
+        for answers, args in (([MISSING, blip, blip, blip, blip], []),
+                              ([MISSING, MISSING, blip], ['--wait-timeout', '30'])):
+            with self.subTest(answers=answers):
+                self.calls.unlink()
+                self.doh.counts.clear()
+                self.api.counts.clear()
+                self.dns[DOH] = {'_sequence': answers}
+                self.save()
+                result = self.run_tty('--dmarc', 'none', *args, answer='y\n')
+                self.expect(result, 1, 'could not read _dmarc.example.com from public DNS (HTTP 500)',
+                            'nothing was changed')
+                self.assertNotIn('found', result.stderr)
+                self.assertEqual(self.writes(), [])
+
     def test_auto_mode_asks_about_send_as(self):
         self.dns[DOH] = MISSING
         self.save()
         result = self.run_tty('--wait-timeout', '15', answer='y\n')
         self.expect(result, 3, 'Do you send as @example.com from Gmail (cmail send-as) or any other service?',
                     NONE_RECORD, EXPLANATION)
+        # The spike's order: the cf-bounce records come before the Send-as (DMARC) question.
+        question = result.stderr.index('Do you send as')
+        for record in ('MX    cf-bounce.example.com', 'v=spf1 include:_spf.mx.cloudflare.net ~all',
+                       'TXT   cf-bounce._domainkey.example.com'):
+            self.assertLess(result.stderr.index(record), question)
         self.assertEqual(self.writes(), [])
         self.fixtures[LIST] = {'_sequence': [ok([]), ok([entry(True)])]}
         self.save()
@@ -412,11 +494,17 @@ class Tokens(Sending):
 
 class Modes(Sending):
     def test_without_a_terminal_it_refuses_before_any_call(self):
-        for args in ([], ['--dmarc', 'none'], ['--dmarc', 'reject']):
+        for args in ([], ['--dmarc', 'auto'], ['--dmarc', 'none'], ['--dmarc', 'reject']):
             for stdin in ('', 'y\n'):
                 with self.subTest(args=args, stdin=stdin):
                     result = self.run_pipe('sending', 'enable', *args, stdin=stdin)
-                    self.expect(result, 2, 'requires terminal', 'pass --dmarc none or --dmarc reject')
+                    self.expect(result, 2, 'requires terminal')
+                    if args in ([], ['--dmarc', 'auto']):
+                        self.assertIn('pass --dmarc none or --dmarc reject', result.stderr)
+                    else:
+                        # The mode is already chosen; only the confirmation needs a terminal.
+                        self.assertIn('run it in a terminal, or add --dry-run', result.stderr)
+                        self.assertNotIn('pass --dmarc', result.stderr)
         self.write_config(BASE)
         self.expect(self.run_pipe('sending', 'enable'), 2, 'requires terminal')
         self.assertEqual(self.read(self.calls), [])
