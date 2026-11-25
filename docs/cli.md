@@ -112,7 +112,7 @@ cmail config set REGISTRAR godaddy               # make the opt-in persistent
 
 Configuration contains documented literal `KEY=value` assignments. Single/double quotes and literal backslash escapes are supported; shell commands and expansions are rejected. Files must be user-owned regular files with mode 600. Read-only commands do not repair permissions or create missing files. Use `config init` to create one; fix an existing file's permissions locally when instructed.
 
-Precedence: explicit command options → environment values → configuration file → defaults. An explicit empty environment value overrides a saved value. Operational environment names are `DOMAIN`, `DEST_EMAIL`, `ADDRESSES`, `REGISTRAR`, `GDDY_ENV`, `GDDY_PAT`, `CLOUDFLARE_API_TOKEN`, `CF_ACCOUNT_ID`, `CF_ZONE_ID`, and `DRY_RUN`.
+Precedence: explicit command options → environment values → configuration file → defaults. An explicit empty environment value overrides a saved value. Operational environment names are `DOMAIN`, `DEST_EMAIL`, `ADDRESSES`, `NOTIFY_FROM`, `REGISTRAR`, `GDDY_ENV`, `GDDY_PAT`, `CLOUDFLARE_API_TOKEN`, `CF_ACCOUNT_ID`, `CF_ZONE_ID`, and `DRY_RUN`.
 
 Select a config with `--config PATH`; otherwise `CMAIL_CONFIG`, legacy `ENV_FILE`, and `${XDG_CONFIG_HOME:-~/.config}/cmail/.env` are tried in order. Global environment settings are `CMAIL_FORMAT`, `CMAIL_TIMEOUT`, `CMAIL_VERBOSE`, and `CMAIL_QUIET` (boolean settings use 0 or 1). Explicit global flags override those settings.
 
