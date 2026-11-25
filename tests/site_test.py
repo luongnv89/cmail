@@ -242,7 +242,7 @@ class SiteTests(unittest.TestCase):
         docs = unescape((ROOT / 'docs/docs.html').read_text())
         for command in commands:
             self.assertIn('cmail ' + command, docs)
-        for key in ['DOMAIN', 'DEST_EMAIL', 'ADDRESSES', 'CLOUDFLARE_API_TOKEN', 'REGISTRAR',
+        for key in ['DOMAIN', 'DEST_EMAIL', 'ADDRESSES', 'NOTIFY_FROM', 'CLOUDFLARE_API_TOKEN', 'REGISTRAR',
                     'CF_ACCOUNT_ID', 'CF_ZONE_ID', 'GDDY_ENV', 'GDDY_PAT', 'DRY_RUN',
                     '--dry-run', '--stdin', '--registrar godaddy', '--format json', '--no-browser']:
             self.assertIn(key, docs)

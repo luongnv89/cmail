@@ -28,7 +28,7 @@ export CMAIL_BIN="$ROOT/target/debug/cmail"
 for file in install.sh scripts/*.sh; do bash -n "$file"; done
 run cargo test --quiet --locked
 for suite in tests/*_test.sh; do run bash "$suite"; done
-for suite in tests/cli_test.py tests/setup_flow_test.py tests/sending_test.py tests/timing_test.py \
+for suite in tests/cli_test.py tests/setup_flow_test.py tests/sending_test.py tests/notify_test.py tests/timing_test.py \
              tests/pages_test.py tests/site_test.py tests/skill_setup_test.py; do
   run python3 "$suite"
 done

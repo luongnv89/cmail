@@ -15,7 +15,7 @@ from fixture_server import FixtureServer  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 # The binary under test; scripts/test.sh builds it and exports CMAIL_BIN.
 BIN = Path(os.environ.get('CMAIL_BIN', ROOT / 'target' / 'debug' / 'cmail'))
-KEYS = ('DOMAIN', 'DEST_EMAIL', 'ADDRESSES', 'CLOUDFLARE_API_TOKEN', 'CF_SENDING_TOKEN', 'REGISTRAR', 'GDDY_ENV', 'GDDY_PAT',
+KEYS = ('DOMAIN', 'DEST_EMAIL', 'ADDRESSES', 'NOTIFY_FROM', 'CLOUDFLARE_API_TOKEN', 'CF_SENDING_TOKEN', 'REGISTRAR', 'GDDY_ENV', 'GDDY_PAT',
         'CF_ZONE_ID', 'CF_ACCOUNT_ID', 'DRY_RUN', 'ENV_FILE', 'NO_COLOR', 'FORCE_COLOR', 'CLICOLOR_FORCE',
         'COLORTERM', 'COLUMNS', 'LC_ALL', 'LC_CTYPE', 'XDG_CONFIG_HOME')
 FIXTURE = "DOMAIN=example.com\nDEST_EMAIL=owner@example.net\nADDRESSES=hello,contact\nCLOUDFLARE_API_TOKEN=synthetic-token\nGDDY_ENV=ote\n"
@@ -84,7 +84,7 @@ esac''')
 
     def test_help_every_level(self):
         commands = [(), ('setup',), ('status',), ('list',), ('forward',), ('doctor',), ('send-as',), ('sending',),
-                    ('sending', 'enable'), ('config',), ('completion',), ('help',)] + [('config', name) for name in ('init','show','check','set','path')]
+                    ('sending', 'enable'), ('notify',), ('config',), ('completion',), ('help',)] + [('config', name) for name in ('init','show','check','set','path')]
         for command in commands:
             with self.subTest(command=command):
                 result = self.invoke(*command, '--help')
@@ -140,7 +140,10 @@ esac''')
                  ('forward','hello','--destination','a@example.net','--registrar','manual'),
                  ('sending','wat'), ('sending','enable','--dmarc','quarantine'), ('sending','enable','--dmarc'),
                  ('sending','enable','extra'), ('sending','enable','--wait-timeout','0'),
-                 ('sending','enable','--destination','a@example.net'), ('--format','json','sending','enable')]
+                 ('sending','enable','--destination','a@example.net'), ('--format','json','sending','enable'),
+                 ('notify',), ('notify','hi','--stdin'), ('notify',''), ('notify','hi','extra'), ('notify','--to'),
+                 ('notify','hi','--dry-run'), ('notify','hi','--to','not-an-email'), ('notify','hi','--from','a@b.com'),
+                 ('notify','hi','--subject','a\nb')]
         for args in cases:
             with self.subTest(args=args):
                 result = self.invoke(*args)

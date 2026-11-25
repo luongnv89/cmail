@@ -298,6 +298,23 @@ class HelperTests(unittest.TestCase):
             normal = self.private(tmp, FIXTURE, "normal.env")
             self.assertIn("ADDRESSES=hello,contact", self.run_script(SCRIPT, "--summary", normal).stdout)
 
+    def test_summary_checks_notify_from_and_hides_token_like_values(self):
+        # NOTIFY_FROM is one local part, so a pasted token can satisfy its format too.
+        token = "testtoken" * 4
+        with tempfile.TemporaryDirectory() as tmp:
+            for value, line in ((token, "NOTIFY_FROM=<invalid>"), ("alerts@example.com", "NOTIFY_FROM=<invalid>"),
+                                ("alerts", "NOTIFY_FROM=alerts")):
+                with self.subTest(value=value):
+                    path = self.private(tmp, FIXTURE + "NOTIFY_FROM=" + value + "\n")
+                    result = self.run_script(SCRIPT, "--summary", path)
+                    self.assertIn(line, result.stdout)
+                    self.assertNotIn(token, result.stdout + result.stderr)
+            self.assertIn("NOTIFY_FROM absent", self.run_script(SCRIPT, "--summary", self.private(tmp, FIXTURE)).stdout)
+            self.assertEqual(self.run_script(SCRIPT, self.private(tmp, FIXTURE + "NOTIFY_FROM=alerts\n")).returncode, 0)
+            bad = self.run_script(SCRIPT, self.private(tmp, FIXTURE + "NOTIFY_FROM=alerts@example.com\n"))
+            self.assertEqual(bad.returncode, 1)
+            self.assertIn("NOTIFY_FROM:", bad.stderr)
+
     def test_smart_quotes_and_non_ascii_rejected(self):
         for raw in ("\u2019abc\u2019", "caf\u00e9"):
             with tempfile.TemporaryDirectory() as tmp:
@@ -592,8 +609,8 @@ class SkillContractTests(unittest.TestCase):
             path.write_text(FIXTURE)
             path.chmod(0o600)
             env = {k: v for k, v in os.environ.items() if not k.startswith("CMAIL_") and k not in (
-                "DOMAIN", "DEST_EMAIL", "ADDRESSES", "CLOUDFLARE_API_TOKEN", "CF_SENDING_TOKEN", "REGISTRAR",
-                "GDDY_ENV", "GDDY_PAT", "CF_ZONE_ID", "CF_ACCOUNT_ID", "DRY_RUN", "ENV_FILE")}
+                "DOMAIN", "DEST_EMAIL", "ADDRESSES", "NOTIFY_FROM", "CLOUDFLARE_API_TOKEN", "CF_SENDING_TOKEN",
+                "REGISTRAR", "GDDY_ENV", "GDDY_PAT", "CF_ZONE_ID", "CF_ACCOUNT_ID", "DRY_RUN", "ENV_FILE")}
             # Any provider or public DNS call would fail against a closed loopback port.
             env.update(ENV_FILE=str(path), CMAIL_CF_API="http://127.0.0.1:9/client/v4",
                        CMAIL_DOH_URL="http://127.0.0.1:9/dns-query")
