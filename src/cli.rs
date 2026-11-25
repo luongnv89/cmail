@@ -32,6 +32,16 @@ only the forwarding destination changes.
 DEST_EMAIL in the configuration is updated only when every configured address
 on the configured domain then forwards to EMAIL.";
 
+const SENDING_ENABLE_ABOUT: &str = "\
+Onboard DOMAIN to Cloudflare Email Sending with a separate sending-only token
+(CF_SENDING_TOKEN). Run in a terminal; shows the DNS records Cloudflare adds and
+asks before writing. Needs DOMAIN and CF_ZONE_ID from cmail setup.
+
+cmail never edits DNS. When _dmarc is missing, Cloudflare adds v=DMARC1; p=reject;
+and mail sent as @DOMAIN through other services (such as Gmail Send-as) then
+bounces. --dmarc none makes you add a p=none record by hand first; cmail waits
+for it in public DNS and never onboards while it is missing.";
+
 #[derive(Parser, Debug)]
 #[command(
     name = "cmail",
@@ -95,6 +105,18 @@ impl Registrar {
     }
 }
 
+/// What to do when `_dmarc.DOMAIN` has no record.
+#[derive(ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Dmarc {
+    /// Ask whether you send as @DOMAIN from Gmail or another service
+    Auto,
+    /// You add v=DMARC1; p=none; by hand; cmail waits for it before onboarding
+    #[value(name = "none")]
+    Monitor,
+    /// Cloudflare adds v=DMARC1; p=reject;
+    Reject,
+}
+
 #[derive(ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Shell {
     Bash,
@@ -134,6 +156,11 @@ pub enum Command {
     /// Optional Gmail sending guide: cmail send-as
     #[command(long_about = "Optional manual Gmail sending guide. Requires a terminal and configured receiving.")]
     SendAs,
+    /// Free outbound email with Cloudflare Email Sending
+    Sending {
+        #[command(subcommand)]
+        command: Option<SendingCommand>,
+    },
     /// Manage private configuration
     Config {
         #[command(subcommand)]
@@ -184,6 +211,27 @@ pub struct ForwardArgs {
     /// Domain of the address (default: DOMAIN setting)
     #[arg(long, value_name = "DOMAIN", value_parser = NonEmptyStringValueParser::new())]
     pub domain: Option<String>,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum SendingCommand {
+    /// Onboard the domain to Cloudflare Email Sending, keeping DMARC safe
+    #[command(long_about = SENDING_ENABLE_ABOUT)]
+    Enable(SendingEnableArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct SendingEnableArgs {
+    /// When _dmarc is missing: auto asks, none waits for a hand-added p=none record,
+    /// reject lets Cloudflare add p=reject
+    #[arg(long, value_enum, value_name = "MODE", default_value = "auto")]
+    pub dmarc: Dmarc,
+    /// Read-only plan; never writes, prompts or opens a browser
+    #[arg(long)]
+    pub dry_run: bool,
+    /// Limit the wait for a hand-added _dmarc record
+    #[arg(long, value_name = "SECONDS", default_value_t = 1200, value_parser = clap::value_parser!(u64).range(1..=999_999))]
+    pub wait_timeout: u64,
 }
 
 #[derive(Subcommand, Debug)]
@@ -339,6 +387,10 @@ pub fn parse(args: Vec<std::ffi::OsString>, stdout: &Mode) -> Parsed {
         let _ = cmd.find_subcommand_mut("config").expect("config").print_help();
         return Parsed::Done(0, None);
     }
+    if let Some(Command::Sending { command: None }) = command {
+        let _ = cmd.find_subcommand_mut("sending").expect("sending").print_help();
+        return Parsed::Done(0, None);
+    }
 
     let json = match cli.global.format {
         Some(format) => format == Format::Json,
@@ -379,11 +431,12 @@ pub fn parse(args: Vec<std::ffi::OsString>, stdout: &Mode) -> Parsed {
                     | Command::List { .. }
                     | Command::Doctor { .. }
                     | Command::Setup(_)
+                    | Command::Sending { command: Some(SendingCommand::Enable(_)) }
                     | Command::Config { command: Some(ConfigCommand::Show | ConfigCommand::Check) }
             )
         );
         if !allowed {
-            return fail("JSON is available for status, list, doctor, config show/check, and setup --dry-run");
+            return fail("JSON is available for status, list, doctor, config show/check, setup --dry-run, and sending enable --dry-run");
         }
     }
     Parsed::Run(Box::new(Invocation { cli, json, timeout, verbose, quiet, command_path }))

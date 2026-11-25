@@ -15,7 +15,7 @@ from fixture_server import FixtureServer  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 # The binary under test; scripts/test.sh builds it and exports CMAIL_BIN.
 BIN = Path(os.environ.get('CMAIL_BIN', ROOT / 'target' / 'debug' / 'cmail'))
-KEYS = ('DOMAIN', 'DEST_EMAIL', 'ADDRESSES', 'CLOUDFLARE_API_TOKEN', 'REGISTRAR', 'GDDY_ENV', 'GDDY_PAT',
+KEYS = ('DOMAIN', 'DEST_EMAIL', 'ADDRESSES', 'CLOUDFLARE_API_TOKEN', 'CF_SENDING_TOKEN', 'REGISTRAR', 'GDDY_ENV', 'GDDY_PAT',
         'CF_ZONE_ID', 'CF_ACCOUNT_ID', 'DRY_RUN', 'ENV_FILE', 'NO_COLOR', 'FORCE_COLOR', 'CLICOLOR_FORCE',
         'COLORTERM', 'COLUMNS', 'LC_ALL', 'LC_CTYPE', 'XDG_CONFIG_HOME')
 FIXTURE = "DOMAIN=example.com\nDEST_EMAIL=owner@example.net\nADDRESSES=hello,contact\nCLOUDFLARE_API_TOKEN=synthetic-token\nGDDY_ENV=ote\n"
@@ -39,6 +39,8 @@ class CLI(unittest.TestCase):
         self.env['LANG'] = 'C.UTF-8'
         # No fixture server unless a test calls cloudflare(): any API call fails fast.
         self.env['CMAIL_CF_API'] = 'http://127.0.0.1:9/client/v4'
+        # Public DNS lookups (sending enable) also go to a dead loopback port.
+        self.env['CMAIL_DOH_URL'] = 'http://127.0.0.1:9/dns-query'
         self.tool('gddy', "printf '%s\\n' '{\"data\":[{\"env\":\"ote\",\"expired\":false}]}'")
 
     def tool(self, name, body):
@@ -81,8 +83,8 @@ esac''')
         self.fixture_file.write_text(json.dumps(self.fixtures))
 
     def test_help_every_level(self):
-        commands = [(), ('setup',), ('status',), ('list',), ('forward',), ('doctor',), ('send-as',), ('config',),
-                    ('completion',), ('help',)] + [('config', name) for name in ('init','show','check','set','path')]
+        commands = [(), ('setup',), ('status',), ('list',), ('forward',), ('doctor',), ('send-as',), ('sending',),
+                    ('sending', 'enable'), ('config',), ('completion',), ('help',)] + [('config', name) for name in ('init','show','check','set','path')]
         for command in commands:
             with self.subTest(command=command):
                 result = self.invoke(*command, '--help')
@@ -135,7 +137,10 @@ esac''')
                  ('forward','hello','--destination','a@example.net','--dry-run'),
                  ('forward','hello','--destination','a@example.net','--addresses','hello'),
                  ('forward','hello','--destination','a@example.net','--wait-timeout','5'),
-                 ('forward','hello','--destination','a@example.net','--registrar','manual')]
+                 ('forward','hello','--destination','a@example.net','--registrar','manual'),
+                 ('sending','wat'), ('sending','enable','--dmarc','quarantine'), ('sending','enable','--dmarc'),
+                 ('sending','enable','extra'), ('sending','enable','--wait-timeout','0'),
+                 ('sending','enable','--destination','a@example.net'), ('--format','json','sending','enable')]
         for args in cases:
             with self.subTest(args=args):
                 result = self.invoke(*args)
@@ -693,6 +698,27 @@ esac''')
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertEqual(json.loads(result.stdout)['data']['secrets']['GDDY_PAT'],'set')
         self.assertNotIn(value,result.stdout+result.stderr)
+
+    def test_sending_token_is_a_stdin_only_secret(self):
+        value='synthetic-sending-secret'
+        result=self.invoke('config','set','CF_SENDING_TOKEN',value)
+        self.assertEqual(result.returncode,2,result.stderr)
+        self.assertIn('secret settings require --stdin',result.stderr)
+        self.assertNotIn(value,self.config.read_text())
+        result=self.invoke('config','set','CF_SENDING_TOKEN','--stdin',input=value+'\n')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertNotIn(value,result.stdout+result.stderr)
+        result=self.invoke('config','show','--format=json')
+        self.assertEqual(result.returncode,0,result.stderr)
+        data=json.loads(result.stdout)['data']
+        self.assertEqual(data['secrets']['CF_SENDING_TOKEN'],'set')
+        self.assertNotIn(value,result.stdout+result.stderr)
+
+    def test_bare_sending_prints_its_help(self):
+        result=self.invoke('sending')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('enable',result.stdout)
+        self.assertFalse(self.calls.exists())
 
     def test_config_stdin_rejects_controls_and_large_input(self):
         before=self.config.read_bytes()

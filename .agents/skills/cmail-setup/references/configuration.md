@@ -33,7 +33,7 @@ symlink/shared/unowned paths.
 Read the current state with
 `python3 <skill-directory>/scripts/check_config.py --summary <file>`. It prints
 DOMAIN, DEST_EMAIL, ADDRESSES, REGISTRAR, GDDY_ENV, CF_ACCOUNT_ID, CF_ZONE_ID and DRY_RUN,
-reports CLOUDFLARE_API_TOKEN and GDDY_PAT only as set/empty/absent, and ends
+reports CLOUDFLARE_API_TOKEN, CF_SENDING_TOKEN and GDDY_PAT only as set/empty/absent, and ends
 with READY or NOT READY.
 
 Take empty values from the user's message: DOMAIN (owned, registrable domain only;
@@ -60,7 +60,7 @@ other existing value is a stop.
 
 ## Secrets stay in the user's browser and editor
 
-Never request CLOUDFLARE_API_TOKEN, GDDY_PAT or a Google App Password in chat.
+Never request CLOUDFLARE_API_TOKEN, CF_SENDING_TOKEN, GDDY_PAT or a Google App Password in chat.
 Current cmail sends the token in-process over HTTPS, so it never appears in
 process arguments. Legacy bash runtimes passed it to curl in process arguments,
 visible to local `ps`; prefer current cmail on shared machines.

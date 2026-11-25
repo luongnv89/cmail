@@ -69,6 +69,7 @@ bash install.sh --local      # or: cargo install --path .</code></pre>
             <tr><td><code>cmail doctor</code></td><td>Check config, gddy (GoDaddy mode) and token</td><td>No</td></tr>
             <tr><td><code>cmail doctor --offline</code></td><td>Same, without network requests</td><td>No</td></tr>
             <tr><td><code>cmail send-as</code></td><td>Optional Gmail sending guide</td><td>No (manual)</td></tr>
+            <tr><td><code>cmail sending enable [--dmarc auto|none|reject]</code></td><td>Onboard the domain to Cloudflare Email Sending with a separate sending-only token; never edits DNS</td><td>Yes, asks first</td></tr>
             <tr><td><code>cmail config init</code></td><td>Create a private config file</td><td>Local file</td></tr>
             <tr><td><code>cmail config show</code></td><td>Show settings, secrets redacted</td><td>No</td></tr>
             <tr><td><code>cmail config check</code></td><td>Validate settings</td><td>No</td></tr>
@@ -114,6 +115,7 @@ cmail config check</code></pre>
             <tr><td><code>DEST_EMAIL</code></td><td>Inbox that receives the mail</td></tr>
             <tr><td><code>ADDRESSES</code></td><td>Comma-separated names: <code>hello,contact</code></td></tr>
             <tr><td><code>CLOUDFLARE_API_TOKEN</code></td><td>Scoped API token (secret; set via <code>--stdin</code> or setup’s hidden prompt)</td></tr>
+            <tr><td><code>CF_SENDING_TOKEN</code></td><td>Optional sending-only token with Email Sending · Edit for <code>sending enable</code> (secret; set via <code>--stdin</code> or its hidden prompt)</td></tr>
             <tr><td><code>REGISTRAR</code></td><td><code>manual</code> (default) or <code>godaddy</code></td></tr>
             <tr><td><code>CF_ACCOUNT_ID</code></td><td>Optional. Pick a Cloudflare account when you have several</td></tr>
             <tr><td><code>CF_ZONE_ID</code></td><td>Saved by setup. No need to set</td></tr>
@@ -142,9 +144,9 @@ cmail config set REGISTRAR godaddy    # opt in permanently</code></pre>
         <pre><code>cmail setup --dry-run --format json
 cmail status --format json | jq '.data.rules'
 cmail doctor --offline --format json</code></pre>
-        <p>JSON is available for <code>status</code>, <code>list</code>, <code>doctor</code>, <code>config show/check</code> and previews:</p>
+        <p>JSON is available for <code>status</code>, <code>list</code>, <code>doctor</code>, <code>config show/check</code> and previews (<code>setup --dry-run</code>, <code>sending enable --dry-run</code>):</p>
         <pre><code>{"schema_version":1,"command":"status","data":{"zone":{},"routing":{},"destinations":[],"rules":[]}}</code></pre>
-        <p class="meta">Setup, forward and send-as need a real terminal. In scripts, use <code>--dry-run</code>.</p>
+        <p class="meta">Setup, forward, send-as and sending enable need a real terminal. In scripts, use <code>--dry-run</code>.</p>
       </section>
 
       <section id="options" aria-labelledby="options-h">

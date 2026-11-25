@@ -8,8 +8,15 @@ is allowed only by an explicit 'METHOD path' fixture. Special keys:
   _body      raw body instead of the JSON fixture
   _sequence  successive responses; the last one repeats
 Each request is logged as 'METHOD path ' to the calls file; request bodies of
-writes go to the payloads file as JSON lines when one is configured.
+writes go to the payloads file as JSON lines when one is configured. With an
+auth log, each request also appends 'METHOD path HASH': the first 16 hex digits
+of SHA-256 over the Authorization header, or 'none' without one, so tests can
+prove which credential reached a route without storing it.
+
+`prefix` is stripped from request paths ('/client/v4' for the Cloudflare API;
+'' serves other fakes, such as the DNS-over-HTTPS JSON endpoint).
 """
+import hashlib
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -18,10 +25,12 @@ API_PREFIX = '/client/v4'
 
 
 class FixtureServer:
-    def __init__(self, responses, calls, payloads=None):
+    def __init__(self, responses, calls, payloads=None, prefix=API_PREFIX, auth_log=None):
         self.responses = responses
         self.calls = calls
         self.payloads = payloads
+        self.prefix = prefix
+        self.auth_log = auth_log
         self.counts = {}
         self.lock = threading.Lock()
         server = self
@@ -33,7 +42,7 @@ class FixtureServer:
             def handle_any(self):
                 length = int(self.headers.get('Content-Length') or 0)
                 body = self.rfile.read(length) if length else b''
-                status, text = server.answer(self.command, self.path, body)
+                status, text = server.answer(self.command, self.path, body, self.headers.get('Authorization'))
                 data = text.encode()
                 self.send_response(status)
                 self.send_header('Content-Type', 'application/json')
@@ -49,13 +58,20 @@ class FixtureServer:
 
     @property
     def url(self):
-        return 'http://127.0.0.1:%d%s' % (self.httpd.server_port, API_PREFIX)
+        return 'http://127.0.0.1:%d%s' % (self.httpd.server_port, self.prefix)
 
-    def answer(self, method, raw_path, body):
-        path = raw_path[len(API_PREFIX):] if raw_path.startswith(API_PREFIX) else raw_path
+    @staticmethod
+    def auth_hash(header):
+        return hashlib.sha256(header.encode()).hexdigest()[:16] if header else 'none'
+
+    def answer(self, method, raw_path, body, authorization=None):
+        path = raw_path[len(self.prefix):] if self.prefix and raw_path.startswith(self.prefix) else raw_path
         with self.lock:
             with open(self.calls, 'a') as stream:
                 stream.write(method + ' ' + path + ' \n')
+            if self.auth_log:
+                with open(self.auth_log, 'a') as stream:
+                    stream.write(method + ' ' + path + ' ' + self.auth_hash(authorization) + '\n')
             if body and self.payloads:
                 with open(self.payloads, 'a') as stream:
                     stream.write(json.dumps({'method': method, 'path': path, 'body': json.loads(body)}) + '\n')

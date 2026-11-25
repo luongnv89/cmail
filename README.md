@@ -139,6 +139,7 @@ confirmation code arrives through the forwarding that `setup` created, so run
 | `cmail forward ADDRESS --destination EMAIL` | Change where an existing address forwards; asks before writing. The new inbox must be verified first (cmail offers to send the verification email, then you rerun) |
 | `cmail doctor [--offline]` | Read-only configuration, registrar tool, and authentication checks |
 | `cmail send-as` | Optional guided Gmail "Send mail as" |
+| `cmail sending enable [--dmarc auto\|none\|reject] [--dry-run]` | Onboard the domain to free Cloudflare Email Sending with a separate sending-only token; shows the DNS records and DMARC outcome and asks before writing. Never edits DNS: with `--dmarc none` you add `_dmarc` by hand first |
 | `cmail config init\|show\|check\|set\|path` | Manage the private configuration |
 | `cmail completion bash\|zsh\|fish` | Print a shell completion script |
 
@@ -179,12 +180,13 @@ atomically; secrets require `--stdin` so they never appear in shell history.
 | `DEST_EMAIL` | Any email address you own that receives forwarded mail; must be a Gmail/Google account only for `send-as` |
 | `ADDRESSES` | Comma-separated local parts, e.g. `hello,contact,me` (default `hello`) |
 | `CLOUDFLARE_API_TOKEN` | Zone:Read (Zone:Edit only if cmail adds the domain), Zone Settings:Edit, Email Routing Rules:Edit, Account Email Routing Addresses:Edit. Account Resources: only the account that owns the domain; Zone Resources: that domain (or all zones from that account when cmail adds it). Never All accounts. See [step 3 of the setup guide](docs/setup.md#3-create-a-cloudflare-api-token) |
+| `CF_SENDING_TOKEN` | Optional secret for `cmail sending enable`: a separate token with only Email Sending · Edit (Account Resources: the owning account; Zone Resources: the domain). Never the same as `CLOUDFLARE_API_TOKEN` |
 | `REGISTRAR` | `manual` (default, any registrar) or `godaddy` (opt-in `gddy` automation) |
 | `GDDY_ENV` | GoDaddy environment (default `prod`) |
 | `GDDY_PAT` | Optional PAT instead of browser OAuth for headless GoDaddy runs |
 | `CF_ZONE_ID` | Saved by `setup`; reused by `status`, `list` and `forward` |
 | `CF_ACCOUNT_ID` | Optional 32-character account ID; selects the account when several are visible. Does not grant API permissions. |
-| `DRY_RUN` | `1` makes `setup` run its read-only preview (same as `--dry-run`) |
+| `DRY_RUN` | `1` makes `setup` and `sending enable` run their read-only preview (same as `--dry-run`) |
 
 Upgrading from 0.3 or earlier: a checkout's `./.env` is no longer read
 automatically. Move it to `~/.config/cmail/.env` (keep `chmod 600`) or pass

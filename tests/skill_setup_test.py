@@ -219,7 +219,8 @@ class HelperTests(unittest.TestCase):
             result = self.run_script(SCRIPT, "--summary", path)
             self.assertEqual(result.returncode, 0, result.stderr)
             for line in ("DOMAIN=example.com", "DEST_EMAIL=user@gmail.com", "ADDRESSES=hello,contact",
-                         "CLOUDFLARE_API_TOKEN set", "GDDY_PAT empty", "CF_ZONE_ID absent", "READY:"):
+                         "CLOUDFLARE_API_TOKEN set", "CF_SENDING_TOKEN absent", "GDDY_PAT empty", "CF_ZONE_ID absent",
+                         "READY:"):
                 self.assertIn(line, result.stdout)
             self.assertNotIn("synthetic fixture", result.stdout + result.stderr)
             partial = self.private(tmp, "DOMAIN=example.com\nCLOUDFLARE_API_TOKEN=\n", "partial.env")
@@ -298,7 +299,7 @@ class HelperTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = self.private(tmp, FIXTURE)
             before = path.read_bytes()
-            for arg in ("CLOUDFLARE_API_TOKEN=x", "GDDY_PAT=x", "DOMAIN=https://x", "PATH=/tmp",
+            for arg in ("CLOUDFLARE_API_TOKEN=x", "CF_SENDING_TOKEN=x", "GDDY_PAT=x", "DOMAIN=https://x", "PATH=/tmp",
                         "ADDRESSES=a,a", "DOMAIN", "DOMAIN=example.org DOMAIN=example.net"):
                 with self.subTest(arg=arg):
                     result = self.run_script(SETTER, path, *arg.split(" "))
@@ -543,12 +544,14 @@ class SkillContractTests(unittest.TestCase):
             path.write_text(FIXTURE)
             path.chmod(0o600)
             env = {k: v for k, v in os.environ.items() if not k.startswith("CMAIL_") and k not in (
-                "DOMAIN", "DEST_EMAIL", "ADDRESSES", "CLOUDFLARE_API_TOKEN", "REGISTRAR", "GDDY_ENV",
-                "GDDY_PAT", "CF_ZONE_ID", "CF_ACCOUNT_ID", "DRY_RUN", "ENV_FILE")}
-            # Any provider call would fail against a closed loopback port.
-            env.update(ENV_FILE=str(path), CMAIL_CF_API="http://127.0.0.1:9/client/v4")
+                "DOMAIN", "DEST_EMAIL", "ADDRESSES", "CLOUDFLARE_API_TOKEN", "CF_SENDING_TOKEN", "REGISTRAR",
+                "GDDY_ENV", "GDDY_PAT", "CF_ZONE_ID", "CF_ACCOUNT_ID", "DRY_RUN", "ENV_FILE")}
+            # Any provider or public DNS call would fail against a closed loopback port.
+            env.update(ENV_FILE=str(path), CMAIL_CF_API="http://127.0.0.1:9/client/v4",
+                       CMAIL_DOH_URL="http://127.0.0.1:9/dns-query")
             before = path.read_bytes()
-            for args in (["setup"], ["forward", "hello", "--destination", "new@example.org"], ["send-as"]):
+            for args in (["setup"], ["forward", "hello", "--destination", "new@example.org"], ["send-as"],
+                         ["sending", "enable"], ["sending", "enable", "--dmarc", "none"]):
                 for stdin in ("", "y\n", "y\n\n"):
                     with self.subTest(args=args, stdin=stdin):
                         result = subprocess.run([str(BIN), *args], input=stdin, text=True, env=env,

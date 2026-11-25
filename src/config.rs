@@ -12,11 +12,12 @@ use std::io::Write;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
-pub const KEYS: [&str; 10] = [
+pub const KEYS: [&str; 11] = [
     "DOMAIN",
     "DEST_EMAIL",
     "ADDRESSES",
     "CLOUDFLARE_API_TOKEN",
+    "CF_SENDING_TOKEN",
     "REGISTRAR",
     "GDDY_ENV",
     "GDDY_PAT",
@@ -32,7 +33,7 @@ pub fn key_valid(key: &str) -> bool {
 }
 
 pub fn is_secret(key: &str) -> bool {
-    matches!(key, "CLOUDFLARE_API_TOKEN" | "GDDY_PAT")
+    matches!(key, "CLOUDFLARE_API_TOKEN" | "CF_SENDING_TOKEN" | "GDDY_PAT")
 }
 
 /// `--config` > `CMAIL_CONFIG` > `ENV_FILE` > `${XDG_CONFIG_HOME:-~/.config}/cmail/.env`.
@@ -261,7 +262,7 @@ pub fn field_valid(key: &str, value: &str) -> bool {
         "GDDY_ENV" => matches!(value, "prod" | "ote"),
         "CF_ACCOUNT_ID" | "CF_ZONE_ID" => value.len() == 32 && value.bytes().all(|c| c.is_ascii_hexdigit()),
         "DRY_RUN" => matches!(value, "0" | "1"),
-        "CLOUDFLARE_API_TOKEN" | "GDDY_PAT" => value.bytes().all(printable),
+        "CLOUDFLARE_API_TOKEN" | "CF_SENDING_TOKEN" | "GDDY_PAT" => value.bytes().all(printable),
         _ => false,
     }
 }
@@ -492,7 +493,7 @@ pub fn public_value(config: &Config, key: &str) -> String {
             run >= 32
         })
     };
-    let leaks = ["CLOUDFLARE_API_TOKEN", "GDDY_PAT"].iter().any(|secret| {
+    let leaks = KEYS.iter().filter(|key| is_secret(key)).any(|secret| {
         let token = config.get(secret);
         !token.is_empty() && value.contains(token)
     });
@@ -607,5 +608,16 @@ mod tests {
         config.put("CLOUDFLARE_API_TOKEN", "tok123");
         config.put("DOMAIN", "tok123.example.com");
         assert_eq!(public_value(&config, "DOMAIN"), "<redacted>");
+        config.put("CLOUDFLARE_API_TOKEN", "");
+        config.put("CF_SENDING_TOKEN", "send456");
+        config.put("DEST_EMAIL", "send456@example.net");
+        assert_eq!(public_value(&config, "DEST_EMAIL"), "<redacted>");
+    }
+
+    #[test]
+    fn sending_token_is_a_secret_key() {
+        assert!(key_valid("CF_SENDING_TOKEN") && is_secret("CF_SENDING_TOKEN"));
+        assert!(field_valid("CF_SENDING_TOKEN", "abc_DEF-123"));
+        assert!(!field_valid("CF_SENDING_TOKEN", "a\tb"));
     }
 }

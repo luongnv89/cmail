@@ -3,10 +3,11 @@
 mod config_cmd;
 mod doctor;
 mod forward;
+mod sending;
 mod setup;
 mod status;
 
-use crate::cli::{self, Command, Invocation, Shell};
+use crate::cli::{self, Command, Invocation, SendingCommand, Shell};
 use crate::config;
 use crate::error::Result;
 
@@ -20,6 +21,8 @@ pub fn dispatch(invocation: &Invocation) -> Result<()> {
         Command::Forward(args) => forward::forward(path, args),
         Command::Doctor { offline } => doctor::doctor(path, *offline),
         Command::SendAs => setup::send_as(path),
+        Command::Sending { command: Some(SendingCommand::Enable(args)) } => sending::enable(path, args),
+        Command::Sending { command: None } => Ok(()),
         Command::Config { command: Some(sub) } => config_cmd::run(sub, path),
         Command::Config { command: None } => Ok(()),
         Command::Completion { shell } => {

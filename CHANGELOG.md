@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- New `cmail sending enable [--dmarc auto|none|reject] [--dry-run]` onboards
+  the domain to free Cloudflare Email Sending (#43). It uses a separate,
+  sending-only token in the new secret `CF_SENDING_TOKEN` (one permission:
+  Email Sending · Edit); `CLOUDFLARE_API_TOKEN` keeps its four permissions
+  and is never sent to Email Sending. It shows the `cf-bounce` records and
+  the DMARC outcome before asking, reads `_dmarc` over public DNS and never
+  edits DNS. With `--dmarc none` it waits for a `p=none` record you add by
+  hand and never onboards while `_dmarc` is missing.
+
 ## v0.5.0 — 2026-11-02
 
 - Running `cmail` with no command now lists the configured domain's
