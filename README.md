@@ -182,7 +182,7 @@ atomically; secrets require `--stdin` so they never appear in shell history.
 | `ADDRESSES` | Comma-separated local parts, e.g. `hello,contact,me` (default `hello`) |
 | `NOTIFY_FROM` | Optional local part `cmail notify` sends from, as `NOTIFY_FROM@DOMAIN` (default: the first `ADDRESSES` entry) |
 | `CLOUDFLARE_API_TOKEN` | Zone:Read (Zone:Edit only if cmail adds the domain), Zone Settings:Edit, Email Routing Rules:Edit, Account Email Routing Addresses:Edit. Account Resources: only the account that owns the domain; Zone Resources: that domain (or all zones from that account when cmail adds it). Never All accounts. See [step 3 of the setup guide](docs/setup.md#3-create-a-cloudflare-api-token) |
-| `CF_SENDING_TOKEN` | Optional secret for `cmail sending enable`: a separate token with only Email Sending · Edit (Account Resources: the owning account; Zone Resources: the domain). Never the same as `CLOUDFLARE_API_TOKEN` |
+| `CF_SENDING_TOKEN` | Optional secret used by `cmail sending enable` and `cmail notify`: a separate token with only Email Sending · Edit (Account Resources: the owning account; Zone Resources: the domain). Never the same as `CLOUDFLARE_API_TOKEN` |
 | `REGISTRAR` | `manual` (default, any registrar) or `godaddy` (opt-in `gddy` automation) |
 | `GDDY_ENV` | GoDaddy environment (default `prod`) |
 | `GDDY_PAT` | Optional PAT instead of browser OAuth for headless GoDaddy runs |
