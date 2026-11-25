@@ -5,7 +5,7 @@
 //! the owning account and the destination list, and is never sent to `/email/sending/*`.
 
 use crate::cli::NotifyArgs;
-use crate::cloudflare::{codes_text, nonempty_str, send_hint, warn_transport, Cf, Failure, ListError};
+use crate::cloudflare::{codes_text, nonempty_str, send_hint, sending_hint, Cf, ListError};
 use crate::commands::sending::{failure_text, find, require_sending_token};
 use crate::config::{self, Config, Overrides};
 use crate::error::{config_error, die, usage, Error, Result};
@@ -49,8 +49,14 @@ pub fn notify(path: PathBuf, args: &NotifyArgs) -> Result<()> {
         }
     }
     let subject = args.subject.as_deref().unwrap_or(DEFAULT_SUBJECT);
-    if subject.contains(['\r', '\n']) {
+    if subject.contains(['\r', '\n', '\u{2028}', '\u{2029}']) {
         return usage("--subject must be a single line");
+    }
+    if subject.chars().any(|c| c.is_control() && c != '\t') {
+        return usage("--subject must be printable text: no control characters other than tab");
+    }
+    if subject.trim().is_empty() {
+        return usage("--subject must not be blank");
     }
     if subject.chars().count() > MAX_SUBJECT {
         return usage(format!("--subject must be at most {MAX_SUBJECT} characters"));
@@ -120,16 +126,18 @@ pub fn notify(path: PathBuf, args: &NotifyArgs) -> Result<()> {
     let onboarding = onboarding(&sending, zone.as_deref(), &domain)?;
     let path = format!("/accounts/{account}/email/sending/send");
     let payload = json!({"from": from, "to": [to], "subject": subject, "text": body});
-    let response = match sending.attempt("POST", &path, Some(&payload), None) {
+    let response = match sending.call("POST", &path, Some(&payload), None)? {
         Ok(response) => response,
-        Err(Failure::Transport(kind)) => {
-            warn_transport("POST");
-            return die(format!("Cloudflare request failed: POST {path} ({kind})"));
-        }
-        Err(Failure::Api(error)) => {
-            ui::warn(&send_hint(error.status, &error.codes, &error.detail, &domain, &to));
-            if onboarding == Onboarding::Missing && matches!(error.status, 403 | 404) {
-                ui::warn("onboard first: cmail sending enable");
+        Err(error) => {
+            match send_hint(error.status, &error.codes, &error.detail, &domain, &to) {
+                Some(hint) => ui::warn(&hint),
+                // Only an answer cmail has no documented hint for can mean "not onboarded".
+                None => {
+                    ui::warn(&sending_hint(error.status, &error.codes, &domain));
+                    if onboarding == Onboarding::Missing && matches!(error.status, 403 | 404) {
+                        ui::warn("onboard first: cmail sending enable");
+                    }
+                }
             }
             return die(format!(
                 "Cloudflare API error: POST {path} (HTTP {} with {}): {}",
@@ -143,10 +151,13 @@ pub fn notify(path: PathBuf, args: &NotifyArgs) -> Result<()> {
 }
 
 /// The message from stdin: UTF-8 text without NUL, at most MAX_BODY bytes once one
-/// trailing LF is dropped (the same convention as `config set --stdin`).
+/// trailing line ending (LF, or CRLF as a unit) is dropped.
 fn read_body() -> Result<String> {
-    let mut bytes = term::read_stdin_bytes(MAX_BODY + 2);
-    if bytes.last() == Some(&b'\n') {
+    // Up to two bytes may be dropped, so reading one more keeps any oversize input above the cap.
+    let mut bytes = term::read_stdin_bytes(MAX_BODY + 3);
+    if bytes.ends_with(b"\r\n") {
+        bytes.truncate(bytes.len() - 2);
+    } else if bytes.last() == Some(&b'\n') {
         bytes.pop();
     }
     let invalid = || config_error(format!("stdin must be UTF-8 text without NUL, at most {MAX_BODY} bytes"));

@@ -143,10 +143,21 @@ class Success(Notify):
         self.expect(self.run_notify('--stdin', stdin=body + '\n'), 0, 'sent (message_id msg-1)')
         self.assertEqual(self.sent()[0]['text'], body)
 
+    def test_stdin_body_drops_a_trailing_crlf_as_a_unit(self):
+        self.expect(self.run_notify('--stdin', stdin=b'a\r\nb\r\n'), 0, 'sent (message_id msg-1)')
+        self.assertEqual(self.sent()[0]['text'], 'a\r\nb')
+
     def test_stdin_body_at_the_size_limit_is_sent(self):
         body = 'a' * (256 * 1024)
-        self.expect(self.run_notify('--stdin', stdin=body + '\n'), 0)
-        self.assertEqual(self.sent()[0]['text'], body)
+        for ending in ('\n', '\r\n'):
+            with self.subTest(ending=ending):
+                self.payloads.unlink(missing_ok=True)
+                self.expect(self.run_notify('--stdin', stdin=body + ending), 0)
+                self.assertEqual(self.sent()[0]['text'], body)
+
+    def test_subject_may_contain_a_tab(self):
+        self.expect(self.run_notify('--subject', 'backup\tok', 'hi'), 0)
+        self.assertEqual(self.sent()[0]['subject'], 'backup\tok')
 
     def test_subject_at_the_length_limit_is_sent(self):
         self.expect(self.run_notify('--subject', 'é' * 998, 'hi'), 0)
@@ -290,6 +301,20 @@ class Onboarding(Notify):
         self.save()
         self.assertNotIn(ONBOARD, self.run_notify('hi').stderr)
 
+    def test_documented_403_codes_never_add_onboard_first(self):
+        # Not onboarded, but Cloudflare's own code explains the refusal: its hint alone is the answer.
+        self.fixtures[LIST] = ok([])
+        cases = [(10208, 'owner@example.net is not a verified destination address'),
+                 (10102, 'sending token lacks permission'),
+                 (10105, 'not entitled to Email Sending')]
+        for code, hint in cases:
+            with self.subTest(code=code):
+                self.fixtures[SEND_KEY] = fail(403, code)
+                self.save()
+                result = self.run_notify('hi')
+                self.expect(result, 1, LEGACY, hint, 'HTTP 403 with error code %d' % code)
+                self.assertNotIn(ONBOARD, result.stderr)
+
     def test_unreadable_sending_list_warns_and_still_sends(self):
         cases = [(ok([{'tag': 't1', 'enabled': True}]), 'sending subdomain without a name — trying the send anyway'),
                  (ok([{'tag': 't1', 'name': 'example.com'}]), 'without a valid enabled state'),
@@ -432,6 +457,15 @@ class Refusals(Notify):
             (['--subject', 'two\nlines', 'hi'], '--subject must be a single line'),
             (['--subject', 'Bcc: x\r', 'hi'], '--subject must be a single line'),
             (['--subject', 'é' * 999, 'hi'], '--subject must be at most 998 characters'),
+            (['--subject', 'a\u2028b', 'hi'], '--subject must be a single line'),
+            (['--subject', 'a\u2029b', 'hi'], '--subject must be a single line'),
+            (['--subject', 'bell\x07', 'hi'], '--subject must be printable text'),
+            (['--subject', 'tab\x0bvt', 'hi'], '--subject must be printable text'),
+            (['--subject', '\x1b[31mred', 'hi'], '--subject must be printable text'),
+            (['--subject', 'del\x7f', 'hi'], '--subject must be printable text'),
+            (['--subject', 'nel\u0085', 'hi'], '--subject must be printable text'),
+            (['--subject', '   ', 'hi'], '--subject must not be blank'),
+            (['--subject', '\t', 'hi'], '--subject must not be blank'),
             ([''], 'a value is required'),
             (['--subject', '', 'hi'], 'a value is required'),
             (['hi', 'extra'], 'unexpected argument'),
@@ -456,7 +490,9 @@ class Refusals(Notify):
                  (b'ab\x00cd', 'stdin must be UTF-8 text without NUL, at most 262144 bytes'),
                  (b'caf\xe9\n', 'stdin must be UTF-8 text without NUL'),
                  (b'a' * (256 * 1024 + 1), 'at most 262144 bytes'),
-                 (b'a' * (256 * 1024) + b'\n\n', 'at most 262144 bytes')]
+                 (b'a' * (256 * 1024) + b'\n\n', 'at most 262144 bytes'),
+                 (b'a' * (256 * 1024) + b'\r\nx', 'at most 262144 bytes'),
+                 (b'a' * (256 * 1024) + b'\r\n\r\n', 'at most 262144 bytes')]
         for stdin, text in cases:
             with self.subTest(stdin=stdin[:12], size=len(stdin)):
                 self.refused_before_any_request(self.run_notify('--stdin', stdin=stdin), 3, text)

@@ -76,6 +76,21 @@ fn whole_number(value: &Value) -> Option<u64> {
 /// Hint for a failed `/email/sending/` call: Cloudflare's documented codes first, then a generic
 /// message that names the HTTP status and code, so an unknown answer is never mistaken for a known one.
 pub fn sending_hint(status: u16, codes: &[i64], domain: &str) -> String {
+    documented_sending_hint(status, codes, domain).unwrap_or_else(|| {
+        let code = codes_text(codes);
+        let mut hint = format!(
+            "Cloudflare answered HTTP {status} with {code}, which cmail does not recognise for Email Sending — see https://developers.cloudflare.com/email-service/reference/troubleshooting/"
+        );
+        if status == 401 || status == 403 {
+            hint.push_str(&format!("; check CF_SENDING_TOKEN is active and grants Email Sending · Edit for {domain}"));
+        }
+        hint
+    })
+}
+
+/// The answer for a documented Email Sending failure (a known code, a rate limit or a service
+/// error), or None when only the generic message fits.
+fn documented_sending_hint(status: u16, codes: &[i64], domain: &str) -> Option<String> {
     let known = codes.iter().find_map(|code| match (status, code) {
         (401, 10101) => Some(
             "sending token rejected — replace CF_SENDING_TOKEN (cmail config set CF_SENDING_TOKEN --stdin) with an active token"
@@ -98,40 +113,34 @@ pub fn sending_hint(status: u16, codes: &[i64], domain: &str) -> String {
         ),
         _ => None,
     });
-    if let Some(hint) = known {
-        return hint;
+    if known.is_some() {
+        return known;
     }
     if status == 429 {
-        return "Cloudflare sending limit reached (rate or daily quota) — retry later; new accounts start with a conservative daily quota".into();
+        return Some("Cloudflare sending limit reached (rate or daily quota) — retry later; new accounts start with a conservative daily quota".into());
     }
     if (500..600).contains(&status) {
-        return "Cloudflare service error — check https://www.cloudflarestatus.com/ and retry later; inspect the dashboard first if a write was attempted".into();
+        return Some("Cloudflare service error — check https://www.cloudflarestatus.com/ and retry later; inspect the dashboard first if a write was attempted".into());
     }
-    let code = codes_text(codes);
-    let mut hint = format!(
-        "Cloudflare answered HTTP {status} with {code}, which cmail does not recognise for Email Sending — see https://developers.cloudflare.com/email-service/reference/troubleshooting/"
-    );
-    if status == 401 || status == 403 {
-        hint.push_str(&format!("; check CF_SENDING_TOKEN is active and grants Email Sending · Edit for {domain}"));
-    }
-    hint
+    None
 }
 
-/// Hint for a failed `/email/sending/send` to `recipient`: the recipient-specific answers first,
-/// then [`sending_hint`]. Cloudflare documents no code for a suppressed recipient (only HTTP 400),
-/// so suppression is recognised by its message, never by a bare 400.
-pub fn send_hint(status: u16, codes: &[i64], detail: &str, domain: &str, recipient: &str) -> String {
+/// The documented answer for a failed `/email/sending/send` to `recipient`: the recipient-specific
+/// answers first, then [`sending_hint`]'s documented ones. None means only the generic message fits
+/// (use [`sending_hint`] for it). Cloudflare documents no code for a suppressed recipient (only
+/// HTTP 400), so suppression is recognised by its message, never by a bare 400.
+pub fn send_hint(status: u16, codes: &[i64], detail: &str, domain: &str, recipient: &str) -> Option<String> {
     if status == 403 && codes.contains(&10208) {
-        return format!(
+        return Some(format!(
             "{recipient} is not a verified destination address. On the Workers Free plan Cloudflare only sends to verified destinations; verify it with cmail forward/setup or the dashboard. Sending to anyone needs Workers Paid (see docs)."
-        );
+        ));
     }
     if status == 400 && detail.to_ascii_lowercase().contains("suppress") {
-        return format!(
+        return Some(format!(
             "Cloudflare suppressed {recipient} after a bounce or complaint — check Compute > Email Service > Email Sending > Suppressions; hard bounces expire after 7 days"
-        );
+        ));
     }
-    sending_hint(status, codes, domain)
+    documented_sending_hint(status, codes, domain)
 }
 
 /// `no error code`, `error code 10102`, or `error codes 1000, 1001`.
@@ -282,20 +291,7 @@ impl Cf {
         if (200..300).contains(&status) && success {
             return Ok(parsed.unwrap());
         }
-        let mut detail = match &parsed {
-            _ if body.is_empty() => "empty response body".to_string(),
-            Some(v) => match v.get("errors") {
-                Some(errors) if truthy(errors) => errors.to_string(),
-                _ => v.to_string(),
-            },
-            None => format!("non-JSON response: {}", body.chars().take(500).collect::<String>()),
-        };
-        for secret in [&self.token, &self.other_secret] {
-            if !secret.is_empty() {
-                detail = detail.replace(secret.as_str(), "[redacted]");
-            }
-        }
-        let detail: String = detail.chars().take(1000).collect();
+        let detail = self.error_detail(&body, parsed.as_ref());
         let codes = parsed
             .as_ref()
             .and_then(|v| v.get("errors"))
@@ -303,6 +299,26 @@ impl Cf {
             .map(|errors| errors.iter().filter_map(|e| e.get("code").and_then(Value::as_i64)).collect())
             .unwrap_or_default();
         Err(Failure::Api(ApiError { status, codes, detail }))
+    }
+
+    /// The redacted, length-capped description of a failed answer. Tokens are replaced before any
+    /// cut, so a token that straddles a cut can never leave a prefix behind.
+    fn error_detail(&self, body: &str, parsed: Option<&Value>) -> String {
+        let redact = |text: String| {
+            [&self.token, &self.other_secret]
+                .into_iter()
+                .filter(|secret| !secret.is_empty())
+                .fold(text, |text, secret| text.replace(secret.as_str(), "[redacted]"))
+        };
+        let detail = match parsed {
+            _ if body.is_empty() => "empty response body".to_string(),
+            Some(v) => match v.get("errors") {
+                Some(errors) if truthy(errors) => errors.to_string(),
+                _ => v.to_string(),
+            },
+            None => format!("non-JSON response: {}", redact(body.to_string()).chars().take(500).collect::<String>()),
+        };
+        redact(detail).chars().take(1000).collect()
     }
 
     /// Print the hint for a failed call and stop with its status and redacted detail.
@@ -734,24 +750,50 @@ mod tests {
 
     #[test]
     fn send_hints_name_the_recipient_then_follow_the_error_table() {
-        let unverified = send_hint(403, &[10208], "", "example.com", "Owner@Example.net");
+        let unverified = send_hint(403, &[10208], "", "example.com", "Owner@Example.net").unwrap();
         assert!(unverified.starts_with("Owner@Example.net is not a verified destination address."), "{unverified}");
         assert!(unverified.contains("Workers Free plan") && unverified.contains("Workers Paid"), "{unverified}");
         let detail = r#"[{"code":10001,"message":"Recipient is SUPPRESSED"}]"#;
         assert_eq!(
-            send_hint(400, &[10001], detail, "example.com", "me@example.net"),
-            "Cloudflare suppressed me@example.net after a bounce or complaint — check Compute > Email Service > Email Sending > Suppressions; hard bounces expire after 7 days"
+            send_hint(400, &[10001], detail, "example.com", "me@example.net").as_deref(),
+            Some("Cloudflare suppressed me@example.net after a bounce or complaint — check Compute > Email Service > Email Sending > Suppressions; hard bounces expire after 7 days")
         );
-        // A bare 400 (or the suppression word on another status) is not a suppression.
+        // A bare 400 (or the suppression word on another status) is not a suppression: no documented answer.
         let schema = r#"[{"code":10001,"message":"email.sending.error.invalid_request_schema"}]"#;
-        let bare = send_hint(400, &[10001], schema, "example.com", "me@example.net");
-        assert!(!bare.contains("suppressed") && bare.contains("HTTP 400 with error code 10001"), "{bare}");
-        assert!(!send_hint(403, &[10102], "suppressed", "x", "me@example.net").contains("suppressed me@"));
-        // 10208 needs its documented status; every other answer is sending_hint's, unchanged.
-        assert_eq!(send_hint(401, &[10208], "", "x", "me@example.net"), sending_hint(401, &[10208], "x"));
+        assert_eq!(send_hint(400, &[10001], schema, "example.com", "me@example.net"), None);
+        assert!(!send_hint(403, &[10102], "suppressed", "x", "me@example.net").unwrap().contains("suppressed me@"));
+        // 10208 needs its documented status; every other documented answer is sending_hint's, unchanged.
+        assert_eq!(send_hint(401, &[10208], "", "x", "me@example.net"), None);
         for (status, codes) in [(401, vec![10101]), (403, vec![10102]), (429, vec![10004]), (503, vec![10100])] {
-            assert_eq!(send_hint(status, &codes, "", "x", "me@example.net"), sending_hint(status, &codes, "x"));
+            assert_eq!(send_hint(status, &codes, "", "x", "me@example.net"), Some(sending_hint(status, &codes, "x")));
         }
+        // Unknown answers have no documented hint; sending_hint gives the generic one.
+        for (status, codes) in [(403, vec![10999]), (404, vec![10000]), (418, vec![])] {
+            assert_eq!(send_hint(status, &codes, "", "x", "me@example.net"), None);
+            assert!(sending_hint(status, &codes, "x").contains("which cmail does not recognise"));
+        }
+    }
+
+    #[test]
+    fn tokens_are_redacted_before_a_non_json_body_is_cut() {
+        let token = "T0ken_".repeat(7);
+        let cf = Cf {
+            token: token.clone(),
+            other_secret: "other-secret-value".into(),
+            base: String::new(),
+            domain: String::new(),
+        };
+        // The token starts 10 characters before the 500-character cut, so a cut taken first would keep
+        // its first 10 characters.
+        let body = format!("{}{token} and other-secret-value {}", "x".repeat(490), "y".repeat(600));
+        let detail = cf.error_detail(&body, None);
+        assert!(detail.starts_with("non-JSON response: xxx"), "{detail}");
+        assert!(!detail.contains(&token[..10]), "token prefix leaked: {detail}");
+        assert_eq!(detail, format!("non-JSON response: {}[redacted]", "x".repeat(490)));
+        // JSON answers are redacted too.
+        let json_body = json!({"success": false, "errors": [{"code": 1, "message": format!("bad {token}")}]});
+        let detail = cf.error_detail(&json_body.to_string(), Some(&json_body));
+        assert!(detail.contains("bad [redacted]") && !detail.contains(&token[..10]), "{detail}");
     }
 
     #[test]
