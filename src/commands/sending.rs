@@ -328,7 +328,8 @@ fn wait_for_dmarc(domain: &str) -> Result<()> {
     ui::note(&format!("waiting for _dmarc.{domain} in public DNS (rechecking every 15s, up to {limit}s)…"));
     let mut errors = 0;
     let mut last_error = None;
-    for round in 0..limit.div_ceil(15).max(1) {
+    let rounds = limit.div_ceil(15).max(1);
+    for round in 0..rounds {
         // Whole seconds left, rounded up: a fraction of a second still earns its re-check.
         let left = deadline.saturating_duration_since(Instant::now()).as_millis().div_ceil(1000) as u64;
         if left == 0 && round > 0 {
@@ -349,8 +350,11 @@ fn wait_for_dmarc(domain: &str) -> Result<()> {
                 if errors > DOH_RETRIES {
                     return unreadable(domain, &reason);
                 }
+                // Only promise a retry when another re-check will actually run.
+                let retry = round + 1 < rounds && Instant::now() < deadline;
+                let next = if retry { "retrying" } else { "no time left to retry" };
                 ui::warn(&format!(
-                    "could not read _dmarc.{domain} from public DNS ({reason}) — retrying ({errors}/{DOH_RETRIES})"
+                    "could not read _dmarc.{domain} from public DNS ({reason}) ({errors}/{DOH_RETRIES}) — {next}"
                 ));
                 last_error = Some(reason);
             }

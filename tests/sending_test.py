@@ -367,12 +367,15 @@ class Dmarc(Sending):
         self.fixtures[LIST] = {'_sequence': [ok([]), ok([entry(True)])]}
         self.save()
         result = self.run_tty('--dmarc', 'none', answer='y\n')
-        self.expect(result, 0, 'retrying (1/3)', 'retrying (3/3)', '_dmarc.example.com found',
-                    'Email Sending enabled for example.com')
+        self.expect(result, 0, '(HTTP 500) (1/3) — retrying', '(HTTP 500) (3/3) — retrying',
+                    '_dmarc.example.com found', 'Email Sending enabled for example.com')
+        self.assertNotIn('no time left to retry', result.stderr)
         self.assertEqual(self.writes(), [POST])
         # A fourth in a row, or an unreadable final re-check, fails closed: no write, never "found".
-        for answers, args in (([MISSING, blip, blip, blip, blip], []),
-                              ([MISSING, MISSING, blip], ['--wait-timeout', '30'])):
+        # The final re-check at the deadline promises no retry it cannot make.
+        for answers, args, last in (([MISSING, blip, blip, blip, blip], [], '(3/3) — retrying'),
+                                    ([MISSING, MISSING, blip], ['--wait-timeout', '30'],
+                                     '(HTTP 500) (1/3) — no time left to retry')):
             with self.subTest(answers=answers):
                 self.calls.unlink()
                 self.doh.counts.clear()
@@ -381,7 +384,9 @@ class Dmarc(Sending):
                 self.save()
                 result = self.run_tty('--dmarc', 'none', *args, answer='y\n')
                 self.expect(result, 1, 'could not read _dmarc.example.com from public DNS (HTTP 500)',
-                            'nothing was changed')
+                            'nothing was changed', last)
+                if 'no time left' in last:
+                    self.assertNotIn('— retrying', result.stderr)
                 self.assertNotIn('found', result.stderr)
                 self.assertEqual(self.writes(), [])
 

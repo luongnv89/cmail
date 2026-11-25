@@ -18,6 +18,13 @@ spec = importlib.util.spec_from_file_location("check_config", SCRIPT)
 config = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(config)
 BIN = Path(os.environ.get("CMAIL_BIN", ROOT / "target" / "debug" / "cmail"))
+# The config template `cmail config init` writes (include_str! in src/config.rs).
+ENV_TEMPLATE = ROOT / ".env.example"
+# A credential-shaped run: 20+ token characters mixing letters and digits, or a well-known key prefix.
+TOKEN_SHAPED = re.compile(
+    r"(?<![A-Za-z0-9_\-])(?=[A-Za-z0-9_\-]*[0-9])(?=[A-Za-z0-9_\-]*[A-Za-z])[A-Za-z0-9_\-]{20,}"
+    r"|\b(?:ghp_|gho_|github_pat_|glpat-|sk-|xox[abprs]-|AKIA)[A-Za-z0-9_\-]{8,}"
+)
 
 
 def runtime_source():
@@ -201,6 +208,47 @@ class ConfigTests(unittest.TestCase):
 
 
 SETTER = SKILL / "scripts/set_config.py"
+
+
+def secret_keys():
+    """KEYS entries that src/config.rs `is_secret` marks secret."""
+    source = (ROOT / "src/config.rs").read_text()
+    keys = re.search(r"pub const KEYS: \[&str; \d+\] = \[(.*?)\];", source, re.S)
+    secret = re.search(r"pub fn is_secret\(key: &str\) -> bool \{\s*matches!\(key,(.*?)\)", source, re.S)
+    if not keys or not secret:
+        raise AssertionError("src/config.rs no longer declares KEYS / is_secret in the expected form")
+    return re.findall(r'"(\w+)"', keys.group(1)), re.findall(r'"(\w+)"', secret.group(1))
+
+
+def template_problems(text, secrets):
+    """Why `text` is not a secret-free config template: each secret key must be assigned exactly
+    once with an empty value, and no line (comments included) may carry a token-shaped value."""
+    problems = []
+    for key in secrets:
+        values = [line.split("=", 1)[1].strip() for line in text.splitlines() if line.startswith(key + "=")]
+        if len(values) != 1:
+            problems.append("%s is assigned %d times, expected once" % (key, len(values)))
+        elif values[0] not in ("", "''", '""'):
+            problems.append("%s has a value; the template must leave it empty" % key)
+    for number, line in enumerate(text.splitlines(), 1):
+        if TOKEN_SHAPED.search(line):
+            problems.append("line %d holds a token-shaped value" % number)
+    return problems
+
+
+class TemplateTests(unittest.TestCase):
+    def test_env_template_leaves_every_secret_empty_and_holds_no_token(self):
+        # CI keeps the shipped template credential-free, independent of the IDD scanner's filename rule.
+        keys, secrets = secret_keys()
+        self.assertTrue(secrets, "is_secret lists no keys")
+        self.assertLessEqual(set(secrets), set(keys))
+        self.assertEqual(template_problems(ENV_TEMPLATE.read_text(), secrets), [])
+        # The check itself must bite: a filled secret and a token-shaped comment are both caught.
+        fake = "x9" * 20
+        broken = "CLOUDFLARE_API_TOKEN=" + fake + "\n# pasted: " + fake + "\n"
+        problems = template_problems(broken, ["CLOUDFLARE_API_TOKEN"])
+        self.assertIn("CLOUDFLARE_API_TOKEN has a value; the template must leave it empty", problems)
+        self.assertIn("line 2 holds a token-shaped value", problems)
 
 
 class HelperTests(unittest.TestCase):
