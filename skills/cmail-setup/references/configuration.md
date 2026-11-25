@@ -32,7 +32,7 @@ symlink/shared/unowned paths.
 
 Read the current state with
 `python3 <skill-directory>/scripts/check_config.py --summary <file>`. It prints
-DOMAIN, DEST_EMAIL, ADDRESSES, REGISTRAR, GDDY_ENV, CF_ACCOUNT_ID, CF_ZONE_ID and DRY_RUN,
+DOMAIN, DEST_EMAIL, ADDRESSES, NOTIFY_FROM, REGISTRAR, GDDY_ENV, CF_ACCOUNT_ID, CF_ZONE_ID and DRY_RUN,
 reports CLOUDFLARE_API_TOKEN, CF_SENDING_TOKEN and GDDY_PAT only as set/empty/absent, and ends
 with READY or NOT READY.
 

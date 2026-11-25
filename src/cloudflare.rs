@@ -117,6 +117,23 @@ pub fn sending_hint(status: u16, codes: &[i64], domain: &str) -> String {
     hint
 }
 
+/// Hint for a failed `/email/sending/send` to `recipient`: the recipient-specific answers first,
+/// then [`sending_hint`]. Cloudflare documents no code for a suppressed recipient (only HTTP 400),
+/// so suppression is recognised by its message, never by a bare 400.
+pub fn send_hint(status: u16, codes: &[i64], detail: &str, domain: &str, recipient: &str) -> String {
+    if status == 403 && codes.contains(&10208) {
+        return format!(
+            "{recipient} is not a verified destination address. On the Workers Free plan Cloudflare only sends to verified destinations; verify it with cmail forward/setup or the dashboard. Sending to anyone needs Workers Paid (see docs)."
+        );
+    }
+    if status == 400 && detail.to_ascii_lowercase().contains("suppress") {
+        return format!(
+            "Cloudflare suppressed {recipient} after a bounce or complaint — check Compute > Email Service > Email Sending > Suppressions; hard bounces expire after 7 days"
+        );
+    }
+    sending_hint(status, codes, domain)
+}
+
 /// `no error code`, `error code 10102`, or `error codes 1000, 1001`.
 pub fn codes_text(codes: &[i64]) -> String {
     match codes {
@@ -453,12 +470,13 @@ impl Cf {
         }
     }
 
-    /// Owning account of a zone; never assume the first account owns it.
-    pub fn account_for_zone(&self, zone: &str) -> Result<String> {
+    /// Owning account of a zone; never assume the first account owns it. `unchanged` says
+    /// what the caller has not done yet when the ID is missing.
+    pub fn account_for_zone(&self, zone: &str, unchanged: &str) -> Result<String> {
         let response = self.get(&format!("/zones/{zone}"))?;
         match nonempty_str(&response["result"]["account"]["id"]) {
             Some(account) => Ok(account.to_string()),
-            None => die("Cloudflare zone is missing its account ID — no destination change applied"),
+            None => die(format!("Cloudflare zone is missing its account ID — {unchanged}")),
         }
     }
 
@@ -712,6 +730,28 @@ mod tests {
         assert!(sending_hint(400, &[1, 2], "x").contains("error codes 1, 2"));
         let hint = sending_hint(403, &[10999], "example.com");
         assert!(hint.contains("error code 10999") && hint.contains("Email Sending · Edit"), "{hint}");
+    }
+
+    #[test]
+    fn send_hints_name_the_recipient_then_follow_the_error_table() {
+        let unverified = send_hint(403, &[10208], "", "example.com", "Owner@Example.net");
+        assert!(unverified.starts_with("Owner@Example.net is not a verified destination address."), "{unverified}");
+        assert!(unverified.contains("Workers Free plan") && unverified.contains("Workers Paid"), "{unverified}");
+        let detail = r#"[{"code":10001,"message":"Recipient is SUPPRESSED"}]"#;
+        assert_eq!(
+            send_hint(400, &[10001], detail, "example.com", "me@example.net"),
+            "Cloudflare suppressed me@example.net after a bounce or complaint — check Compute > Email Service > Email Sending > Suppressions; hard bounces expire after 7 days"
+        );
+        // A bare 400 (or the suppression word on another status) is not a suppression.
+        let schema = r#"[{"code":10001,"message":"email.sending.error.invalid_request_schema"}]"#;
+        let bare = send_hint(400, &[10001], schema, "example.com", "me@example.net");
+        assert!(!bare.contains("suppressed") && bare.contains("HTTP 400 with error code 10001"), "{bare}");
+        assert!(!send_hint(403, &[10102], "suppressed", "x", "me@example.net").contains("suppressed me@"));
+        // 10208 needs its documented status; every other answer is sending_hint's, unchanged.
+        assert_eq!(send_hint(401, &[10208], "", "x", "me@example.net"), sending_hint(401, &[10208], "x"));
+        for (status, codes) in [(401, vec![10101]), (403, vec![10102]), (429, vec![10004]), (503, vec![10100])] {
+            assert_eq!(send_hint(status, &codes, "", "x", "me@example.net"), sending_hint(status, &codes, "x"));
+        }
     }
 
     #[test]

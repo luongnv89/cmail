@@ -49,6 +49,7 @@ Configuration defaults to `~/.config/cmail/.env` (`$XDG_CONFIG_HOME/cmail/.env` 
 | `cmail send-as` | Optional manual Gmail sending guide |
 | `cmail sending enable [--dmarc auto\|none\|reject]` | Onboard the domain to Cloudflare Email Sending with a separate sending-only token (`CF_SENDING_TOKEN`), in a terminal; never edits DNS |
 | `cmail sending enable --dry-run` | Read-only Email Sending and DMARC plan |
+| `cmail notify [MESSAGE] [--stdin] [--subject TEXT] [--to EMAIL] [--from LOCAL]` | Send a plain-text message to your own verified inbox with `CF_SENDING_TOKEN`; never prompts, so cron can run it |
 | `cmail config init` | Create mode-600 configuration; preserve existing files |
 | `cmail config show` | Effective settings, with secrets redacted |
 | `cmail config check` | Validate settings and report readiness |
@@ -142,7 +143,7 @@ A successfully generated preview exits 0 even when its `data.blockers` array is 
 
 Results go to stdout. Progress, prompts, warnings, and errors go to stderr. `--quiet` retains results and errors; `--verbose` adds redacted request context. They are mutually exclusive. On a terminal, status, list, doctor, config show/check and setup previews draw boxes with status marks (`●` ok, `▲` attention, `✗` failed). When stdout is piped, they print plain tab-separated records, one per line with no header, so they work with `cut`, `grep` and `awk`. `--format json` remains the stable scripting contract. A non-empty `NO_COLOR` or `--no-color` disables color; `FORCE_COLOR=1` styles output that is not a terminal (never JSON). Outside a UTF-8 locale, boxes use ASCII characters. `--no-browser` prints manual links; with `REGISTRAR=godaddy`, setup also requires an existing PAT in this mode to prevent automatic GoDaddy OAuth.
 
-JSON is available for status, list, doctor, config show/check, setup previews, and `sending enable --dry-run`:
+JSON is available for status, list, doctor, notify, config show/check, setup previews, and `sending enable --dry-run`:
 
 ```json
 {"schema_version":1,"command":"status","data":{"zone":{},"routing":{},"destinations":[],"rules":[]}}

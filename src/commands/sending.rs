@@ -68,12 +68,7 @@ pub fn enable(path: PathBuf, args: &SendingEnableArgs) -> Result<()> {
     }
     let domain = config.get("DOMAIN").to_string();
     let zone = config.get("CF_ZONE_ID").to_string();
-    let main_token = config.get("CLOUDFLARE_API_TOKEN");
-    if !main_token.is_empty() && config.get("CF_SENDING_TOKEN") == main_token {
-        return config_error(
-            "CF_SENDING_TOKEN must be a separate sending-only token, not CLOUDFLARE_API_TOKEN — create one with only Email Sending · Edit and set it with cmail config set CF_SENDING_TOKEN --stdin",
-        );
-    }
+    require_sending_token(&config)?;
     if dry_run {
         return plan(&config, &domain, &zone, args.dmarc);
     }
@@ -122,6 +117,17 @@ pub fn enable(path: PathBuf, args: &SendingEnableArgs) -> Result<()> {
         return die(format!("cancelled — nothing was changed; {domain} is not onboarded for sending"));
     }
     onboard(&cf, &zone, &domain)
+}
+
+/// Refuse CF_SENDING_TOKEN when it is CLOUDFLARE_API_TOKEN: the main token must never reach `/email/sending/*`.
+pub(crate) fn require_sending_token(config: &Config) -> Result<()> {
+    let main_token = config.get("CLOUDFLARE_API_TOKEN");
+    if !main_token.is_empty() && config.get("CF_SENDING_TOKEN") == main_token {
+        return config_error(
+            "CF_SENDING_TOKEN must be a separate sending-only token, not CLOUDFLARE_API_TOKEN — create one with only Email Sending · Edit and set it with cmail config set CF_SENDING_TOKEN --stdin",
+        );
+    }
+    Ok(())
 }
 
 /// POST once, then trust only the read-back: an error counts as success only when
@@ -216,7 +222,7 @@ fn list_after_write(cf: &Cf, zone: &str, domain: &str, after: &str) -> Result<Ve
     }
 }
 
-fn failure_text(failure: &Failure) -> String {
+pub(crate) fn failure_text(failure: &Failure) -> String {
     match failure {
         Failure::Api(error) => format!("HTTP {} with {}", error.status, codes_text(&error.codes)),
         Failure::Transport(kind) => kind.clone(),
@@ -225,7 +231,7 @@ fn failure_text(failure: &Failure) -> String {
 
 /// The entry named DOMAIN (case-insensitive) and its enabled state. Missing fields stop
 /// with a clear message rather than being guessed; `after` says what was (not) changed.
-fn find<'a>(entries: &'a [Value], domain: &str, after: &str) -> Result<Option<(&'a Value, bool)>> {
+pub(crate) fn find<'a>(entries: &'a [Value], domain: &str, after: &str) -> Result<Option<(&'a Value, bool)>> {
     let mut found = None;
     for entry in entries {
         let Some(name) = nonempty_str(&entry["name"]) else {

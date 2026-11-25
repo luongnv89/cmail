@@ -12,10 +12,11 @@ use std::io::Write;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
-pub const KEYS: [&str; 11] = [
+pub const KEYS: [&str; 12] = [
     "DOMAIN",
     "DEST_EMAIL",
     "ADDRESSES",
+    "NOTIFY_FROM",
     "CLOUDFLARE_API_TOKEN",
     "CF_SENDING_TOKEN",
     "REGISTRAR",
@@ -258,6 +259,7 @@ pub fn field_valid(key: &str, value: &str) -> bool {
             }
             !items.is_empty()
         }
+        "NOTIFY_FROM" => local_valid(value),
         "REGISTRAR" => matches!(value, "manual" | "godaddy"),
         "GDDY_ENV" => matches!(value, "prod" | "ote"),
         "CF_ACCOUNT_ID" | "CF_ZONE_ID" => value.len() == 32 && value.bytes().all(|c| c.is_ascii_hexdigit()),
@@ -486,7 +488,7 @@ pub fn ensure_file(path: &Path) -> Result<()> {
 /// contains a secret are shown only as redacted.
 pub fn public_value(config: &Config, key: &str) -> String {
     let value = config.get(key);
-    let opaque = key == "ADDRESSES" && {
+    let opaque = (key == "ADDRESSES" || key == "NOTIFY_FROM") && {
         let mut run = 0;
         value.bytes().any(|b| {
             run = if b.is_ascii_alphanumeric() || b"_+-".contains(&b) { run + 1 } else { 0 };
@@ -549,6 +551,11 @@ mod tests {
         assert!(!field_valid("CF_ZONE_ID", &"g".repeat(32)));
         assert!(!field_valid("GDDY_PAT", "a\tb"));
         assert!(!field_valid("REGISTRAR", "GoDaddy"));
+        assert!(field_valid("NOTIFY_FROM", "alerts") && field_valid("NOTIFY_FROM", "a.b+c_d-1"));
+        for bad in ["", "alerts@example.com", ".alerts", "a b", "a,b", &"a".repeat(65)] {
+            assert!(!field_valid("NOTIFY_FROM", bad), "{bad}");
+        }
+        assert!(key_valid("NOTIFY_FROM") && !is_secret("NOTIFY_FROM"));
     }
 
     fn private(dir: &Path, body: &str) -> PathBuf {
@@ -605,6 +612,10 @@ mod tests {
         }
         config.put("ADDRESSES", &"a".repeat(40));
         assert_eq!(public_value(&config, "ADDRESSES"), "<redacted>");
+        config.put("NOTIFY_FROM", &"x9".repeat(20));
+        assert_eq!(public_value(&config, "NOTIFY_FROM"), "<redacted>");
+        config.put("NOTIFY_FROM", "alerts");
+        assert_eq!(public_value(&config, "NOTIFY_FROM"), "alerts");
         config.put("CLOUDFLARE_API_TOKEN", "tok123");
         config.put("DOMAIN", "tok123.example.com");
         assert_eq!(public_value(&config, "DOMAIN"), "<redacted>");

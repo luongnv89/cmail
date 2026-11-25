@@ -42,6 +42,16 @@ and mail sent as @DOMAIN through other services (such as Gmail Send-as) then
 bounces. --dmarc none makes you add a p=none record by hand first; cmail waits
 for it in public DNS and never onboards while it is missing.";
 
+const NOTIFY_ABOUT: &str = "\
+Send a plain-text message through Cloudflare Email Sending to your own verified
+destination inbox (default: DEST_EMAIL) from LOCAL@DOMAIN, using CF_SENDING_TOKEN.
+Never prompts, so it is safe to run from cron. The default subject is
+\"cmail notification\".
+
+On the Workers Free plan Cloudflare sends only to verified destination addresses,
+so cmail refuses an unverified or unregistered recipient before sending. That
+check needs CLOUDFLARE_API_TOKEN; without it cmail warns and sends anyway.";
+
 #[derive(Parser, Debug)]
 #[command(
     name = "cmail",
@@ -161,6 +171,9 @@ pub enum Command {
         #[command(subcommand)]
         command: Option<SendingCommand>,
     },
+    /// Send a plain-text message to your own verified inbox
+    #[command(long_about = NOTIFY_ABOUT)]
+    Notify(NotifyArgs),
     /// Manage private configuration
     Config {
         #[command(subcommand)]
@@ -232,6 +245,25 @@ pub struct SendingEnableArgs {
     /// Limit the wait for a hand-added _dmarc record
     #[arg(long, value_name = "SECONDS", default_value_t = 1200, value_parser = clap::value_parser!(u64).range(1..=999_999))]
     pub wait_timeout: u64,
+}
+
+#[derive(Args, Debug)]
+pub struct NotifyArgs {
+    /// Message text; mutually exclusive with --stdin
+    #[arg(value_name = "MESSAGE", conflicts_with = "stdin", value_parser = NonEmptyStringValueParser::new())]
+    pub message: Option<String>,
+    /// Read the message from standard input (one trailing newline is dropped)
+    #[arg(long)]
+    pub stdin: bool,
+    /// Subject line (default: cmail notification)
+    #[arg(long, value_name = "TEXT", value_parser = NonEmptyStringValueParser::new())]
+    pub subject: Option<String>,
+    /// Recipient; must be a verified destination address (default: DEST_EMAIL setting)
+    #[arg(long, value_name = "EMAIL", value_parser = NonEmptyStringValueParser::new())]
+    pub to: Option<String>,
+    /// Sender local part, sent as LOCAL@DOMAIN (default: NOTIFY_FROM, else the first ADDRESSES entry)
+    #[arg(long, value_name = "LOCAL", value_parser = NonEmptyStringValueParser::new())]
+    pub from: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -422,6 +454,11 @@ pub fn parse(args: Vec<std::ffi::OsString>, stdout: &Mode) -> Parsed {
             return fail("config set needs KEY and VALUE, or KEY --stdin");
         }
     }
+    if let Some(Command::Notify(args)) = command {
+        if !args.stdin && args.message.is_none() {
+            return fail("notify needs MESSAGE, or --stdin with the message piped in");
+        }
+    }
     if json {
         // No command runs `list`, so it accepts JSON too.
         let allowed = matches!(
@@ -432,11 +469,12 @@ pub fn parse(args: Vec<std::ffi::OsString>, stdout: &Mode) -> Parsed {
                     | Command::Doctor { .. }
                     | Command::Setup(_)
                     | Command::Sending { command: Some(SendingCommand::Enable(_)) }
+                    | Command::Notify(_)
                     | Command::Config { command: Some(ConfigCommand::Show | ConfigCommand::Check) }
             )
         );
         if !allowed {
-            return fail("JSON is available for status, list, doctor, config show/check, setup --dry-run, and sending enable --dry-run");
+            return fail("JSON is available for status, list, doctor, notify, config show/check, setup --dry-run, and sending enable --dry-run");
         }
     }
     Parsed::Run(Box::new(Invocation { cli, json, timeout, verbose, quiet, command_path }))

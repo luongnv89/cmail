@@ -12,14 +12,15 @@ import sys
 
 REQUIRED = ("DOMAIN", "DEST_EMAIL", "ADDRESSES", "CLOUDFLARE_API_TOKEN", "GDDY_ENV")
 SECRETS = ("CLOUDFLARE_API_TOKEN", "CF_SENDING_TOKEN", "GDDY_PAT")
-PUBLIC = ("DOMAIN", "DEST_EMAIL", "ADDRESSES", "REGISTRAR", "GDDY_ENV", "CF_ACCOUNT_ID", "CF_ZONE_ID", "DRY_RUN")
+PUBLIC = ("DOMAIN", "DEST_EMAIL", "ADDRESSES", "NOTIFY_FROM", "REGISTRAR", "GDDY_ENV", "CF_ACCOUNT_ID", "CF_ZONE_ID", "DRY_RUN")
 ALLOWED = set(REQUIRED) | set(SECRETS) | set(PUBLIC)
 DOMAIN = re.compile(r"(?=.{1,253}\Z)(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}\Z")
 LOCAL = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,63}\Z")
 # Keys whose format check alone admits an arbitrary opaque string, so --summary
 # must also screen the value for a token shape before echoing it. Addresses are
-# any comma-separated local parts, so a misplaced credential can pass is_addresses.
-PERMISSIVE = ("ADDRESSES",)
+# any comma-separated local parts (NOTIFY_FROM is one), so a misplaced credential
+# can pass is_addresses or the local-part check.
+PERMISSIVE = ("ADDRESSES", "NOTIFY_FROM")
 # An unbroken run of token-alphabet characters this long is treated as a possible
 # credential (e.g. a 40-character Cloudflare token) rather than an alias. Real
 # cmail local parts are short, so --summary shows <invalid> instead of echoing it.
@@ -107,6 +108,7 @@ FIELDS = {
     "DOMAIN": (lambda v: bool(DOMAIN.fullmatch(v)), "use a domain name without scheme/path"),
     "DEST_EMAIL": (is_email, "use a full receiving email address"),
     "ADDRESSES": (is_addresses, "use unique comma-separated local parts only"),
+    "NOTIFY_FROM": (lambda v: bool(LOCAL.fullmatch(v)), "use one local part such as hello, without @domain"),
     "REGISTRAR": (lambda v: v in ("manual", "godaddy"), "set manual (default, any registrar) or godaddy (opt-in automation)"),
     "GDDY_ENV": (lambda v: v in ("prod", "ote"), "set prod or ote"),
     "CF_ACCOUNT_ID": (lambda v: bool(re.fullmatch(r"[0-9a-fA-F]{32}", v)), "use the intended 32-character hex ID"),

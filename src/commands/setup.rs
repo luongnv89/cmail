@@ -435,7 +435,7 @@ fn destination_ensure(config: &Config, cf: &Cf, zone_id: &str) -> Result<()> {
     let dest = config.get("DEST_EMAIL");
     let domain = config.get("DOMAIN");
     ui::step(&format!("Destination address: {dest}"));
-    let account = cf.account_for_zone(zone_id)?;
+    let account = cf.account_for_zone(zone_id, "no destination change applied")?;
     let find = |list: &[Value]| list.iter().find(|d| d["email"].as_str() == Some(dest)).cloned();
     let destination = match find(&cf.addresses(&account, None)?) {
         Some(found) => {
