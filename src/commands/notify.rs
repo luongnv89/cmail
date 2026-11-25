@@ -160,7 +160,14 @@ fn read_body() -> Result<String> {
     } else if bytes.last() == Some(&b'\n') {
         bytes.pop();
     }
-    let invalid = || config_error(format!("stdin must be UTF-8 text without NUL, at most {MAX_BODY} bytes"));
+    // Still exit 3 (invalid input), but the config hint would point at the wrong thing.
+    let invalid = || {
+        ui::print_input_error(
+            &format!("stdin must be UTF-8 text without NUL, at most {MAX_BODY} bytes; nothing was sent"),
+            &format!("pipe plain UTF-8 text without NUL bytes, at most {MAX_BODY} bytes"),
+        );
+        Err(Error::Exit(3))
+    };
     if bytes.len() > MAX_BODY || bytes.contains(&0) {
         return invalid();
     }

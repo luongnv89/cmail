@@ -498,6 +498,15 @@ class Refusals(Notify):
                 self.refused_before_any_request(self.run_notify('--stdin', stdin=stdin), 3, text)
         self.refused_before_any_request(self.run_notify('   '), 3, 'the message is empty')
 
+    def test_a_refused_stdin_body_gets_an_input_hint_not_the_config_hint(self):
+        for stdin in (b'a\x00b', b'caf\xe9', b'a' * (256 * 1024 + 1)):
+            with self.subTest(size=len(stdin), head=stdin[:6]):
+                result = self.run_notify('--stdin', stdin=stdin)
+                self.refused_before_any_request(
+                    result, 3, 'stdin must be UTF-8 text without NUL, at most 262144 bytes; nothing was sent',
+                    'hint: pipe plain UTF-8 text without NUL bytes, at most 262144 bytes')
+                self.assertNotIn('correct the private config', result.stderr)
+
 
 if __name__ == '__main__':
     unittest.main()

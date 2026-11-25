@@ -302,11 +302,14 @@ impl Cf {
     }
 
     /// The redacted, length-capped description of a failed answer. Tokens are replaced before any
-    /// cut, so a token that straddles a cut can never leave a prefix behind.
+    /// cut, so a token that straddles a cut can never leave a prefix behind. The longer token goes
+    /// first, so one that contains the other can never leave a tail behind.
     fn error_detail(&self, body: &str, parsed: Option<&Value>) -> String {
+        let mut secrets = [&self.token, &self.other_secret];
+        secrets.sort_by_key(|secret| std::cmp::Reverse(secret.len()));
         let redact = |text: String| {
-            [&self.token, &self.other_secret]
-                .into_iter()
+            secrets
+                .iter()
                 .filter(|secret| !secret.is_empty())
                 .fold(text, |text, secret| text.replace(secret.as_str(), "[redacted]"))
         };
@@ -794,6 +797,18 @@ mod tests {
         let json_body = json!({"success": false, "errors": [{"code": 1, "message": format!("bad {token}")}]});
         let detail = cf.error_detail(&json_body.to_string(), Some(&json_body));
         assert!(detail.contains("bad [redacted]") && !detail.contains(&token[..10]), "{detail}");
+    }
+
+    #[test]
+    fn a_token_inside_the_other_token_leaves_no_tail() {
+        let long = "abcdefghijklmnopqrstuvwxyz0123456789ABCD".to_string();
+        let short = long[..20].to_string();
+        // Either client may hold the shorter token; the longer one must still vanish whole.
+        for (token, other_secret) in [(short.clone(), long.clone()), (long.clone(), short.clone())] {
+            let cf = Cf { token, other_secret, base: String::new(), domain: String::new() };
+            let detail = cf.error_detail(&format!("echo {long} and {short}"), None);
+            assert_eq!(detail, "non-JSON response: echo [redacted] and [redacted]");
+        }
     }
 
     #[test]
