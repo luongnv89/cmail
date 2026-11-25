@@ -21,6 +21,13 @@ const DOH: &str = "https://cloudflare-dns.com/dns-query";
 
 const NON_TTY: &str = "sending enable requires terminal input: it may ask about Gmail Send-as (pass --dmarc none or --dmarc reject) and asks you to confirm; run it interactively, or add --dry-run to preview";
 
+/// Ends a malformed-answer message before the POST.
+const UNCHANGED: &str = "nothing was changed";
+
+/// Ends a malformed-answer message after the POST: Cloudflare may already have onboarded
+/// DOMAIN (and, in reject mode, published `p=reject`).
+const UNCONFIRMED: &str = "the onboarding request was sent but its result could not be confirmed — check Compute > Email Service > Email Sending (and the _dmarc record) in the Cloudflare dashboard before rerunning";
+
 const NONE_EXPLANATION: &str = "Gmail \"Send mail as\" delivers through Google's servers, which can't sign with your domain's Cloudflare DKIM key, and your SPF only lists Cloudflare. That mail fails DMARC alignment; with `p=reject` receivers would bounce it. `p=none` only monitors. After Gmail removes third-party Send-as (January 2027), you can raise it to `p=quarantine` or `p=reject`.";
 
 /// What public DNS says about `_dmarc.DOMAIN`.
@@ -53,9 +60,6 @@ pub fn enable(path: PathBuf, args: &SendingEnableArgs) -> Result<()> {
     }
     let domain = config.get("DOMAIN").to_string();
     let zone = config.get("CF_ZONE_ID").to_string();
-    if domain.is_empty() || zone.is_empty() {
-        return config_error("DOMAIN and CF_ZONE_ID are required — run cmail setup first");
-    }
     let main_token = config.get("CLOUDFLARE_API_TOKEN");
     if !main_token.is_empty() && config.get("CF_SENDING_TOKEN") == main_token {
         return config_error(
@@ -65,13 +69,16 @@ pub fn enable(path: PathBuf, args: &SendingEnableArgs) -> Result<()> {
     if dry_run {
         return plan(&config, &domain, &zone, args.dmarc);
     }
+    if domain.is_empty() || zone.is_empty() {
+        return config_error("DOMAIN and CF_ZONE_ID are required — run cmail setup first");
+    }
     if config.get("CF_SENDING_TOKEN").is_empty() {
         ensure_token(&mut config, &domain, &zone)?;
     }
     let cf = Cf::sending(&config)?;
     ui::step(&format!("Cloudflare Email Sending: {domain}"));
-    let entries = cf.sending_subdomains(&zone)?;
-    if find(&entries, &domain)?.is_some_and(|(_, enabled)| enabled) {
+    let entries = cf.sending_subdomains(&zone, UNCHANGED)?;
+    if find(&entries, &domain, false)?.is_some_and(|(_, enabled)| enabled) {
         output::print(&format!("sending already enabled for {domain}"));
         return Ok(());
     }
@@ -112,8 +119,8 @@ pub fn enable(path: PathBuf, args: &SendingEnableArgs) -> Result<()> {
 fn onboard(cf: &Cf, zone: &str, domain: &str) -> Result<()> {
     let path = format!("/zones/{zone}/email/sending/subdomains");
     let posted = cf.call("POST", &path, Some(&json!({"name": domain})), None)?;
-    let entries = cf.sending_subdomains(zone)?;
-    let found = find(&entries, domain)?;
+    let entries = cf.sending_subdomains(zone, UNCONFIRMED)?;
+    let found = find(&entries, domain, true)?;
     if let Err(error) = posted {
         if !found.is_some_and(|(_, enabled)| enabled) {
             return cf.fail("POST", &path, error);
@@ -154,19 +161,23 @@ fn onboard(cf: &Cf, zone: &str, domain: &str) -> Result<()> {
 }
 
 /// The entry named DOMAIN (case-insensitive) and its enabled state. Missing fields stop
-/// with a clear message rather than being guessed.
-fn find<'a>(entries: &'a [Value], domain: &str) -> Result<Option<(&'a Value, bool)>> {
+/// with a clear message rather than being guessed; `sent` says the POST already went out.
+fn find<'a>(entries: &'a [Value], domain: &str, sent: bool) -> Result<Option<(&'a Value, bool)>> {
     let mut found = None;
     for entry in entries {
         let Some(name) = nonempty_str(&entry["name"]) else {
+            if sent {
+                return die(format!("Cloudflare returned a sending subdomain without a name — {UNCONFIRMED}"));
+            }
             return die("Cloudflare returned a sending subdomain without a name — nothing was changed; check Compute > Email Service > Email Sending in the dashboard");
         };
         if !name.eq_ignore_ascii_case(domain) {
             continue;
         }
         let Some(enabled) = entry["enabled"].as_bool() else {
+            let after = if sent { UNCONFIRMED } else { UNCHANGED };
             return die(format!(
-                "Cloudflare returned the sending subdomain {name} without a valid enabled state — nothing was changed"
+                "Cloudflare returned the sending subdomain {name} without a valid enabled state — {after}"
             ));
         };
         if found.is_none() || enabled {
@@ -421,24 +432,39 @@ fn ensure_token(config: &mut Config, domain: &str, zone: &str) -> Result<()> {
     }
 }
 
-/// Read-only plan: no token flow, writes, prompts, browser or waits.
+/// Read-only plan: no token flow, writes, prompts, browser or waits. Missing settings
+/// are blocked checks (exit 0, like setup's plan); each lookup runs only when its inputs exist.
 fn plan(config: &Config, domain: &str, zone: &str, mode: Dmarc) -> Result<()> {
     let mut actions: Vec<Check> = Vec::new();
     let mut act = |name: &str, state: &str, message: &str, next: &str| actions.push(check(name, state, message, next));
+    let missing: Vec<&str> = [("DOMAIN", domain), ("CF_ZONE_ID", zone)]
+        .into_iter()
+        .filter_map(|(key, value)| value.is_empty().then_some(key))
+        .collect();
+    if !missing.is_empty() {
+        let verb = if missing.len() == 1 { "is" } else { "are" };
+        act("config", "blocked", &format!("{} {verb} not set.", missing.join(" and ")), "Run cmail setup first.");
+    }
     let mut enabled = None;
-    if config.get("CF_SENDING_TOKEN").is_empty() {
+    let token = !config.get("CF_SENDING_TOKEN").is_empty();
+    if token {
+        act("token", "ready", "CF_SENDING_TOKEN is set, separate from CLOUDFLARE_API_TOKEN.", "");
+    } else {
         act(
             "token",
             "blocked",
             "CF_SENDING_TOKEN is not set.",
             "Run cmail sending enable in a terminal to create one, or cmail config set CF_SENDING_TOKEN --stdin.",
         );
+    }
+    if !token {
         act("sending", "manual", "Not checked: Email Sending state needs CF_SENDING_TOKEN.", "");
+    } else if !missing.is_empty() {
+        act("sending", "manual", "Not checked: Email Sending state needs DOMAIN and CF_ZONE_ID.", "");
     } else {
-        act("token", "ready", "CF_SENDING_TOKEN is set, separate from CLOUDFLARE_API_TOKEN.", "");
         let cf = Cf::sending(config)?;
-        let entries = cf.sending_subdomains(zone)?;
-        let state = find(&entries, domain)?.map(|(_, enabled)| enabled);
+        let entries = cf.sending_subdomains(zone, UNCHANGED)?;
+        let state = find(&entries, domain, false)?.map(|(_, enabled)| enabled);
         enabled = Some(state == Some(true));
         if state == Some(true) {
             act("sending", "ready", &format!("sending already enabled for {domain}"), "");
@@ -447,7 +473,9 @@ fn plan(config: &Config, domain: &str, zone: &str, mode: Dmarc) -> Result<()> {
         }
     }
     let mut dmarc = json!(null);
-    if enabled != Some(true) {
+    if domain.is_empty() {
+        act("dmarc", "manual", "Not checked: the _dmarc lookup needs DOMAIN.", "");
+    } else if enabled != Some(true) {
         act(
             "records",
             "planned",
@@ -497,11 +525,15 @@ fn plan(config: &Config, domain: &str, zone: &str, mode: Dmarc) -> Result<()> {
     }
     if ui::ctx().json {
         let blockers: Vec<&str> = actions.iter().filter(|a| a.state == "blocked").map(|a| a.message.as_str()).collect();
+        let domain = if domain.is_empty() { Value::Null } else { json!(domain) };
         let data = json!({"dry_run": true, "domain": domain, "dmarc": dmarc, "actions": checks_json(&actions),
                           "blockers": blockers});
         output::print(&envelope("sending enable", data));
     } else {
-        let title = format!("Read-only Email Sending plan for {domain}");
+        let title = match domain {
+            "" => "Read-only Email Sending plan (DOMAIN not set)".to_string(),
+            _ => format!("Read-only Email Sending plan for {domain}"),
+        };
         output::print(&checks_text(&ui::ctx().out, &title, &actions, None));
     }
     Ok(())

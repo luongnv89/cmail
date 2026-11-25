@@ -33,6 +33,8 @@ RECORDS = [
     {'type': 'TXT', 'name': 'cf-bounce._domainkey.example.com', 'content': 'v=DKIM1; h=sha256; k=rsa; p=MIIB'},
 ]
 NONE_RECORD = 'Type: TXT   Name: _dmarc   Content: v=DMARC1; p=none;'
+UNCONFIRMED = ('the onboarding request was sent but its result could not be confirmed — check Compute > Email '
+               'Service > Email Sending (and the _dmarc record) in the Cloudflare dashboard before rerunning')
 EXPLANATION = ("Gmail \"Send mail as\" delivers through Google's servers, which can't sign with your domain's "
                "Cloudflare DKIM key, and your SPF only lists Cloudflare.")
 
@@ -238,6 +240,24 @@ class Responses(Sending):
                 self.expect(self.run_tty(answer='y\n'), code, text)
         self.assertEqual(self.writes(), [])
 
+    def test_malformed_read_back_after_the_post_never_claims_nothing_changed(self):
+        cases = [
+            ({'success': True}, 'no sending-subdomain list (missing result)'),
+            (ok([{'tag': 't1', 'enabled': True}]), 'sending subdomain without a name'),
+            (ok([{'tag': 't1', 'name': 'example.com'}]), 'without a valid enabled state'),
+        ]
+        for read_back, text in cases:
+            with self.subTest(text=text):
+                self.fixtures[LIST] = {'_sequence': [ok([]), read_back]}
+                self.save()
+                self.api.counts.clear()
+                self.calls.unlink(missing_ok=True)
+                result = self.run_tty(answer='y\n')
+                self.expect(result, 1, text, UNCONFIRMED)
+                self.assertNotIn('nothing was changed', result.stdout + result.stderr)
+                self.assertNotIn('Email Sending enabled', result.stdout + result.stderr)
+                self.assertEqual(self.writes(), [POST])
+
     def test_missing_read_back_id_or_dns_fields_skip_with_a_message(self):
         untagged = {'name': 'example.com', 'enabled': True}
         cases = [
@@ -431,9 +451,35 @@ class Modes(Sending):
 
     def test_json_needs_dry_run_and_setup_values(self):
         self.expect(self.run_pipe('--format', 'json', 'sending', 'enable'), 2, 'requires --dry-run')
-        self.write_config(BASE.replace('CF_ZONE_ID=' + ZONE + '\n', ''))
-        self.expect(self.run_pipe('sending', 'enable', '--dry-run'), 3, 'run cmail setup first')
+        self.write_config(BASE.replace('CF_ZONE_ID=' + ZONE + '\n', '') + 'CF_SENDING_TOKEN=' + SEND + '\n')
+        self.expect(self.run_pipe('sending', 'enable', '--dry-run'), 0, 'CF_ZONE_ID is not set.',
+                    'Run cmail setup first.')
+        self.expect(self.run_tty(), 3, 'run cmail setup first')
         self.assertEqual(self.read(self.calls), [])
+
+    def test_dry_run_reports_missing_setup_values_as_blocked(self):
+        self.write_config(BASE.replace('CF_ZONE_ID=' + ZONE + '\n', '') + 'CF_SENDING_TOKEN=' + SEND + '\n')
+        result = self.run_pipe('--format', 'json', 'sending', 'enable', '--dry-run')
+        self.expect(result, 0)
+        data = json.loads(result.stdout)['data']
+        actions = {a['name']: a for a in data['actions']}
+        self.assertEqual(actions['config']['state'], 'blocked')
+        self.assertIn('CF_ZONE_ID is not set.', data['blockers'])
+        self.assertEqual(actions['sending']['state'], 'manual')
+        self.assertEqual(data['domain'], 'example.com')
+        self.assertEqual(data['dmarc']['state'], 'present')
+        self.assertEqual(self.read(self.calls), [])
+        self.doh_calls.unlink()
+        self.write_config('CLOUDFLARE_API_TOKEN=' + MAIN + '\n')
+        result = self.run_pipe('--format', 'json', 'sending', 'enable', '--dry-run')
+        self.expect(result, 0)
+        data = json.loads(result.stdout)['data']
+        self.assertIsNone(data['domain'])
+        self.assertEqual(sorted(data['blockers']), ['CF_SENDING_TOKEN is not set.', 'DOMAIN and CF_ZONE_ID are not set.'])
+        self.assertEqual({a['name']: a['state'] for a in data['actions']},
+                         {'config': 'blocked', 'token': 'blocked', 'sending': 'manual', 'dmarc': 'manual'})
+        self.assertEqual(self.read(self.calls), [])
+        self.assertEqual(self.read(self.doh_calls), [])
 
 
 class ReceiveHints(Sending):

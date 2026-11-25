@@ -291,8 +291,9 @@ impl Cf {
         die(format!("Cloudflare API error: {method} {path} (HTTP {status}): {detail}"))
     }
 
-    /// Every Email Sending subdomain of a zone, across all pages.
-    pub fn sending_subdomains(&self, zone: &str) -> Result<Vec<Value>> {
+    /// Every Email Sending subdomain of a zone, across all pages. `after` ends a
+    /// malformed-answer message: what the caller has (or has not) already changed.
+    pub fn sending_subdomains(&self, zone: &str, after: &str) -> Result<Vec<Value>> {
         let mut records = Vec::new();
         let mut page = 1u64;
         loop {
@@ -301,7 +302,7 @@ impl Cf {
             }
             let response = self.get(&format!("/zones/{zone}/email/sending/subdomains?per_page=50&page={page}"))?;
             let Some(batch) = response.get("result").and_then(Value::as_array).cloned() else {
-                return die("Cloudflare returned no sending-subdomain list (missing result) — nothing was changed");
+                return die(format!("Cloudflare returned no sending-subdomain list (missing result) — {after}"));
             };
             let count = batch.len() as u64;
             records.extend(batch);
@@ -309,7 +310,7 @@ impl Cf {
             let pages =
                 if truthy(&total) { whole_number(&total) } else { Some(if count >= 50 { page + 1 } else { page }) };
             let Some(pages) = pages else {
-                return die("Cloudflare returned invalid sending-subdomain pagination — nothing was changed");
+                return die(format!("Cloudflare returned invalid sending-subdomain pagination — {after}"));
             };
             if page >= pages {
                 break;
